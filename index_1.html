@@ -1,0 +1,2723 @@
+<!DOCTYPE html>
+<!--
+  GESTIONALE INTERVENTI - versione online con accesso e ruoli (Firebase)
+
+  Questo file si usa così com'è: la configurazione del progetto Firebase è già inserita.
+  Va caricato come index.html sul sito (GitHub Pages) e richiede:
+   1. Firebase > Authentication: metodo "Email/password" attivo.
+   2. Firebase > Authentication > Settings > Authorized domains: l'indirizzo del sito
+      (es. nomeutente.github.io).
+   3. Firebase > Firestore Database > Rules: incollare il contenuto del file firestore.rules e pubblicare.
+   4. Primo accesso: registrarsi dalla pagina, poi in Firestore > raccolta "utenti" aprire il documento
+      con la propria email e impostare il campo ruolo = titolare (una sola volta).
+  Gli altri utenti si registrano dalla pagina e il titolare assegna il ruolo dal menu "Utenti".
+
+  Facoltativo: suggerimenti di indirizzo Geoapify (chiave nella costante GEOAPIFY_API_KEY).
+-->
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Gestionale interventi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F1F3F6; --surface:#FFFFFF; --surface2:#F6F8FA; --ink:#101826; --muted:#5A6678; --line:#DFE4EB;
+  --brand:#0B5FFF; --brand-ink:#FFFFFF; --brand-tint:#E4ECFF; --brand-text:#0A4BD1;
+  --ok:#0F9D63; --ok-tint:#E0F5EB; --ok-text:#0A6B43;
+  --warn:#E8A317; --warn-tint:#FFF3D6; --warn-text:#7A4B05;
+  --bad:#D92D4B; --bad-tint:#FDE6EA; --bad-text:#B01E38;
+  --shadow:0 1px 2px rgba(16,24,38,.05);
+  --font-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0B1018; --surface:#131B27; --surface2:#19232F; --ink:#E9EFF7; --muted:#97A3B6; --line:#243042;
+    --brand:#5B8CFF; --brand-ink:#08142E; --brand-tint:#16284A; --brand-text:#A5C0FF;
+    --ok:#3DD598; --ok-tint:#0F2F27; --ok-text:#7BE8B9;
+    --warn:#FFC15A; --warn-tint:#3A2A0A; --warn-text:#FFD58C;
+    --bad:#FF7A90; --bad-tint:#3B1620; --bad-text:#FF9DAE;
+    --shadow:0 1px 2px rgba(0,0,0,.4);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0B1018; --surface:#131B27; --surface2:#19232F; --ink:#E9EFF7; --muted:#97A3B6; --line:#243042;
+  --brand:#5B8CFF; --brand-ink:#08142E; --brand-tint:#16284A; --brand-text:#A5C0FF;
+  --ok:#3DD598; --ok-tint:#0F2F27; --ok-text:#7BE8B9;
+  --warn:#FFC15A; --warn-tint:#3A2A0A; --warn-text:#FFD58C;
+  --bad:#FF7A90; --bad-tint:#3B1620; --bad-text:#FF9DAE;
+  --shadow:0 1px 2px rgba(0,0,0,.4);
+}
+.c0{--wc:#2563EB}.c1{--wc:#0D9488}.c2{--wc:#D9480F}.c3{--wc:#7C3AED}
+.c4{--wc:#BE185D}.c5{--wc:#4D7C0F}.c6{--wc:#0E7490}.c7{--wc:#A16207}
+.c-none{--wc:var(--muted)}
+
+html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 120px)}
+*,*::before,*::after{box-sizing:inherit}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 15.5px/1.5 var(--font-body);-webkit-text-size-adjust:100%;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4,p,ol,dl,dd{margin:0}
+h1,h2,h3,h4{font-weight:600;letter-spacing:-.01em}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--brand);outline-offset:2px}
+.ic{flex:none;vertical-align:-3px}
+.muted{color:var(--muted)}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.nowrap{white-space:nowrap}
+.wrap{max-width:1240px;margin:0 auto;padding:0 20px}
+
+/* intestazione */
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:10;background:var(--surface);border-bottom:1px solid var(--line)}
+.bar{display:flex;align-items:center;gap:12px;padding:10px 0 4px}
+.mark{width:34px;height:34px;border-radius:9px;background:var(--ink);color:var(--surface);display:grid;place-items:center;flex:none}
+h1{font-size:19px;flex:1}
+#sync{display:inline-flex;align-items:center;gap:7px;font-size:13px;color:var(--muted)}
+#sync::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--muted)}
+#sync[data-s="online"]::before{background:var(--ok)}
+#sync[data-s="local"]::before{background:var(--warn)}
+.icon-btn{width:38px;height:38px;border-radius:9px;border:1px solid var(--line);background:var(--surface);display:grid;place-items:center;cursor:pointer}
+.icon-btn:hover{border-color:var(--muted)}
+nav.menu{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;margin:0 -8px}
+nav.menu::-webkit-scrollbar{display:none}
+nav.menu button{flex:none;min-height:46px;padding:0 14px;border:0;border-bottom:3px solid transparent;background:transparent;font-weight:500;color:var(--muted);cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:8px}
+nav.menu button:hover{color:var(--ink)}
+nav.menu button[aria-selected="true"]{color:var(--ink);font-weight:600;border-bottom-color:var(--brand)}
+.pill{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 6px;border-radius:999px;background:var(--surface2);border:1px solid var(--line);color:var(--ink);font-size:12.5px;font-weight:600}
+.pill.warn{background:var(--warn-tint);border-color:var(--warn);color:var(--warn-text)}
+
+main{padding:22px 0 64px}
+
+/* bottoni e campi */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:0 15px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;font-weight:500;text-decoration:none;cursor:pointer;line-height:1.1;text-align:center;transition:background .12s,border-color .12s}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:var(--brand-ink);font-weight:600}
+.btn.primary:hover{filter:brightness(1.07)}
+.btn.danger{color:var(--bad-text);border-color:var(--bad);background:transparent}
+.btn.small{min-height:36px;padding:0 12px;font-size:14px;border-radius:9px}
+.btn.ghost{background:transparent}
+.linkbtn{border:0;background:none;padding:0;font-weight:600;color:var(--ink);cursor:pointer;text-align:left;text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
+.linkbtn:hover{text-decoration-color:var(--brand)}
+.field{display:flex;flex-direction:column;gap:5px;margin-bottom:14px}
+.field>span{font-size:13px;color:var(--muted);font-weight:500}
+.field small{color:var(--muted);font-size:13px}
+input,select,textarea{width:100%;min-height:44px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface2);font-size:16px}
+input:focus,select:focus,textarea:focus{border-color:var(--brand);background:var(--surface)}
+textarea{min-height:90px;resize:vertical}
+.check{flex-direction:row;align-items:center;gap:10px}
+.check input{width:22px;height:22px;min-height:0;accent-color:var(--brand)}
+.check span{font-size:15.5px;color:var(--ink)}
+.fgrid{display:grid;gap:0 16px;grid-template-columns:1fr}
+@media (min-width:640px){.fgrid{grid-template-columns:repeat(2,1fr)}.fgrid .span2{grid-column:1/-1}}
+@media (min-width:900px){.fgrid.cols3{grid-template-columns:repeat(3,1fr)}}
+.form-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.swatches{border:0;padding:0;margin:0 0 14px;grid-column:1/-1}
+.swatches legend{font-size:13px;color:var(--muted);font-weight:500;padding:0;margin-bottom:6px}
+.swatches div{display:flex;gap:10px;flex-wrap:wrap}
+.sw{position:relative;display:block}
+.sw input{position:absolute;opacity:0;width:100%;height:100%;inset:0;margin:0;cursor:pointer}
+.sw span{display:block;width:32px;height:32px;border-radius:50%;background:var(--wc)}
+.sw input:checked+span{outline:3px solid var(--ink);outline-offset:2px}
+.sw input:focus-visible+span{outline:3px solid var(--brand);outline-offset:2px}
+
+/* struttura pagine */
+.pagehead{display:flex;justify-content:space-between;align-items:flex-end;gap:12px 20px;flex-wrap:wrap;margin-bottom:18px}
+.pagehead h2{font-size:26px;font-weight:600}
+.pagehead .sub{color:var(--muted);margin-top:2px}
+.pagehead.compact h2{font-size:19px}
+.page-title{font-size:22px;margin-bottom:14px}
+.datebar{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.datebar input[type=date]{width:auto;min-width:150px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px;box-shadow:var(--shadow)}
+.panel>h2,.panel-title{font-size:17px;margin-bottom:12px}
+.split{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.toolbar .grow{flex:1}
+.seg{display:inline-flex;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:3px;gap:2px}
+.seg button{border:0;background:transparent;min-height:34px;padding:0 13px;border-radius:7px;font-weight:500;color:var(--muted);cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--surface)}
+.seg.wide{display:flex}.seg.wide button{flex:1;justify-content:center}
+.edit-banner{background:var(--warn-tint);color:var(--warn-text);border-radius:10px;padding:9px 14px;margin-bottom:14px;font-weight:500}
+.notice{background:var(--warn-tint);color:var(--warn-text);border-radius:12px;padding:12px 16px;margin-bottom:16px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.empty{background:var(--surface);border:1px dashed var(--line);border-radius:14px;padding:26px 22px}
+.empty h3{font-size:18px;margin-bottom:4px}
+.empty p{color:var(--muted);margin-bottom:12px}
+
+/* indicatori */
+.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:16px}
+@media (min-width:720px){.kpis{grid-template-columns:repeat(4,1fr)}}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 16px}
+.kpi .l{font-size:13px;color:var(--muted);font-weight:500}
+.kpi .n{font-size:28px;font-weight:600;line-height:1.15;font-variant-numeric:tabular-nums}
+.kpi .s{font-size:13px;color:var(--muted)}
+.kpi.alert{background:var(--warn-tint);border-color:var(--warn)}
+.kpi.alert .l,.kpi.alert .s{color:var(--warn-text)}
+.dash{display:grid;gap:16px}
+@media (min-width:1000px){.dash{grid-template-columns:minmax(0,1.7fr) minmax(300px,1fr);align-items:start}}
+.dash .panel{margin-bottom:0}
+.stack{display:grid;gap:16px}
+.alerts{display:grid;gap:8px}
+.alert{display:flex;gap:12px;align-items:center;padding:9px 12px;border-radius:10px;background:var(--surface2)}
+.alert .ico{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;flex:none}
+.alert.warn .ico{background:var(--warn-tint);color:var(--warn-text)}
+.alert.bad .ico{background:var(--bad-tint);color:var(--bad-text)}
+.alert.ok .ico{background:var(--ok-tint);color:var(--ok-text)}
+.alert .msg{flex:1;font-size:14.5px}
+
+/* tabella */
+.tbl-wrap{overflow-x:auto;margin:0 -4px}
+table.tbl{width:100%;border-collapse:collapse;font-size:14.5px;min-width:560px}
+.tbl th{text-align:left;font-size:12.5px;font-weight:600;color:var(--muted);padding:6px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+.tbl td{padding:10px;border-bottom:1px solid var(--line);vertical-align:top}
+.tbl tr:last-child td{border-bottom:0}
+.tbl tr.st-fatto td{opacity:.7}
+.wtag{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+.stat{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;padding:2px 10px;border-radius:999px;background:var(--surface2);color:var(--muted);white-space:nowrap}
+.stat::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--muted)}
+.stat.st-in_corso{background:var(--brand-tint);color:var(--brand-text)}
+.stat.st-in_corso::before{background:var(--brand)}
+.stat.st-fatto{background:var(--ok-tint);color:var(--ok-text)}
+.stat.st-fatto::before{background:var(--ok)}
+
+/* avatar, barre, tag */
+.av{width:38px;height:38px;border-radius:50%;background:var(--wc,var(--muted));color:#fff;display:grid;place-items:center;font:600 14px var(--font-body);flex:none}
+.av.sm{width:30px;height:30px;font-size:12px}
+.meter{height:6px;border-radius:999px;background:var(--line);overflow:hidden}
+.meter i{display:block;height:100%;border-radius:999px;background:var(--wc,var(--brand))}
+.meter.over i{background:var(--bad)}
+.loadline{display:flex;justify-content:space-between;gap:8px;font-size:13px;color:var(--muted);margin:6px 0 4px}
+.loadline em{font-style:normal;font-weight:600;color:var(--ink)}
+.loadline.over em{color:var(--bad-text)}
+.progress{height:8px;background:var(--line);border-radius:999px;overflow:hidden;display:flex}
+.progress i{display:block;height:100%}
+.progress .d{background:var(--ok)}
+.progress .p{background:var(--brand)}
+.dotw{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--wc,var(--muted));flex:none}
+.tag{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;border-radius:999px;padding:1px 8px;margin:0 6px 0 0;vertical-align:middle;background:var(--surface2);color:var(--muted)}
+.tag.urgent{background:var(--bad-tint);color:var(--bad-text)}
+.tag.late{background:var(--warn-tint);color:var(--warn-text)}
+.tag.type{background:var(--brand-tint);color:var(--brand-text)}
+.tag.paused{margin-left:8px}
+.wl{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;align-items:center}
+.wl .av{grid-row:span 2}
+.lines{display:grid;gap:16px}
+
+/* righe compatte (Carica lavori, Archivio) */
+.rows{display:grid;gap:8px}
+.row{position:relative;display:flex;flex-wrap:wrap;gap:8px 14px;align-items:flex-start;padding:10px 14px 10px 18px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.row::before{content:"";position:absolute;left:0;top:10px;bottom:10px;width:4px;border-radius:0 4px 4px 0;background:var(--wc,var(--line))}
+.row.st-fatto{opacity:.72}
+.row-time{font:600 15px/1.5 var(--font-mono);min-width:56px}
+.row-main{flex:1 1 220px;min-width:0}
+.row-main small{display:block;color:var(--muted);font-size:13.5px}
+.row .acts{display:flex;gap:8px;flex-wrap:wrap}
+
+/* Assegna */
+.subnav{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.subnav button{min-height:42px;padding:0 15px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-weight:500;display:inline-flex;gap:8px;align-items:center;cursor:pointer}
+.subnav button:hover{border-color:var(--muted)}
+.subnav button[aria-selected="true"]{background:var(--ink);border-color:var(--ink);color:var(--surface);font-weight:600}
+.statline{display:flex;flex-wrap:wrap;gap:4px 24px;margin-bottom:14px;color:var(--muted)}
+.statline b{color:var(--ink);font-size:18px;font-weight:600;margin-right:5px;font-variant-numeric:tabular-nums}
+.statline .warnx b{color:var(--warn-text)}
+.notice .untimed{margin-top:8px}
+.wzctx{display:flex;gap:12px;align-items:center;padding:10px 12px;background:var(--surface2);border-radius:10px;margin-bottom:14px}
+.wzctx small{display:block;color:var(--muted);font-size:13.5px}
+.mini{display:flex;gap:10px;font-size:13.5px;color:var(--muted);padding:2px 0}
+.pick{display:grid;gap:8px;margin-bottom:14px}
+.pitem{display:flex;gap:12px;align-items:flex-start;padding:11px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface);cursor:pointer}
+.pitem:hover{border-color:var(--muted)}
+.pitem.sel{border-color:var(--brand);background:var(--brand-tint)}
+.pitem input{width:22px;height:22px;min-height:0;accent-color:var(--brand);margin-top:1px;flex:none}
+.pmain{flex:1;min-width:0}
+.pmain .t{display:flex;gap:4px 10px;flex-wrap:wrap;align-items:baseline}
+.pmain .t .mono{font-weight:600}
+.pmain small{display:block;color:var(--muted);font-size:13.5px}
+.pmain small.moved{color:var(--warn-text)}
+.wz-bar{position:sticky;bottom:calc(env(safe-area-inset-bottom,0px) + 8px);margin-top:16px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;box-shadow:0 -6px 18px rgba(16,24,38,.10)}
+.wz-sum{flex:1 1 260px;min-width:0}
+.wz-warn{font-size:13.5px;color:var(--warn-text);margin-top:3px;display:flex;gap:6px;align-items:center}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+
+/* planner: timeline */
+.tl{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow-x:auto;box-shadow:var(--shadow)}
+.tl-in{min-width:max-content}
+.tl-row{display:grid;grid-template-columns:212px auto;border-top:1px solid var(--line)}
+.tl-row.head{border-top:0;background:var(--surface2)}
+.tl-label{position:sticky;left:0;z-index:3;background:var(--surface);padding:10px 12px;border-right:1px solid var(--line)}
+.tl-row.head .tl-label{background:var(--surface2)}
+.tl-id{display:flex;gap:10px;align-items:center}
+.tl-id b{display:block;font-weight:600;line-height:1.2}
+.tl-id small{display:block;color:var(--muted);font-size:12.5px;line-height:1.3}
+.tl-label .loadline{margin:8px 0 4px}
+.untimed{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.uchip{border:1px dashed var(--muted);background:var(--surface);border-radius:999px;padding:1px 9px;font-size:12px;cursor:pointer;color:var(--ink)}
+.tl-hours{position:relative;height:32px}
+.tl-hours span{position:absolute;top:7px;font:500 12px var(--font-mono);color:var(--muted);padding-left:6px}
+.tl-track{position:relative;background-image:linear-gradient(to right,var(--line) 1px,transparent 1px)}
+.off{position:absolute;top:0;bottom:0;background:repeating-linear-gradient(135deg,transparent 0 6px,color-mix(in srgb,var(--muted) 14%,transparent) 6px 12px);pointer-events:none}
+.now{position:absolute;top:0;bottom:0;width:2px;background:var(--bad);z-index:2;pointer-events:none}
+.tl-track.over{outline:2px dashed var(--brand);outline-offset:-2px}
+.blk{position:absolute;height:46px;border-radius:8px;padding:4px 8px;background:color-mix(in srgb,var(--wc) 16%,var(--surface));border:1px solid color-mix(in srgb,var(--wc) 45%,transparent);border-left:4px solid var(--wc);overflow:hidden;font-size:12.5px;line-height:1.3;cursor:pointer;text-align:left;color:var(--ink);z-index:1}
+.blk b{display:block;font:600 12px var(--font-mono)}
+.blk span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500}
+.blk.st-in_corso{box-shadow:inset 0 -3px 0 var(--brand)}
+.blk.st-fatto{opacity:.55;box-shadow:inset 0 -3px 0 var(--ok)}
+.blk.clash{outline:2px solid var(--bad);outline-offset:-2px}
+
+/* planner: elenco */
+.lanes{display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));align-items:start}
+.lane{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:var(--shadow)}
+.lane.over{outline:2px dashed var(--brand);outline-offset:2px}
+.lane-head{display:flex;gap:12px;align-items:center;padding:12px 14px 0;flex-wrap:wrap}
+.lane-id{flex:1;min-width:140px}
+.lane-id h3{font-size:16.5px;line-height:1.2}
+.lane-id .sub{color:var(--muted);font-size:13px}
+.lane-load{padding:0 14px 12px}
+.zone-actions{display:flex;gap:6px;flex-wrap:wrap}
+.zone-empty{color:var(--muted);font-size:14.5px;padding:12px 14px;border-top:1px solid var(--line)}
+.arow{display:flex;gap:10px;align-items:center;padding:10px 14px;border-top:1px solid var(--line)}
+.arow[draggable="true"]{cursor:grab}
+.arow.st-fatto{opacity:.75}
+.atime{font:600 13px/1.3 var(--font-mono);min-width:88px;color:var(--ink)}
+.amain{flex:1;min-width:0;text-align:left;background:none;border:0;padding:0;cursor:pointer}
+.amain strong{font-weight:600}
+.amain small{display:block;color:var(--muted);font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chip{display:inline-flex;align-items:center;gap:7px;min-height:32px;padding:0 11px;border-radius:999px;border:1px solid var(--line);background:var(--surface2);font-weight:500;font-size:13px;cursor:pointer;white-space:nowrap}
+.chip::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--muted)}
+span.chip{cursor:default}
+.st-in_corso .chip{background:var(--brand-tint);border-color:transparent;color:var(--brand-text)}
+.st-in_corso .chip::before{background:var(--brand)}
+.st-fatto .chip{background:var(--ok-tint);border-color:transparent;color:var(--ok-text)}
+.st-fatto .chip::before{background:var(--ok)}
+
+/* lavoratori */
+.workers{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+.worker{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:6px;box-shadow:var(--shadow)}
+.worker.paused{opacity:.7}
+.worker .head{display:flex;gap:12px;align-items:center}
+.worker h3{font-size:17px;line-height:1.2}
+.worker .meta{color:var(--muted);font-size:14.5px}
+.worker .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+
+/* compilazione da messaggio */
+details.smart{border:1px solid var(--line);border-radius:12px;background:var(--surface2);padding:0 14px;margin-bottom:16px}
+details.smart summary{min-height:46px;display:flex;align-items:center;gap:10px;font-weight:600;cursor:pointer;list-style:none}
+details.smart summary::-webkit-details-marker{display:none}
+details.smart[open] summary{border-bottom:1px solid var(--line);margin-bottom:12px}
+details.smart .inner{padding-bottom:14px}
+details.smart textarea{background:var(--surface)}
+
+/* suggerimenti indirizzo */
+.field>.lbl{font-size:13px;color:var(--muted);font-weight:500}
+.ac{position:relative}
+.ac-list{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:15;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 28px rgba(16,24,38,.16);padding:4px;max-height:300px;overflow:auto}
+.ac-item{display:flex;gap:10px;align-items:center;min-height:44px;padding:6px 10px;border-radius:8px;cursor:pointer}
+.ac-item .ic{color:var(--muted)}
+.ac-item span{flex:1;min-width:0;overflow-wrap:anywhere}
+.ac-item b{font-weight:700}
+.ac-item small{color:var(--muted);font-size:12.5px;white-space:nowrap}
+.ac-item:hover,.ac-item[aria-selected="true"]{background:var(--brand-tint)}
+.ac-attr{padding:6px 10px 4px;font-size:11.5px;color:var(--muted);text-align:right}
+.ac-attr a{color:inherit;text-decoration:underline}
+
+/* fasce orarie */
+fieldset.field{border:0;padding:0;margin:0 0 14px;min-width:0}
+legend.lbl{padding:0;margin-bottom:5px}
+.seg label{position:relative;min-height:34px;padding:0 13px;border-radius:7px;font-weight:500;color:var(--muted);cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+.seg.wide label{flex:1}
+.seg label input{position:absolute;opacity:0;inset:0;width:100%;height:100%;min-height:0;margin:0;cursor:pointer}
+.seg label:has(input:checked){background:var(--ink);color:var(--surface)}
+.seg label:has(input:focus-visible){outline:3px solid var(--brand);outline-offset:1px}
+.fx{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow-x:auto;box-shadow:var(--shadow)}
+.fx-in{min-width:640px}
+.fx-row{display:grid;grid-template-columns:210px 1fr 1fr;border-top:1px solid var(--line)}
+.fx-row.head{border-top:0;background:var(--surface2)}
+.fx-label{padding:10px 12px;border-right:1px solid var(--line)}
+.fx-row.head .fx-label{display:flex;align-items:center}
+.fx-h{padding:10px 12px;font-weight:600;border-right:1px solid var(--line)}
+.fx-h:last-child,.fx-cell:last-child{border-right:0}
+.fx-cell{padding:8px;border-right:1px solid var(--line);display:grid;gap:8px;align-content:start;min-height:96px}
+.fx-cell.over{outline:2px dashed var(--brand);outline-offset:-2px}
+.fx-sum{font-size:12.5px;color:var(--muted);font-weight:600}
+.fx-empty{color:var(--muted);padding:2px 4px}
+.fjob{position:relative;background:color-mix(in srgb,var(--wc) 13%,var(--surface));border:1px solid color-mix(in srgb,var(--wc) 35%,transparent);border-left:4px solid var(--wc);border-radius:9px;padding:6px 9px;font-size:13.5px;line-height:1.3;cursor:pointer;display:grid;gap:1px}
+.fjob b{font-weight:600}.fjob b span{font-weight:500;color:var(--muted)}
+.fjob small{color:var(--muted);font-size:12.5px}
+.fjob em{font-style:normal;font-size:11.5px;font-weight:700;color:var(--bad-text)}
+.fjob.st-in_corso{box-shadow:inset 0 -3px 0 var(--brand)}
+.fjob.st-fatto{opacity:.6;box-shadow:inset 0 -3px 0 var(--ok)}
+.fgroup{padding:7px 14px;background:var(--surface2);border-top:1px solid var(--line);font-size:12.5px;font-weight:700;color:var(--muted)}
+.tipi{display:grid;gap:8px;margin-bottom:12px}
+.tipo-row{display:grid;grid-template-columns:1fr 110px auto;gap:8px;align-items:center}
+.tipo-row input,.tipo-row select{min-height:42px}
+details.smart-panel summary{min-height:30px;display:flex;align-items:center;gap:10px;font-weight:600;cursor:pointer;list-style:none}
+details.smart-panel summary::-webkit-details-marker{display:none}
+details.smart-panel[open] summary{margin-bottom:12px}
+.row-time{font:600 13.5px/1.5 var(--font-body);min-width:84px;color:var(--muted)}
+.mini span:first-child{min-width:78px}
+/* anagrafica e pre-fatturazione */
+.tipo-row{grid-template-columns:1fr 110px 84px auto}
+@media (max-width:560px){.tipo-row{grid-template-columns:1fr 1fr}.tipo-row input:first-child{grid-column:1/-1}}
+.closebox{background:var(--surface2);border:1px solid var(--line);border-radius:12px;padding:12px 14px 4px;margin:0 0 14px}
+.closebox h4{font-size:15px;margin-bottom:10px}
+.pfgroup .tags{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px}
+.pfgroup .tags .tag{margin:0}
+.pf-total{text-align:right;font-size:22px;font-weight:600;line-height:1.1;font-variant-numeric:tabular-nums}
+.pf-total small{display:block;font-size:12px;color:var(--muted);font-weight:500}
+.pf-rows{display:grid;gap:8px;margin:10px 0 14px}
+.pf-row{display:flex;gap:12px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);border-radius:10px;cursor:pointer;background:var(--surface)}
+.pf-row:hover{border-color:var(--muted)}
+.pf-row input{width:22px;height:22px;min-height:0;accent-color:var(--brand);margin-top:2px;flex:none}
+.pf-main{flex:1;min-width:0}
+.pf-main small{display:block;color:var(--muted);font-size:13.5px}
+.pf-imp{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.pf-imp .tag{margin:0}
+.pf-foot{display:flex;gap:14px 18px;align-items:flex-end;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:12px}
+.pf-foot .field select{min-width:210px}
+.pf-sum{display:flex;gap:6px 16px;flex-wrap:wrap;flex:1;min-width:200px;color:var(--muted);font-variant-numeric:tabular-nums}
+.pf-sum strong{color:var(--ink)}
+/* accesso, lavoratore, utenti */
+.gate{min-height:calc(100dvh - 190px);display:grid;place-items:center;padding:8px 0}
+.gate-card{width:100%;max-width:420px;margin:0}
+.gate-brand{display:flex;gap:12px;align-items:center;margin-bottom:14px}
+.gate-brand h2{font-size:21px}
+.gate-links{display:flex;gap:6px 16px;flex-wrap:wrap;margin-top:14px;font-size:14.5px}
+.w-group{border:1px solid var(--line);border-radius:10px;margin:14px 0 10px}
+.w-job{position:relative;background:var(--surface);border:1px solid var(--line);border-left:5px solid var(--line);border-radius:14px;padding:14px 14px 14px 16px;margin-bottom:12px;display:grid;gap:10px;box-shadow:var(--shadow)}
+.w-job.st-in_corso{border-left-color:var(--brand)}
+.w-job.st-fatto{border-left-color:var(--ok);opacity:.88}
+.w-job h3{font-size:19px;line-height:1.25}
+.w-job .line{display:flex;gap:8px;align-items:flex-start;font-weight:500}
+.w-job .line .ic{margin-top:3px}
+.w-job .desc{background:var(--surface2);border-radius:10px;padding:8px 10px;font-size:15px}
+.w-job .seg button,.w-job .seg label{min-height:46px;font-size:15px}
+.w-job .job-actions{margin:0}
+.w-job .job-actions .btn{min-height:46px}
+.w-job textarea{min-height:64px}
+.user-ctl{display:flex;gap:12px;flex-wrap:wrap;flex:1 1 320px}
+.user-ctl .field{margin:0;min-width:170px;flex:1}
+/* scheda di dettaglio */
+.overlay{position:fixed;inset:0;z-index:20;background:rgba(10,16,24,.5);display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:var(--surface);width:100%;max-width:540px;max-height:92dvh;overflow:auto;border-radius:16px 16px 0 0;padding:18px 18px calc(18px + env(safe-area-inset-bottom,0px))}
+@media (min-width:720px){.overlay{align-items:center}.sheet{border-radius:14px}}
+@media (prefers-reduced-motion:no-preference){.sheet{animation:up .16s ease-out}@keyframes up{from{transform:translateY(20px);opacity:0}to{transform:none;opacity:1}}}
+.sheet-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:10px}
+.sheet-head h2{font-size:22px;line-height:1.2}
+.eyebrow{font:500 13px var(--font-mono);color:var(--muted);margin-bottom:2px}
+.sheet .tags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.sheet .tags .tag{margin:0}
+dl.info{display:grid;gap:10px;margin:12px 0}
+dl.info div{display:grid;grid-template-columns:96px 1fr;gap:10px}
+dl.info dt{color:var(--muted);font-size:13.5px;font-weight:500;padding-top:1px}
+dl.info dd{overflow-wrap:anywhere}
+.job-actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.job-actions .btn{flex:1 1 auto}
+
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--surface);padding:10px 12px 10px 16px;border-radius:10px;z-index:30;max-width:92vw;font-size:14.5px;display:flex;gap:12px;align-items:center}
+.toast button{border:0;background:color-mix(in srgb,var(--surface) 22%,transparent);color:var(--surface);font-weight:600;border-radius:7px;min-height:32px;padding:0 12px;cursor:pointer}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <div class="bar">
+      <div class="mark" id="mark" aria-hidden="true"></div>
+      <h1>Gestionale interventi</h1>
+      <span id="sync" data-s="pending">Collegamento…</span>
+      <button class="btn small ghost" id="logoutBtn" data-act="logout" hidden>Esci</button>
+      <button class="icon-btn" id="themeBtn" data-act="theme" aria-label="Cambia tema chiaro o scuro"></button>
+    </div>
+    <nav class="menu" id="menu" role="tablist" aria-label="Menu principale"></nav>
+  </div>
+</header>
+
+<main class="wrap" id="app"></main>
+
+<div class="overlay" id="overlay" hidden>
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dettaglio intervento"></div>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+(function(){
+'use strict';
+
+/* false: pagina pubblicata in Claude. true: versione da ospitare sul proprio sito (suggerimenti di indirizzo Geoapify). */
+const STANDALONE = true;
+
+/* ---------- icone ---------- */
+const ICONS = {
+  phone:'<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/>',
+  pin:'<path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/>',
+  clock:'<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  check:'<path d="M20 6 9 17l-5-5"/>',
+  zap:'<path d="M13 2 3 14h9l-1 8 10-12h-9z"/>',
+  users:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/>',
+  chat:'<path d="M21 11.5a8.4 8.4 0 0 1-12.2 7.5L3 21l2-5.6A8.4 8.4 0 1 1 21 11.5z"/>',
+  edit:'<path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+  trash:'<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>',
+  sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  moon:'<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
+  sparkles:'<path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8zM19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>',
+  alert:'<path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>',
+  copy:'<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+  download:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>',
+  left:'<path d="m15 18-6-6 6-6"/>',
+  right:'<path d="m9 18 6-6-6-6"/>',
+  x:'<path d="M18 6 6 18M6 6l12 12"/>',
+  grid:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+  timeline:'<path d="M3 6h10M7 12h14M3 18h8"/>',
+  list:'<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
+  archive:'<rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8M10 12h4"/>',
+  search:'<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+  contact:'<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="11" r="2.5"/><path d="M5.5 17a4 4 0 0 1 7 0M15 9h3M15 13h3"/>',
+  filetext:'<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/>',
+  building:'<rect x="4" y="3" width="16" height="18" rx="1"/><path d="M9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2"/>',
+  user:'<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>'
+};
+const ic = (n, s) => { s = s || 18; return `<svg class="ic" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n] || ''}</svg>`; };
+
+/* ---------- utilità ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const pad = n => String(n).padStart(2, '0');
+const iso = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const parseISO = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const shift = (s, n) => { const d = parseISO(s); d.setDate(d.getDate() + n); return iso(d); };
+const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+const todayISO = () => iso(new Date());
+const fmtLong = s => cap(parseISO(s).toLocaleDateString('it-IT', {weekday:'long', day:'numeric', month:'long', year:'numeric'}));
+const fmtShort = s => parseISO(s).toLocaleDateString('it-IT', {weekday:'short', day:'numeric', month:'short'});
+const digits = p => String(p || '').replace(/[^\d+]/g, '');
+const initials = n => String(n).trim().split(/\s+/).slice(0, 2).map(w => w.charAt(0).toUpperCase()).join('') || '?';
+const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+const fmtDur = m => { m = Number(m) || 0; if (!m) return ''; const h = Math.floor(m / 60), r = m % 60; return (h ? h + ' h' : '') + (r ? (h ? ' ' : '') + r + ' min' : ''); };
+const toMin = t => { const p = String(t).split(':').map(Number); return p[0] * 60 + (p[1] || 0); };
+const fmtMin = m => pad(Math.floor(m / 60)) + ':' + pad(m % 60);
+const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
+const STATI = {da_fare:'Da fare', in_corso:'In corso', fatto:'Fatto'};
+const NEXT = {da_fare:'in_corso', in_corso:'fatto', fatto:'da_fare'};
+const stOf = j => STATI[j.stato] ? j.stato : 'da_fare';
+const isActive = w => w.attivo !== false;
+const durOf = j => Number(j.durata) || 60;
+/* fasce orarie al posto degli orari */
+const FASCE = [['', 'Non indicata'], ['mattina', 'Mattina'], ['pomeriggio', 'Pomeriggio']];
+const FASCIA_LABEL = {mattina: 'Mattina', pomeriggio: 'Pomeriggio'};
+const FASCIA_ORD = {mattina: 1, pomeriggio: 2, '': 3};
+function fasciaOf(j){
+  if (j.fascia === 'mattina' || j.fascia === 'pomeriggio') return j.fascia;
+  if (j.ora && /^\d{1,2}:\d{2}$/.test(String(j.ora))) return toMin(j.ora) < 13 * 60 ? 'mattina' : 'pomeriggio';
+  return '';
+}
+const fasciaLabel = j => FASCIA_LABEL[fasciaOf(j)] || 'Senza fascia';
+const byFascia = (a, b) => FASCIA_ORD[fasciaOf(a)] - FASCIA_ORD[fasciaOf(b)] || (a.cliente || '').localeCompare(b.cliente || '');
+const byOra = byFascia;
+const tipoText = j => j.tipo ? j.tipo + (j.durata ? ' · ' + fmtDur(j.durata) : '') : (j.durata ? fmtDur(j.durata) : '');
+function colorOf(w){
+  if (!w) return -1;
+  if (Number.isInteger(w.colore)) return ((w.colore % 8) + 8) % 8;
+  let h = 0; for (const c of String(w.id)) h = (h * 31 + c.charCodeAt(0)) | 0;
+  return Math.abs(h) % 8;
+}
+const cls = w => w ? 'c' + colorOf(w) : 'c-none';
+/* giornata di lavoro standard: 8 ore di capacità per ogni lavoratore */
+const DAY_CAP = 480;
+const capOf = () => DAY_CAP;
+
+/* ---------- stato ---------- */
+let workers = [], jobs = [], tipi = [], clienti = [], prefatture = [], azienda = {};
+let view = 'panoramica', mounted = null;
+let assMode = (window.innerWidth >= 900) ? 'fasce' : 'elenco';
+let date = todayISO();
+let datePicked = false;
+let canWrite = true;
+let usingDb = false, dbh = null;
+let detailId = null;
+let anaTab = 'privato', anaQ = '', cliFormOpen = false, editingClienteId = null, cliPrefill = null;
+let pfOff = new Set(), pfIva = {};
+let assSub = 'giornata';
+let wzWorker = '', wzDate = todayISO(), wzOther = false, wzSel = new Set();
+let editingJobId = null, draftJob = null, editingWorkerId = null;
+const flt = {q:'', da:'', a:'', stato:'', w:''};
+
+const workerMap = () => Object.fromEntries(workers.map(w => [w.id, w]));
+const dayJobs = d => jobs.filter(j => j.data === d).sort(byOra);
+const unassignedOf = (list, wById) => list.filter(j => !wById[j.workerId]);
+const sortedWorkers = () => workers.slice().sort((a, b) => a.nome.localeCompare(b.nome));
+const loadOf = (w, day) => day.filter(j => j.workerId === w.id).reduce((s, j) => s + durOf(j), 0);
+const pctOf = (w, day) => Math.round(loadOf(w, day) / capOf(w) * 100);
+
+/* apre in automatico il giorno di lavoro che ha interventi */
+function pickInitialDate(){
+  if (datePicked || !jobs.length) return;
+  datePicked = true;
+  const t = todayISO();
+  if (jobs.some(j => j.data === t)) return;
+  const dates = [...new Set(jobs.map(j => j.data))].sort();
+  date = dates.find(d => d > t) || dates[dates.length - 1];
+}
+
+/* ---------- logica "smart" ---------- */
+
+/* tipi di intervento: ognuno ha la sua durata */
+const TIPI_DEFAULT = [
+  {id: 't-sopralluogo', nome: 'Sopralluogo', durata: 30, prezzo: 50},
+  {id: 't-motore-cancello', nome: 'Installazione motore cancello', durata: 120, prezzo: 400},
+  {id: 't-sbarra', nome: 'Installazione sbarra', durata: 120, prezzo: 400},
+  {id: 't-riparazione', nome: 'Riparazione', durata: 60, prezzo: 200}
+];
+const DUR_CHOICES = [15, 30, 45, 60, 90, 120, 150, 180, 240, 300, 360, 480];
+const getTipi = () => tipi.length ? tipi : TIPI_DEFAULT;
+function ensureTipiSeeded(){
+  if (tipi.length) return;
+  tipi = TIPI_DEFAULT.map(t => Object.assign({}, t));
+  tipi.forEach(t => persist('tipi', t));
+}
+const fasciaLoad = (w, day, f) => day.filter(j => j.workerId === w.id && fasciaOf(j) === f).reduce((s, j) => s + durOf(j), 0);
+function suggest(j, day){
+  const act = workers.filter(isActive);
+  if (!act.length) return null;
+  const f = fasciaOf(j);
+  const score = w => loadOf(w, day) / capOf(w) + (f ? fasciaLoad(w, day, f) / (capOf(w) / 2) : 0);
+  const best = act.slice().sort((a, b) => score(a) - score(b) || a.nome.localeCompare(b.nome))[0];
+  return {w: best};
+}
+function autoAssign(){
+  const wById = workerMap();
+  const day = dayJobs(date);
+  const un = unassignedOf(day, wById).sort((a, b) => (b.priorita === 'urgente') - (a.priorita === 'urgente') || byFascia(a, b));
+  if (!un.length || !workers.some(isActive)) return;
+  un.forEach(j => { const s = suggest(j, day); if (!s) return; j.workerId = s.w.id; persist('interventi', j); });
+  render();
+  toast(plural(un.length, 'intervento assegnato', 'interventi assegnati') + '.');
+}
+
+/* compilazione automatica da un messaggio incollato */
+function parseText(raw){
+  const out = {};
+  let s = String(raw || '').replace(/\r/g, '');
+  const today = new Date();
+  let m = s.match(/https?:\/\/(?:www\.)?(?:google\.[a-z.]+\/maps|maps\.app\.goo\.gl|goo\.gl\/maps|maps\.google\.[a-z.]+)\S*/i);
+  if (m) { out.maps = m[0].replace(/[).,;]+$/, ''); s = s.replace(m[0], ' '); }
+  m = s.match(/(-?\d{1,2}\.\d{3,})\s*,\s*(-?\d{1,3}\.\d{3,})/);
+  if (m) { if (!out.maps) out.maps = m[1] + ', ' + m[2]; s = s.replace(m[0], ' '); }
+  m = s.match(/\b(oggi|domani|dopodomani)\b/i);
+  if (m) { out.data = shift(todayISO(), {oggi:0, domani:1, dopodomani:2}[m[1].toLowerCase()]); s = s.replace(m[0], ' '); }
+  else {
+    m = s.match(/\b(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?\b/) || s.match(/\b(\d{1,2})\.(\d{1,2})\.(\d{2,4})\b/);
+    if (m) {
+      const dd = +m[1], mm = +m[2]; let yy = m[3] ? +m[3] : today.getFullYear(); if (yy < 100) yy += 2000;
+      if (dd >= 1 && dd <= 31 && mm >= 1 && mm <= 12) { out.data = yy + '-' + pad(mm) + '-' + pad(dd); s = s.replace(m[0], ' '); }
+    }
+  }
+  /* fascia oraria: dalle parole mattina/pomeriggio oppure da un orario */
+  if (/\w*mattin\w*/i.test(s)) { out.fascia = 'mattina'; s = s.replace(/\w*mattin\w*/ig, ' '); }
+  else if (/\w*pomerigg\w*/i.test(s)) { out.fascia = 'pomeriggio'; s = s.replace(/\w*pomerigg\w*/ig, ' '); }
+  m = s.match(/\b(?:alle(?:\s+ore)?|ore|h)\s*(\d{1,2})(?:\s*[:.h]\s*(\d{2}))?\b/i);
+  let hh = null, mi = 0;
+  if (m) { hh = +m[1]; mi = m[2] ? +m[2] : 0; }
+  else { m = s.match(/\b([01]?\d|2[0-3])[:h]([0-5]\d)\b/); if (m) { hh = +m[1]; mi = +m[2]; } }
+  if (m && hh !== null && hh <= 23 && mi <= 59) { if (!out.fascia) out.fascia = hh < 13 ? 'mattina' : 'pomeriggio'; s = s.replace(m[0], ' '); }
+  const phones = s.match(/(?:\+|00)?\d[\d\s().\-]{6,}\d/g) || [];
+  for (const p of phones) {
+    const n = p.replace(/\D/g, '');
+    if (n.length >= 8 && n.length <= 13) { out.telefono = p.trim().replace(/\s+/g, ' '); s = s.replace(p, ' '); break; }
+  }
+  if (/urgent/i.test(s)) { out.priorita = 'urgente'; s = s.replace(/\burgent\w*/ig, ' '); }
+  m = s.match(/\b(?:via|viale|piazza|piazzale|corso|largo|vicolo|strada|contrada|località)\s+[^\n]+/i);
+  if (m) {
+    let v = m[0].split(/\s[-–]\s/)[0].replace(/\s{2,}/g, ' ');
+    v = v.replace(/(?:[\s,;.\-–]|\b(?:il|alle|ore|del|dal|per|e)\b)+$/i, '').trim();
+    out.via = v; s = s.replace(m[0], ' ');
+  }
+  m = s.match(/(?:[Cc]liente|[Nn]ome|[Ss]ignor[ae]?|[Ss]ig\.ra|[Ss]ig\.)\s*[:\-]?\s*([A-ZÀ-Ý][\p{L}'’]+(?:\s+[A-ZÀ-Ý][\p{L}'’]+){0,2})/u);
+  if (m) out.cliente = m[1].trim();
+  else {
+    /* nome da solo su una riga, oppure primo pezzo prima della virgola (es. "Mario Rossi, via Roma 3…") */
+    const line = s.split(/[\n,;]/).map(x => x.trim()).find(x => /^[A-ZÀ-Ý][\p{L}'’]+(?:\s+[A-ZÀ-Ý][\p{L}'’]+){0,3}$/u.test(x));
+    if (line) out.cliente = line;
+  }
+  /* tipo di intervento: se il messaggio contiene il nome di un tipo (es. "sopralluogo") */
+  const nr = norm(raw);
+  const tp = getTipi().slice().sort((a, b) => b.nome.length - a.nome.length).find(t => nr.includes(norm(t.nome)));
+  if (tp) out.tipo = tp.nome;
+  const t = String(raw || '').trim();
+  if (t) out.descrizione = t.slice(0, 800);
+  return out;
+}
+
+/* ---------- indirizzi: suggerimenti e link Google Maps automatico ---------- */
+const CITIES = ['Agrigento','Alessandria','Ancona','Aosta','Arezzo','Ascoli Piceno','Asti','Avellino','Bari','Barletta','Belluno','Benevento','Bergamo','Biella','Bologna','Bolzano','Brescia','Brindisi','Busto Arsizio','Cagliari','Caltanissetta','Campobasso','Caserta','Catania','Catanzaro','Cesena','Chieti','Cinisello Balsamo','Como','Cosenza','Cremona','Crotone','Cuneo','Enna','Ferrara','Firenze','Foggia','Forlì','Frosinone','Genova','Gorizia','Grosseto','Imperia','Isernia','L\'Aquila','La Spezia','Latina','Lecce','Lecco','Legnano','Livorno','Lodi','Lucca','Macerata','Mantova','Massa','Matera','Messina','Milano','Modena','Monza','Napoli','Novara','Nuoro','Oristano','Padova','Palermo','Parma','Pavia','Perugia','Pesaro','Pescara','Piacenza','Pisa','Pistoia','Pordenone','Potenza','Prato','Ragusa','Ravenna','Reggio Calabria','Reggio Emilia','Rho','Rieti','Rimini','Roma','Rovigo','Salerno','Sassari','Savona','Sesto San Giovanni','Siena','Siracusa','Sondrio','Taranto','Teramo','Terni','Torino','Trapani','Trento','Treviso','Trieste','Udine','Varese','Venezia','Verbania','Vercelli','Verona','Vibo Valentia','Vicenza','Viterbo'];
+const STREET_TYPES = ['Via','Viale','Piazza','Piazzale','Corso','Largo','Vicolo','Strada','Contrada','Località','Lungomare','Lungotevere','Borgo','Salita','Traversa','Circonvallazione'];
+const normChar = c => { const n = c.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); return n.length === 1 ? n : (c.toLowerCase().charAt(0) || c); };
+const norm = s => String(s == null ? '' : s).split('').map(normChar).join('');
+const genMapsLink = a => { a = String(a || '').trim(); return a ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(a) : ''; };
+let mapsAuto = true, mapsTimer = null, acItems = [], acActive = -1;
+let addrHook = null, acRemote = [], acRemoteFor = '', pickedVia = '';
+
+function addressBook(){
+  const map = new Map();
+  jobs.forEach(j => {
+    const via = String(j.via || '').trim();
+    if (!via) return;
+    const k = norm(via);
+    const e = map.get(k) || {via, maps:'', count:0, last:''};
+    e.count++;
+    if ((j.data || '') >= e.last) { e.last = j.data || ''; e.via = via; }
+    if (j.maps) e.maps = j.maps;
+    map.set(k, e);
+  });
+  return Array.from(map.values());
+}
+function suggestAddress(raw){
+  const text = String(raw || '');
+  const q = norm(text.trim());
+  if (q.length < 2) return [];
+  const tokens = q.split(/[\s,]+/).filter(Boolean);
+  const out = [];
+  addressBook().forEach(e => {
+    const n = norm(e.via);
+    if (n === q || !tokens.every(t => n.includes(t))) return;
+    out.push({text: e.via, maps: e.maps, kind: 'storico', score: (n.startsWith(q) ? 2000 : 0) + e.count * 10, meta: e.count > 1 ? 'usato ' + e.count + ' volte' : 'già usato'});
+  });
+  const ci = text.lastIndexOf(',');
+  if (ci >= 0) {
+    const head = text.slice(0, ci).trim(), tail = norm(text.slice(ci + 1).trim());
+    if (head && tail) CITIES.filter(c => { const n = norm(c); return n.startsWith(tail) && n !== tail; }).slice(0, 5)
+      .forEach(c => out.push({text: head + ', ' + c, maps: '', kind: 'città', score: 500, meta: 'città'}));
+  } else if (!/\s/.test(text.trim())) {
+    STREET_TYPES.filter(t => { const n = norm(t); return n.startsWith(q) && n !== q; })
+      .forEach(t => out.push({text: t + ' ', maps: '', kind: 'tipo', score: 100, meta: 'tipo di strada'}));
+  }
+  return out.sort((a, b) => b.score - a.score).slice(0, 6);
+}
+function hl(text, tokens){
+  const n = norm(text);
+  const marks = new Array(text.length).fill(false);
+  tokens.forEach(t => {
+    if (!t) return;
+    let i = n.indexOf(t);
+    while (i >= 0) { for (let k = i; k < i + t.length; k++) marks[k] = true; i = n.indexOf(t, i + t.length); }
+  });
+  let out = '', open = false;
+  for (let i = 0; i < text.length; i++) {
+    if (marks[i] && !open) { out += '<b>'; open = true; }
+    else if (!marks[i] && open) { out += '</b>'; open = false; }
+    out += esc(text[i]);
+  }
+  return out + (open ? '</b>' : '');
+}
+function acClose(){
+  const via = $('#fVia'), list = $('#acList');
+  if (list) { list.hidden = true; list.innerHTML = ''; }
+  if (via) { via.setAttribute('aria-expanded', 'false'); via.removeAttribute('aria-activedescendant'); }
+  acItems = []; acActive = -1;
+}
+function acCompose(text){
+  const local = suggestAddress(text);
+  const remote = (addrHook && acRemoteFor === text) ? acRemote : [];
+  if (!remote.length) return local;
+  const hist = local.filter(s => s.kind === 'storico').slice(0, 3);
+  const seen = new Set(hist.map(s => norm(s.text)));
+  return hist.concat(remote.filter(s => !seen.has(norm(s.text)))).slice(0, 8);
+}
+function acRender(){
+  const via = $('#fVia'), list = $('#acList');
+  if (!via || !list) return;
+  acItems = acCompose(via.value); acActive = -1;
+  if (!acItems.length) { acClose(); return; }
+  const tokens = norm(via.value).split(/[\s,]+/).filter(Boolean);
+  list.innerHTML = acItems.map((s, i) => `<div class="ac-item" role="option" id="ac-${i}" data-i="${i}" aria-selected="false">${ic(s.kind === 'storico' ? 'clock' : 'pin', 16)}<span>${hl(s.text, tokens)}</span><small>${esc(s.meta)}</small></div>`).join('')
+    + (addrHook && acItems.some(s => s.kind === 'remote') ? '<div class="ac-attr">' + addrHook.attribution + '</div>' : '');
+  list.hidden = false;
+  via.setAttribute('aria-expanded', 'true');
+}
+function acRefresh(){
+  acRender();
+  if (addrHook) addrHook.query(($('#fVia') || {}).value || '');
+}
+function acMove(d){
+  if (!acItems.length) return;
+  acActive = acActive < 0 ? (d > 0 ? 0 : acItems.length - 1) : (acActive + d + acItems.length) % acItems.length;
+  document.querySelectorAll('.ac-item').forEach((el, i) => {
+    el.setAttribute('aria-selected', i === acActive ? 'true' : 'false');
+    if (i === acActive && el.scrollIntoView) el.scrollIntoView({block:'nearest'});
+  });
+  const via = $('#fVia'); if (via) via.setAttribute('aria-activedescendant', 'ac-' + acActive);
+}
+function setMaps(v){ const m = $('#fMaps'); if (m) m.value = v; updateMapsHint(); }
+function updateMapsHint(){
+  const h = $('#mapsHint'), m = $('#fMaps');
+  if (!h || !m) return;
+  const v = m.value.trim();
+  if (!v) { h.textContent = 'Si compila da solo mentre scrivi la via. Puoi anche incollare un link o le coordinate GPS.'; return; }
+  const href = /^https?:\/\//i.test(v) ? v : genMapsLink(v);
+  h.innerHTML = (mapsAuto ? 'Link creato in automatico dalla via. ' : 'Link o coordinate inseriti da te. ') + `<a href="${esc(href)}" target="_blank" rel="noopener">Verifica su Google Maps</a>`;
+}
+function scheduleMaps(now){
+  clearTimeout(mapsTimer);
+  const run = () => {
+    if (!mapsAuto) return;
+    const via = $('#fVia'); if (!via) return;
+    const v = via.value.trim();
+    if (v && v === pickedVia) return;
+    setMaps(v.length >= 6 && /\S+\s+\S+/.test(v) ? genMapsLink(v) : '');
+  };
+  if (now) run(); else mapsTimer = setTimeout(run, 450);
+}
+function acPick(i){
+  const s = acItems[i], via = $('#fVia');
+  if (!s || !via) return;
+  via.value = s.text;
+  if (s.kind === 'tipo') { acRefresh(); via.focus(); return; }
+  acClose();
+  clearTimeout(mapsTimer);
+  pickedVia = s.text.trim();
+  if (mapsAuto) setMaps(s.maps || genMapsLink(s.text)); else updateMapsHint();
+  via.focus();
+  if (s.kind === 'remote' && addrHook && addrHook.pick) {
+    addrHook.pick(s).then(r => {
+      if (!r || via.value.trim() !== s.text.trim()) return;
+      via.value = r.via; pickedVia = r.via.trim();
+      if (mapsAuto) setMaps(r.maps); else updateMapsHint();
+    }).catch(() => {});
+  }
+}
+
+/* ---------- salvataggio ---------- */
+const LS = 'gestionale-interventi-v1';
+function loadLocal(){
+  try { const r = localStorage.getItem(LS); if (r) { const o = JSON.parse(r); workers = o.workers || []; jobs = o.jobs || []; tipi = o.tipi || []; clienti = o.clienti || []; prefatture = o.prefatture || []; azienda = o.azienda || {}; } } catch(e){}
+}
+function saveLocal(){ try { localStorage.setItem(LS, JSON.stringify({workers, jobs, tipi, clienti, prefatture, azienda})); } catch(e){} }
+const chains = new Map();
+function enqueue(key, fn){
+  const p = (chains.get(key) || Promise.resolve()).then(fn).catch(() => toast('Salvataggio non riuscito. Riprova.'));
+  chains.set(key, p);
+}
+function startDb(db){
+  usingDb = true; dbh = db;
+  setSync('online');
+  db.collection('lavoratori').onSnapshot(s => { workers = s.docs.map(d => d.data()); render(); }, () => setSync('local'));
+  db.collection('clienti').onSnapshot(s => { clienti = s.docs.map(d => d.data()); render(); }, () => setSync('local'));
+  db.collection('prefatture').onSnapshot(s => { prefatture = s.docs.map(d => d.data()); render(); }, () => setSync('local'));
+  db.collection('impostazioni').onSnapshot(s => { azienda = s.docs.map(d => d.data()).find(x => x.id === 'azienda') || {}; render(); }, () => setSync('local'));
+  db.collection('tipi').onSnapshot(s => { tipi = s.docs.map(d => d.data()); render(); }, () => setSync('local'));
+  db.collection('interventi').onSnapshot(s => { jobs = s.docs.map(d => d.data()); pickInitialDate(); render(); }, () => setSync('local'));
+  (async () => {
+    try {
+      const u = await window.claude.use('user');
+      if (u && typeof u.can === 'function') { const c = await u.can('data.write'); if (c === false) { canWrite = false; render(); } }
+    } catch(e){}
+  })();
+}
+async function bootDb(attempt){
+  try {
+    if (window.claude && typeof window.claude.use === 'function') {
+      const db = await window.claude.use('db');
+      if (db) { startDb(db); return; }
+      setSync('local'); return;
+    }
+  } catch(e){}
+  if (attempt < 8) setTimeout(() => bootDb(attempt + 1), 500); else setSync('local');
+}
+
+/* ---------- tema ---------- */
+const THEME_KEY = 'gestionale-tema';
+function effectiveTheme(){
+  const a = document.documentElement.dataset.theme;
+  if (a) return a;
+  return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+function applyTheme(t){
+  if (t) document.documentElement.dataset.theme = t;
+  $('#themeBtn').innerHTML = ic(effectiveTheme() === 'dark' ? 'sun' : 'moon', 20);
+}
+function toggleTheme(){
+  const n = effectiveTheme() === 'dark' ? 'light' : 'dark';
+  try { localStorage.setItem(THEME_KEY, n); } catch(e){}
+  applyTheme(n);
+}
+
+/* ---------- link utili ---------- */
+function mapsHref(j){
+  const m = (j.maps || '').trim();
+  if (/^https?:\/\//i.test(m)) return m;
+  const q = m || j.via || '';
+  return q ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q) : '';
+}
+function waHref(w, list){
+  let n = digits(w.telefono);
+  if (n.startsWith('+')) n = n.slice(1); else if (n.startsWith('00')) n = n.slice(2); else n = '39' + n;
+  const out = ['Ciao ' + w.nome + ', ecco i tuoi interventi di ' + fmtLong(date) + ':', ''];
+  let last = null, i = 0;
+  list.slice().sort(byFascia).forEach(j => {
+    const f = fasciaOf(j);
+    if (f !== last) { out.push('*' + (FASCIA_LABEL[f] || 'Senza fascia oraria').toUpperCase() + '*'); last = f; }
+    i++;
+    const dur = fmtDur(j.durata);
+    out.push(i + ') ' + (j.tipo || 'Intervento') + (dur ? ' (' + dur + ')' : '') + (j.priorita === 'urgente' ? ' - URGENTE' : ''));
+    out.push('Cliente: ' + j.cliente);
+    out.push(j.via);
+    if (j.telefono) out.push('Tel: ' + j.telefono);
+    out.push('Mappa: ' + mapsHref(j));
+    if (j.descrizione) out.push(j.descrizione);
+    out.push('');
+  });
+  return 'https://wa.me/' + n + '?text=' + encodeURIComponent(out.join('\n').trim());
+}
+
+/* ---------- componenti ---------- */
+function dateBar(){
+  return `<div class="datebar">
+    <button class="btn" data-act="prev" aria-label="Giorno precedente">${ic('left')}</button>
+    <input type="date" id="dateInput" value="${esc(date)}" aria-label="Data">
+    <button class="btn" data-act="next" aria-label="Giorno successivo">${ic('right')}</button>
+    <button class="btn" data-act="oggi">Oggi</button></div>`;
+}
+function pageHead(title, compact){
+  return `<div class="pagehead${compact ? ' compact' : ''}"><div><h2>${title}</h2><p class="sub">${esc(fmtLong(date))}</p></div>${dateBar()}</div>`;
+}
+function progress(done, prog, total){
+  if (!total) return '<div class="progress"></div>';
+  return `<div class="progress" role="img" aria-label="${done} completati, ${prog} in corso, su ${total}"><i class="d" style="width:${done / total * 100}%"></i><i class="p" style="width:${prog / total * 100}%"></i></div>`;
+}
+function loadBlock(w, day){
+  const mins = loadOf(w, day), cap = capOf(w), pct = Math.round(mins / cap * 100);
+  return `<div class="loadline${mins > cap ? ' over' : ''}"><span>${esc(fmtDur(mins) || '0 h')} / ${esc(fmtDur(cap))}</span><em>${pct}%</em></div>
+    <div class="meter ${cls(w)}${mins > cap ? ' over' : ''}" role="img" aria-label="Carico ${pct}%"><i style="width:${Math.min(100, pct)}%"></i></div>`;
+}
+function kpi(label, n, sub, alert){
+  return `<div class="kpi${alert ? ' alert' : ''}"><div class="l">${label}</div><div class="n">${n}</div>${sub ? `<div class="s">${sub}</div>` : ''}</div>`;
+}
+function tagsOf(j){
+  return j.priorita === 'urgente' ? `<span class="tag urgent">${ic('zap', 12)}Urgente</span>` : '';
+}
+const subline = j => [tipoText(j), j.via].filter(Boolean).map(esc).join(' · ');
+
+/* riga compatta per Carica lavori e Archivio */
+function jobRow(j, ctx, withDate){
+  const w = ctx.wById[j.workerId];
+  const stato = stOf(j);
+  return `<div class="row ${cls(w)} st-${stato}">
+    <div class="row-time">${esc(fasciaLabel(j))}</div>
+    <div class="row-main"><strong>${esc(j.cliente)}</strong> ${tagsOf(j)}
+      <small>${subline(j)}</small>
+      <small>${withDate ? esc(fmtShort(j.data)) + ' · ' : ''}<i class="dotw"></i>${w ? esc(w.nome) : 'Da assegnare'} · ${STATI[stato]}</small></div>
+    ${canWrite ? `<div class="acts">
+      <button class="btn small" data-act="edit-job" data-id="${esc(j.id)}">${ic('edit', 16)}Modifica</button>
+      <button class="btn small ghost" data-act="dup-job" data-id="${esc(j.id)}">${ic('copy', 16)}Duplica</button></div>` : ''}
+  </div>`;
+}
+
+/* ---------- menu ---------- */
+function renderMenu(){
+  const wById = workerMap();
+  const day = dayJobs(date);
+  const un = unassignedOf(day, wById).length;
+  const nb = canWrite ? billable().length : 0;
+  const items = [
+    ['panoramica', 'Panoramica', 'grid', ''],
+    ['carica', 'Carica lavori', 'plus', day.length ? `<span class="pill">${day.length}</span>` : '', true],
+    ['assegna', 'Assegna', 'timeline', un ? `<span class="pill warn" title="Da assegnare">${un}</span>` : ''],
+    ['lavoratori', 'Lavoratori', 'users', workers.length ? `<span class="pill">${workers.length}</span>` : ''],
+    ['anagrafica', 'Anagrafica', 'contact', clienti.length ? `<span class="pill">${clienti.length}</span>` : '', true],
+    ['prefat', 'Pre-fatturazione', 'filetext', nb ? `<span class="pill warn" title="Interventi da pre-fatturare">${nb}</span>` : '', true],
+    ['utenti', 'Utenti', 'users', (role === 'titolare' && pendingUsers()) ? `<span class="pill warn" title="In attesa di abilitazione">${pendingUsers()}</span>` : '', true],
+    ['archivio', 'Finder', 'search', '']
+  ];
+  $('#menu').innerHTML = items.filter(i => (canWrite || !i[4]) && (i[0] !== 'utenti' || role === 'titolare')).map(i =>
+    `<button role="tab" data-act="go" data-view="${i[0]}" aria-selected="${view === i[0]}">${ic(i[2], 18)}${i[1]}${i[3]}</button>`).join('');
+}
+function render(){
+  if (gateRender()) return;
+  if (!canWrite && (view === 'carica' || view === 'anagrafica' || view === 'prefat')) view = 'panoramica';
+  if (view === 'utenti' && role !== 'titolare') view = 'panoramica';
+  renderMenu();
+  if (view === 'carica') { if (mounted !== 'carica') { mountCarica(); mounted = 'carica'; } refreshCarica(); }
+  else if (view === 'lavoratori') { if (mounted !== 'lavoratori') { mountLavoratori(); mounted = 'lavoratori'; } refreshLavoratori(); }
+  else if (view === 'anagrafica') { if (mounted !== 'anagrafica') { mountAnagrafica(); mounted = 'anagrafica'; } refreshAnagrafica(); }
+  else if (view === 'prefat') { if (mounted !== 'prefat') { mountPrefat(); mounted = 'prefat'; } refreshPrefat(); }
+  else if (view === 'utenti') { mounted = null; $('#app').innerHTML = viewUtenti(); }
+  else if (view === 'archivio') { if (mounted !== 'archivio') { mountArchivio(); mounted = 'archivio'; } refreshArchivio(); }
+  else { mounted = null; $('#app').innerHTML = view === 'assegna' ? viewAssegna() : viewPanoramica(); }
+  renderDetail();
+}
+function setStato(id, st){
+  const j = jobs.find(x => x.id === id);
+  if (!j || !STATI[st]) return;
+  j.stato = st;
+  let msg = '';
+  if (st === 'fatto' && canWrite && (j.importo === undefined || j.importo === null || j.importo === '')) {
+    j.importo = prezzoOf(j.tipo);
+    msg = j.importo > 0 ? `Intervento chiuso: ${fmtEur(j.importo)} da pre-fatturare.` : 'Intervento chiuso: inserisci l’importo nella scheda per la pre-fattura.';
+  }
+  persist('interventi', j); render();
+  if (msg) toast(msg);
+}
+
+/* ---------- Panoramica ---------- */
+function jobTable(day, ctx){
+  if (!day.length) return '<p class="muted">Nessun intervento in programma per questa data.</p>';
+  return `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Fascia</th><th>Cliente</th><th>Intervento</th><th>Indirizzo</th><th>Lavoratore</th><th>Stato</th></tr></thead><tbody>` +
+    day.map(j => {
+      const w = ctx.wById[j.workerId], st = stOf(j);
+      return `<tr class="st-${st}"><td class="nowrap">${esc(fasciaLabel(j))}</td>
+        <td><button class="linkbtn" data-act="open-job" data-id="${esc(j.id)}">${esc(j.cliente)}</button> ${tagsOf(j)}</td>
+        <td>${esc(tipoText(j) || '—')}</td>
+        <td>${esc(j.via)}</td>
+        <td>${w ? `<span class="wtag ${cls(w)}"><i class="dotw"></i>${esc(w.nome)}</span>` : '<span class="muted">Da assegnare</span>'}</td>
+        <td><span class="stat st-${st}">${STATI[st]}</span></td></tr>`;
+    }).join('') + `</tbody></table></div>`;
+}
+function viewPanoramica(){
+  const wById = workerMap();
+  const day = dayJobs(date);
+  const un = unassignedOf(day, wById);
+  const ctx = {wById, day};
+  const n = day.length;
+  const f = day.filter(j => stOf(j) === 'fatto').length;
+  const c = day.filter(j => stOf(j) === 'in_corso').length;
+  let h = pageHead('Panoramica');
+  h += `<div class="kpis">${kpi('Interventi del giorno', n)}${kpi('Da assegnare', un.length, un.length ? 'Richiede attenzione' : 'Tutti assegnati', un.length > 0)}${kpi('In corso', c)}${kpi('Completati', f, n ? Math.round(f / n * 100) + '% della giornata' : '')}</div>`;
+  const lm = localMig();
+  if (lm) h += `<div class="notice"><span>Ho trovato dati salvati solo su questo dispositivo (${plural((lm.jobs || []).length, 'intervento', 'interventi')}, ${plural((lm.workers || []).length, 'lavoratore', 'lavoratori')}). Vuoi importarli nell’archivio online?</span><div class="zone-actions"><button class="btn small primary" data-act="migra-locale">Importa nell’archivio online</button><button class="btn small ghost" data-act="migra-ignora">Non ora</button></div></div>`;
+  if (canWrite && !workers.length) {
+    h += `<div class="notice"><span>Non ci sono ancora lavoratori inseriti.</span><button class="btn small" data-act="go" data-view="lavoratori">${ic('plus', 16)}Aggiungi lavoratore</button></div>`;
+  }
+  const al = [];
+  if (un.length) al.push(['warn', 'users', `${plural(un.length, 'intervento da assegnare', 'interventi da assegnare')}`, 'Assegna']);
+  const urg = day.filter(j => j.priorita === 'urgente' && stOf(j) !== 'fatto').length;
+  if (urg) al.push(['bad', 'zap', `${plural(urg, 'intervento urgente aperto', 'interventi urgenti aperti')}`, 'Vedi']);
+  workers.filter(isActive).forEach(w => { const m = loadOf(w, day); if (m > capOf(w)) al.push(['warn', 'alert', `${esc(w.nome)}: ${esc(fmtDur(m))} in programma, oltre le 8 ore`, 'Riequilibra']); });
+  if (canWrite) { const nb = billable(); if (nb.length) al.push(['warn', 'check', `${plural(nb.length, 'intervento fatto da pre-fatturare', 'interventi fatti da pre-fatturare')} (${fmtEur(nb.reduce((a, j) => a + importoOf(j), 0))})`, 'Pre-fatturazione', 'prefat']); }
+  if (role === 'titolare' && pendingUsers() > 0) al.push(['warn', 'users', `${plural(pendingUsers(), 'persona in attesa', 'persone in attesa')} di abilitazione`, 'Utenti', 'utenti']);
+  const alertsHtml = al.length
+    ? `<div class="alerts">` + al.map(a => `<div class="alert ${a[0]}"><div class="ico">${ic(a[1], 18)}</div><div class="msg">${a[2]}</div><button class="btn small" data-act="go" data-view="${a[4] || 'assegna'}">${a[3]}</button></div>`).join('') + `</div>`
+    : `<div class="alert ok"><div class="ico">${ic('check', 18)}</div><div class="msg">Nessuna anomalia rilevata.</div></div>`;
+  const rel = sortedWorkers().filter(w => isActive(w) || day.some(j => j.workerId === w.id));
+  const loadHtml = rel.length
+    ? `<div class="lines">` + rel.map(w => {
+        const l = day.filter(j => j.workerId === w.id);
+        return `<div class="wl ${cls(w)}"><div class="av">${esc(initials(w.nome))}</div>
+          <div><strong>${esc(w.nome)}</strong>${isActive(w) ? '' : '<span class="tag paused">In pausa</span>'} <span class="muted">· ${plural(l.length, 'intervento', 'interventi')}</span></div>
+          <div>${loadBlock(w, day)}</div></div>`;
+      }).join('') + `</div>`
+    : '<p class="muted">Nessun lavoratore inserito.</p>';
+  h += `<div class="dash">
+    <section class="panel"><div class="split"><h2 class="panel-title" style="margin:0">Programma della giornata</h2>
+      ${canWrite ? `<button class="btn small" data-act="go" data-view="carica">${ic('plus', 16)}Carica lavori</button>` : ''}</div>
+      ${n ? `<div style="margin-bottom:14px"><div class="split" style="margin-bottom:6px"><span class="muted">Avanzamento</span><span class="muted">${f} di ${n} completati</span></div>${progress(f, c, n)}</div>` : ''}
+      ${jobTable(day, ctx)}</section>
+    <div class="stack">
+      <section class="panel"><h2 class="panel-title">Avvisi</h2>${alertsHtml}</section>
+      <section class="panel"><h2 class="panel-title">Carico dei lavoratori</h2>${loadHtml}</section>
+    </div></div>`;
+  return h;
+}
+
+/* ---------- Assegna ---------- */
+const laneAdd = w => (canWrite && isActive(w)) ? `<button class="btn small" data-act="wz-open" data-w="${esc(w.id)}">${ic('plus', 16)}Aggiungi lavori</button>` : '';
+function fjob(j){
+  return `<div class="fjob st-${stOf(j)}" role="button" tabindex="0" data-act="open-job" data-id="${esc(j.id)}"${canWrite ? ' draggable="true"' : ''}>
+    <b>${esc(j.tipo || 'Intervento')}${j.durata ? ' <span>· ' + esc(fmtDur(j.durata)) + '</span>' : ''}</b>
+    <span>${esc(j.cliente)}</span><small>${esc(j.via)}</small>${j.priorita === 'urgente' ? '<em>Urgente</em>' : ''}</div>`;
+}
+function viewFasce(lanesW, day){
+  let h = `<div class="fx"><div class="fx-in">
+    <div class="fx-row head"><div class="fx-label"><span class="muted" style="font-size:12.5px">Lavoratore</span></div>
+      <div class="fx-h">Mattina</div><div class="fx-h">Pomeriggio</div></div>`;
+  lanesW.forEach(w => {
+    const list = day.filter(j => j.workerId === w.id);
+    const cell = f => {
+      const l = list.filter(j => fasciaOf(j) === f);
+      const mins = l.reduce((s, j) => s + durOf(j), 0);
+      return `<div class="fx-cell" data-drop="${esc(w.id)}" data-fascia="${f}">${mins ? `<div class="fx-sum">${esc(fmtDur(mins))}</div>` : ''}${l.map(fjob).join('') || '<span class="fx-empty">—</span>'}</div>`;
+    };
+    const nof = list.filter(j => !fasciaOf(j));
+    const add = laneAdd(w);
+    h += `<div class="fx-row ${cls(w)}"><div class="fx-label" data-drop="${esc(w.id)}">
+        <div class="tl-id"><div class="av sm" aria-hidden="true">${esc(initials(w.nome))}</div>
+          <div><b>${esc(w.nome)}${isActive(w) ? '' : '<span class="tag paused">In pausa</span>'}</b><small>${plural(list.length, 'intervento', 'interventi')}</small></div></div>
+        ${loadBlock(w, day)}
+        ${nof.length ? `<div class="untimed" title="Senza fascia oraria">${nof.map(j => `<button class="uchip" data-act="open-job" data-id="${esc(j.id)}">${esc(j.cliente)}</button>`).join('')}</div>` : ''}
+        ${add ? `<div style="margin-top:8px">${add}</div>` : ''}</div>
+      ${cell('mattina')}${cell('pomeriggio')}</div>`;
+  });
+  return h + '</div></div>';
+}
+function viewElenco(lanesW, day){
+  return `<div class="lanes">` + lanesW.map(w => {
+    const l = day.filter(j => j.workerId === w.id).sort(byFascia);
+    let body = '', last = null;
+    l.forEach(j => {
+      const f = fasciaOf(j), st = stOf(j);
+      if (f !== last) { body += `<div class="fgroup">${esc(FASCIA_LABEL[f] || 'Senza fascia')}</div>`; last = f; }
+      body += `<div class="arow st-${st}" data-id="${esc(j.id)}"${canWrite ? ' draggable="true"' : ''}>
+        <button class="amain" data-act="open-job" data-id="${esc(j.id)}"><strong>${esc(j.tipo || 'Intervento')}${j.durata ? ' · ' + esc(fmtDur(j.durata)) : ''}</strong> ${tagsOf(j)}<small>${esc(j.cliente)} · ${esc(j.via)}</small></button>
+        ${canWrite ? `<button class="chip" data-act="stato" data-id="${esc(j.id)}" aria-label="Stato: ${STATI[st]}. Tocca per cambiare">${STATI[st]}</button>` : `<span class="chip">${STATI[st]}</span>`}</div>`;
+    });
+    return `<section class="lane ${cls(w)}" data-drop="${esc(w.id)}">
+      <div class="lane-head"><div class="av" aria-hidden="true">${esc(initials(w.nome))}</div>
+        <div class="lane-id"><h3>${esc(w.nome)}${isActive(w) ? '' : '<span class="tag paused">In pausa</span>'}</h3>
+          <span class="sub">${plural(l.length, 'intervento', 'interventi')}</span></div>
+        <div class="zone-actions">${w.telefono ? `<a class="btn small" href="tel:${esc(digits(w.telefono))}" aria-label="Chiama ${esc(w.nome)}">${ic('phone', 16)}</a>` : ''}
+          ${w.telefono && l.length ? `<a class="btn small" href="${esc(waHref(w, l))}" target="_blank" rel="noopener">${ic('chat', 16)}Invia giornata</a>` : ''}
+          ${laneAdd(w)}</div></div>
+      <div class="lane-load">${loadBlock(w, day)}</div>
+      ${body || '<p class="zone-empty">Nessun intervento assegnato.</p>'}
+    </section>`;
+  }).join('') + '</div>';
+}
+
+/* sotto-menu: giornata lavorativa / crea nuova giornata lavorativa */
+function assSubnav(){
+  const b = (sub, icon, label) => `<button role="tab" data-act="ass-sub" data-sub="${sub}" aria-selected="${assSub === sub}">${ic(icon, 16)}${label}</button>`;
+  return `<div class="subnav" role="tablist" aria-label="Sezioni di Assegna">${b('giornata', 'timeline', 'Giornata lavorativa')}${canWrite ? b('nuova', 'plus', 'Crea nuova giornata lavorativa') : ''}</div>`;
+}
+function viewGiornata(){
+  const wById = workerMap();
+  const day = dayJobs(date);
+  const un = unassignedOf(day, wById);
+  const act = sortedWorkers().filter(isActive);
+  const lanesW = act.concat(sortedWorkers().filter(w => !isActive(w) && day.some(j => j.workerId === w.id)));
+  const avg = act.length ? Math.round(act.reduce((s, w) => s + pctOf(w, day), 0) / act.length) : 0;
+  let h = `<div class="statline"><span><b>${day.length}</b>${day.length === 1 ? 'intervento' : 'interventi'}</span><span><b>${day.length - un.length}</b>assegnati</span>
+    <span class="${un.length ? 'warnx' : ''}"><b>${un.length}</b>da assegnare</span><span><b>${avg}%</b>carico medio</span></div>`;
+  h += `<div class="toolbar"><div class="seg" role="group" aria-label="Modalità di visualizzazione">
+      <button data-act="ass-mode" data-mode="fasce" aria-pressed="${assMode === 'fasce'}">${ic('grid', 16)}Fasce</button>
+      <button data-act="ass-mode" data-mode="elenco" aria-pressed="${assMode === 'elenco'}">${ic('list', 16)}Elenco</button></div></div>`;
+  if (un.length) {
+    h += `<div class="notice"><div><strong>${plural(un.length, 'lavoro non ancora assegnato', 'lavori non ancora assegnati')}</strong> in questa giornata
+      <div class="untimed">${un.map(j => `<button class="uchip" data-act="open-job" data-id="${esc(j.id)}">${esc(j.cliente)}</button>`).join('')}</div></div>
+      ${canWrite ? `<div class="zone-actions"><button class="btn small primary" data-act="wz-open">${ic('plus', 16)}Crea giornata</button>
+        ${act.length ? `<button class="btn small" data-act="auto">${ic('sparkles', 16)}Assegna in automatico</button>` : ''}</div>` : ''}</div>`;
+  }
+  if (!lanesW.length) {
+    return h + `<div class="empty"><h3>Nessun lavoratore in servizio</h3><p>Inserisci i lavoratori per vedere il carico e assegnare i lavori.</p>
+      ${canWrite ? `<button class="btn primary" data-act="go" data-view="lavoratori">${ic('plus', 16)}Aggiungi lavoratore</button>` : ''}</div>`;
+  }
+  return h + (assMode === 'fasce' ? viewFasce(lanesW, day) : viewElenco(lanesW, day));
+}
+
+/* crea nuova giornata lavorativa: lavoratore + giornata + lavori da selezionare */
+function wzCands(){
+  const wById = workerMap();
+  return jobs.filter(j => !wById[j.workerId] && stOf(j) !== 'fatto' && (wzOther || j.data === wzDate))
+    .sort((a, b) => (a.data === wzDate ? 0 : 1) - (b.data === wzDate ? 0 : 1) || a.data.localeCompare(b.data) || byFascia(a, b));
+}
+function wzCalc(){
+  const w = workers.find(x => x.id === wzWorker) || null;
+  const sel = jobs.filter(j => wzSel.has(j.id));
+  const existing = w ? jobs.filter(j => j.data === wzDate && j.workerId === w.id) : [];
+  const cap = w ? capOf(w) : 480;
+  const mins = existing.concat(sel).reduce((s, j) => s + durOf(j), 0);
+  return {w, sel, existing, mins, cap, pct: Math.round(mins / cap * 100), moved: sel.filter(j => j.data !== wzDate).length};
+}
+function wzSummaryHtml(){
+  const c = wzCalc();
+  const n = c.sel.length;
+  let notes = '';
+  if (c.w && c.mins > c.cap) notes += `<p class="wz-warn">${ic('alert', 14)}Il carico supera le 8 ore della giornata.</p>`;
+  if (c.moved) notes += `<p class="wz-warn">${ic('clock', 14)}${plural(c.moved, 'lavoro verrà spostato', 'lavori verranno spostati')} al ${esc(fmtShort(wzDate))}.</p>`;
+  const ready = !!c.w && n > 0;
+  return `<div class="wz-sum"><strong>${n ? plural(n, 'lavoro selezionato', 'lavori selezionati') : 'Nessun lavoro selezionato'}</strong>${c.w ? ` · carico ${esc(fmtDur(c.mins) || '0 h')} / ${esc(fmtDur(c.cap))} (${c.pct}%)` : ''}${notes}</div>
+    <div class="zone-actions"><button class="btn" data-act="wz-cancel">Annulla</button>
+    <button class="btn primary" data-act="wz-create"${ready ? '' : ' disabled'}>${ic('check', 18)}Crea giornata</button></div>`;
+}
+function pitemHtml(j){
+  const on = wzSel.has(j.id);
+  return `<label class="pitem${on ? ' sel' : ''}"><input type="checkbox" data-act="wz-sel" data-id="${esc(j.id)}"${on ? ' checked' : ''}>
+    <div class="pmain"><div class="t"><strong>${esc(j.cliente)}</strong><span class="muted">${esc(fasciaLabel(j))}</span>${tagsOf(j)}</div>
+      <small>${subline(j)}</small>
+      ${j.data !== wzDate ? `<small class="moved">Previsto il ${esc(fmtShort(j.data))}: verrà spostato</small>` : ''}</div></label>`;
+}
+function viewNuova(){
+  const act = sortedWorkers().filter(isActive);
+  const wById = workerMap();
+  if (wzWorker && !act.some(w => w.id === wzWorker)) wzWorker = '';
+  const cands = wzCands();
+  const ids = new Set(cands.map(j => j.id));
+  wzSel = new Set([...wzSel].filter(id => ids.has(id)));
+  const pool = jobs.filter(j => !wById[j.workerId] && stOf(j) !== 'fatto');
+  const others = pool.filter(j => j.data !== wzDate).length;
+  const c = wzCalc();
+  if (!act.length) {
+    return `<section class="panel"><h2 class="page-title">Crea nuova giornata lavorativa</h2><div class="empty"><h3>Nessun lavoratore in servizio</h3>
+      <p>Per creare una giornata serve almeno un lavoratore.</p><button class="btn primary" data-act="go" data-view="lavoratori">${ic('plus', 16)}Aggiungi lavoratore</button></div></section>`;
+  }
+  let ctxHtml;
+  if (!c.w) ctxHtml = '<p class="muted" style="margin-bottom:14px">Scegli il lavoratore per vedere i lavori già assegnati nella giornata.</p>';
+  else {
+    ctxHtml = `<div class="wzctx ${cls(c.w)}"><div class="av" aria-hidden="true">${esc(initials(c.w.nome))}</div>
+      <div style="flex:1;min-width:0"><strong>${esc(c.w.nome)}</strong><small>${c.existing.length ? plural(c.existing.length, 'lavoro già assegnato', 'lavori già assegnati') : 'Nessun lavoro ancora assegnato'} il ${esc(fmtShort(wzDate))}</small>
+      ${c.existing.slice().sort(byFascia).map(j => `<div class="mini"><span>${esc(fasciaLabel(j))}</span><span>${esc(j.tipo || 'Intervento')} · ${esc(j.cliente)}</span></div>`).join('')}</div></div>`;
+  }
+  let list;
+  if (!pool.length) {
+    list = `<div class="empty"><h3>Non ci sono lavori da assegnare</h3><p>I lavori si caricano dal menu «Carica lavori»: appena inseriti compariranno qui.</p>
+      <button class="btn primary" data-act="go" data-view="carica">${ic('plus', 16)}Vai a Carica lavori</button></div>`;
+  } else if (!cands.length) {
+    list = `<p class="muted" style="margin-bottom:14px">Nessun lavoro da assegnare per ${esc(fmtShort(wzDate))}.${others && !wzOther ? ' Attiva l’opzione qui sopra per vedere quelli di altre date.' : ''}</p>`;
+  } else list = `<div class="pick">${cands.map(pitemHtml).join('')}</div>`;
+  return `<section class="panel wz"><h2 class="page-title">Crea nuova giornata lavorativa</h2>
+    <div class="fgrid">
+      <label class="field"><span>Lavoratore</span><select id="wzWorker"><option value="">Scegli il lavoratore…</option>
+        ${act.map(w => `<option value="${esc(w.id)}"${w.id === wzWorker ? ' selected' : ''}>${esc(w.nome)}</option>`).join('')}</select></label>
+      <label class="field"><span>Giornata lavorativa</span><input type="date" id="wzDate" required value="${esc(wzDate)}"></label>
+    </div>
+    ${ctxHtml}
+    ${pool.length ? `<div class="split"><h3 style="font-size:16px">Lavori da assegnare${cands.length ? ' (' + cands.length + ')' : ''}</h3>
+      <div class="zone-actions"><button class="btn small ghost" data-act="wz-all">Seleziona tutti</button><button class="btn small ghost" data-act="wz-none">Deseleziona</button></div></div>
+      ${others || wzOther ? `<label class="field check"><input type="checkbox" data-act="wz-other"${wzOther ? ' checked' : ''}><span>Mostra anche ${plural(others, 'lavoro', 'lavori')} da assegnare di altre date</span></label>` : ''}` : ''}
+    ${list}
+    ${pool.length ? `<div class="wz-bar" id="wzSummary">${wzSummaryHtml()}</div>` : ''}</section>`;
+}
+function openWizard(workerId){
+  assSub = 'nuova'; view = 'assegna'; mounted = null; detailId = null;
+  wzDate = date; wzWorker = workerId || ''; wzSel = new Set(); wzOther = false;
+  render(); window.scrollTo(0, 0);
+}
+function wzCreate(){
+  const c = wzCalc();
+  if (!c.w || !c.sel.length) return;
+  const prev = c.sel.map(j => ({id: j.id, workerId: j.workerId, data: j.data}));
+  const w = c.w, n = c.sel.length, d = wzDate;
+  c.sel.forEach(j => { j.workerId = w.id; j.data = d; persist('interventi', j); });
+  date = d; datePicked = true; assSub = 'giornata'; wzSel = new Set(); wzWorker = ''; mounted = null;
+  render(); window.scrollTo(0, 0);
+  toast(`Giornata creata: ${plural(n, 'lavoro assegnato', 'lavori assegnati')} a ${w.nome} per ${fmtShort(d)}.`, 'Annulla', () => {
+    prev.forEach(p => { const j = jobs.find(x => x.id === p.id); if (j) { j.workerId = p.workerId; j.data = p.data; persist('interventi', j); } });
+    render();
+  });
+}
+function viewAssegna(){
+  if (!canWrite) assSub = 'giornata';
+  const head = assSub === 'nuova'
+    ? `<div class="pagehead"><div><h2>Assegnazione</h2><p class="sub">Pianifica il lavoro dei collaboratori</p></div></div>`
+    : pageHead('Assegnazione');
+  return head + assSubnav() + (assSub === 'nuova' ? viewNuova() : viewGiornata());
+}
+
+/* ---------- scheda di dettaglio ---------- */
+function renderDetail(){
+  const ov = $('#overlay'), sh = $('#sheet');
+  const j = detailId ? jobs.find(x => x.id === detailId) : null;
+  if (!j) { detailId = null; ov.hidden = true; sh.innerHTML = ''; return; }
+  const wById = workerMap();
+  const w = wById[j.workerId];
+  const day = dayJobs(j.data);
+  const href = mapsHref(j);
+  const st = stOf(j);
+  const fa = fasciaOf(j);
+  const locked = !!j.preFatturaId;
+  const pfn = locked ? ((prefatture.find(p => p.id === j.preFatturaId) || {}).numero || '') : '';
+  const closing = canWrite && st === 'fatto' ? `
+    <div class="closebox"><h4>Chiusura intervento</h4>
+      <label class="field"><span>Importo per la pre-fattura (€, IVA esclusa)</span><input type="number" id="dImporto" data-id="${esc(j.id)}" step="0.01" min="0" inputmode="decimal" value="${esc(String(importoOf(j)))}"${locked ? ' disabled' : ''}></label>
+      <label class="field"><span>Nota sulla riga della pre-fattura (facoltativa)</span><input id="dNoteF" data-id="${esc(j.id)}" maxlength="160" value="${esc(j.noteFatt || '')}"${locked ? ' disabled' : ''}></label>
+      <p class="muted" style="font-size:14px">${locked ? 'Già inserito nella pre-fattura ' + esc(pfn) + '.' : 'Da pre-fatturare: lo trovi nella pagina Pre-fatturazione.'}</p></div>` : '';
+  const wasHidden = ov.hidden;
+  sh.innerHTML = `<div class="sheet-head"><div><p class="eyebrow">${esc(fmtShort(j.data))} · ${esc(fasciaLabel(j))}</p><h2>${esc(j.cliente)}</h2></div>
+      <button class="icon-btn" id="sheetClose" data-act="close-detail" aria-label="Chiudi">${ic('x', 20)}</button></div>
+    <div class="tags">${tagsOf(j)}<span class="stat st-${st}">${STATI[st]}</span></div>
+    <dl class="info">
+      <div><dt>Intervento</dt><dd>${esc(tipoText(j) || 'Non indicato')}</dd></div>
+      <div><dt>Indirizzo</dt><dd>${esc(j.via)}</dd></div>
+      ${j.telefono ? `<div><dt>Telefono</dt><dd>${esc(j.telefono)}</dd></div>` : ''}
+      ${j.descrizione ? `<div><dt>Lavoro</dt><dd>${esc(j.descrizione)}</dd></div>` : ''}
+      ${j.noteLavoratore ? `<div><dt>Nota del lavoratore</dt><dd>${esc(j.noteLavoratore)}</dd></div>` : ''}
+      <div><dt>Lavoratore</dt><dd>${w ? esc(w.nome) : 'Da assegnare'}</dd></div>
+    </dl>
+    <div class="job-actions">
+      ${j.telefono ? `<a class="btn" href="tel:${esc(digits(j.telefono))}">${ic('phone', 16)}Chiama</a>` : ''}
+      ${href ? `<a class="btn" href="${esc(href)}" target="_blank" rel="noopener">${ic('pin', 16)}Apri mappa</a>` : ''}</div>
+    ${canWrite ? `
+    <div class="field"><span>Fascia oraria</span><div class="seg wide" role="group">
+      ${FASCE.map(([v, l]) => `<button data-act="set-fascia" data-id="${esc(j.id)}" data-f="${v}" aria-pressed="${v === fa}">${l}</button>`).join('')}</div></div>
+    <div class="field"><span>Stato</span><div class="seg wide" role="group">
+      ${Object.keys(STATI).map(k => `<button data-act="set-stato" data-id="${esc(j.id)}" data-st="${k}" aria-pressed="${k === st}">${STATI[k]}</button>`).join('')}</div></div>
+    ${closing}
+    <label class="field"><span>Assegnato a</span><select data-act="assegna-d" data-id="${esc(j.id)}">
+      <option value="">Da assegnare</option>
+      ${sortedWorkers().filter(x => isActive(x) || x.id === j.workerId).map(x => `<option value="${esc(x.id)}"${x.id === j.workerId ? ' selected' : ''}>${esc(x.nome)} (${esc(fmtDur(loadOf(x, day)) || 'libero')})</option>`).join('')}</select></label>
+    <div class="form-actions"><button class="btn" data-act="edit-job" data-id="${esc(j.id)}">${ic('edit', 16)}Modifica intervento</button></div>` : ''}`;
+  ov.hidden = false;
+  if (wasHidden) { const c = $('#sheetClose'); if (c) c.focus({preventScroll:true}); }
+}
+
+/* ---------- Carica lavori ---------- */
+function opts(list, cur){ return list.map(([v, l]) => `<option value="${esc(v)}"${String(v) === String(cur) ? ' selected' : ''}>${esc(l)}</option>`).join(''); }
+function durOpts(cur){
+  const l = DUR_CHOICES.slice(); cur = Number(cur) || 0;
+  if (cur && !l.includes(cur)) { l.push(cur); l.sort((a, b) => a - b); }
+  return l.map(m => `<option value="${m}"${cur === m ? ' selected' : ''}>${esc(fmtDur(m))}</option>`).join('');
+}
+function tipoOptions(sel){
+  const list = getTipi();
+  let h = '<option value="">Scegli il tipo di intervento…</option>' +
+    list.map(t => `<option value="${esc(t.nome)}"${t.nome === sel ? ' selected' : ''}>${esc(t.nome)} · ${esc(fmtDur(t.durata))}</option>`).join('');
+  if (sel && !list.some(t => t.nome === sel)) h += `<option value="${esc(sel)}" selected>${esc(sel)} (non più in elenco)</option>`;
+  return h;
+}
+function tipoDurText(name, fallback){
+  const t = getTipi().find(x => x.nome === name);
+  const d = t ? t.durata : fallback;
+  if (!d) return 'La durata si imposta in automatico dal tipo di intervento.';
+  return 'Durata prevista: ' + fmtDur(d) + (t ? ' (dal tipo di intervento)' : '') + (t && canWrite ? ' · Importo: ' + fmtEur(prezzoOf(t.nome)) : '');
+}
+function tipiPanelInner(){
+  const list = getTipi();
+  return `<summary>${ic('list', 20)}Tipi di intervento, durate e prezzi</summary>
+    <div class="inner"><p class="muted" style="margin-bottom:12px">Ogni tipo ha la sua durata e il suo prezzo fisso (IVA esclusa). La durata si imposta in automatico quando lo scegli nel lavoro, il prezzo diventa l’importo quando chiudi l’intervento. Le modifiche valgono per i nuovi lavori.</p>
+    <div class="tipi">${list.map(t => `<div class="tipo-row">
+      <input aria-label="Nome del tipo" data-tf="nome" data-id="${esc(t.id)}" value="${esc(t.nome)}">
+      <select aria-label="Durata" data-tf="durata" data-id="${esc(t.id)}">${durOpts(t.durata)}</select>
+      <input aria-label="Prezzo in euro" type="number" min="0" step="1" inputmode="decimal" data-tf="prezzo" data-id="${esc(t.id)}" value="${esc(String(prezzoOf(t.nome)))}">
+      <button class="btn small danger" data-act="tipo-del" data-id="${esc(t.id)}" aria-label="Elimina ${esc(t.nome)}">${ic('trash', 16)}</button></div>`).join('')}</div>
+    <div class="tipo-row add"><input id="newTipoNome" aria-label="Nome del nuovo tipo" placeholder="Nuovo tipo, es. Manutenzione">
+      <select id="newTipoDur" aria-label="Durata del nuovo tipo">${durOpts(60)}</select>
+      <input id="newTipoPrezzo" aria-label="Prezzo del nuovo tipo in euro" type="number" min="0" step="1" inputmode="decimal" placeholder="€">
+      <button class="btn small primary" data-act="tipo-add">${ic('plus', 16)}Aggiungi</button></div></div>`;
+}
+function tipoAdd(){
+  const n = $('#newTipoNome'), d = $('#newTipoDur'), p = $('#newTipoPrezzo');
+  const nome = n ? n.value.trim().slice(0, 80) : '';
+  if (!nome) { toast('Scrivi il nome del nuovo tipo.'); return; }
+  if (tipoNameTaken(nome, '')) { toast('Esiste già un tipo con questo nome.'); return; }
+  ensureTipiSeeded();
+  const t = {id: uid(), nome, durata: Number(d && d.value) || 60, prezzo: Math.max(0, round2(p && p.value))};
+  tipi.push(t); persist('tipi', t);
+  refreshTipiUi(true);
+  toast('Tipo aggiunto.');
+}
+function tipoEdit(id, field, value){
+  const cur = getTipi().find(x => x.id === id);
+  if (!cur) return;
+  if (field === 'nome') {
+    const nome = String(value || '').trim().slice(0, 80);
+    if (!nome) { toast('Il nome non può essere vuoto.'); refreshTipiUi(true); return; }
+    if (tipoNameTaken(nome, id)) { toast('Esiste già un tipo con questo nome.'); refreshTipiUi(true); return; }
+    ensureTipiSeeded();
+    const t = tipi.find(x => x.id === id); t.nome = nome; persist('tipi', t);
+  } else if (field === 'prezzo') {
+    ensureTipiSeeded();
+    const t = tipi.find(x => x.id === id); t.prezzo = Math.max(0, round2(value)); persist('tipi', t);
+  } else {
+    ensureTipiSeeded();
+    const t = tipi.find(x => x.id === id); t.durata = Number(value) || t.durata; persist('tipi', t);
+  }
+  refreshTipiUi(true);
+}
+function updateTipoDur(){
+  const s = $('#fTipo'), n = $('#tipoDur'), f = $('#jobForm');
+  if (s && n) n.textContent = tipoDurText(s.value, f ? Number(f.dataset.olddur) || 0 : 0);
+}
+function jobFormHtml(v, editing){
+  v = v || {};
+  const fa = fasciaOf(v);
+  return `<form id="jobForm" data-id="${editing ? esc(v.id) : ''}" data-olddur="${esc(v.durata || '')}" autocomplete="off">
+    <h2 class="page-title">${editing ? 'Modifica intervento' : 'Carica un lavoro da fare'}</h2>
+    ${editing ? '<p class="edit-banner">Stai modificando un intervento già caricato.</p>' : `
+    <details class="smart"><summary>${ic('sparkles', 20)}Compila da un messaggio del cliente</summary>
+      <div class="inner"><label class="field"><span>Incolla qui il testo (WhatsApp, SMS, email)</span>
+        <textarea id="smartText" placeholder="Es. Mario Rossi, via Garibaldi 12 Milano, 333 1234567, domani mattina, sopralluogo, urgente"></textarea>
+        <small>Riconosco nome, via, telefono, data, fascia oraria, tipo di intervento, priorità e link di Google Maps. Controlla sempre i campi prima di salvare.</small></label>
+      <button class="btn small" type="button" data-act="smart-fill">${ic('sparkles', 16)}Compila i campi</button></div></details>`}
+    <div class="fgrid cols3">
+      <label class="field"><span>Data</span><input type="date" name="data" id="fData" required value="${esc(v.data || date)}"></label>
+      <fieldset class="field fascia"><legend class="lbl">Fascia oraria</legend><div class="seg wide">
+        ${FASCE.map(([val, lab]) => `<label><input type="radio" name="fascia" value="${val}"${fa === val ? ' checked' : ''}><span>${lab}</span></label>`).join('')}</div></fieldset>
+      <label class="field"><span>Priorità</span><select name="priorita">${opts([['normale', 'Normale'], ['urgente', 'Urgente']], v.priorita || 'normale')}</select></label>
+      <div class="field"><label class="lbl" for="fCliente">Cliente</label>
+        <input id="fCliente" name="cliente" list="clientiList" required autocomplete="off" placeholder="Nome o ragione sociale" value="${esc(v.cliente || '')}">
+        <datalist id="clientiList">${clientiOptions()}</datalist><small id="cliHint"></small></div>
+      <label class="field"><span>Telefono cliente</span><input type="tel" inputmode="tel" name="telefono" value="${esc(v.telefono || '')}"></label>
+      <div class="field"><label class="lbl" for="fTipo">Tipo di intervento</label>
+        <select id="fTipo" name="tipo" required>${tipoOptions(v.tipo || '')}</select>
+        <small id="tipoDur">${esc(tipoDurText(v.tipo || '', Number(v.durata) || 0))}</small></div>
+      <div class="field span2"><label class="lbl" for="fVia">Via e città</label>
+        <div class="ac"><input id="fVia" name="via" required role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="acList" autocomplete="off" autocapitalize="words" placeholder="Inizia a scrivere: Via Roma 12, Milano" value="${esc(v.via || '')}">
+          <div class="ac-list" id="acList" role="listbox" aria-label="Suggerimenti indirizzo" hidden></div></div><small id="gNote"></small></div>
+      <div class="field span2"><label class="lbl" for="fMaps">Link Google Maps o coordinate GPS</label>
+        <input id="fMaps" name="maps" placeholder="Si compila da solo mentre scrivi la via" value="${esc(v.maps || '')}">
+        <small id="mapsHint"></small></div>
+      <label class="field span2"><span>Lavoro da fare</span><textarea name="descrizione">${esc(v.descrizione || '')}</textarea></label>
+    </div>
+    <div class="form-actions">
+      ${editing
+        ? `<button class="btn primary" type="submit" data-mode="save">${ic('check', 18)}Salva modifiche</button>
+           <button class="btn" type="button" data-act="cancel-edit-job">Annulla modifica</button>
+           <button class="btn danger" type="button" data-act="del-job" data-id="${esc(v.id)}">${ic('trash', 16)}Elimina</button>`
+        : `<button class="btn primary" type="submit" data-mode="another">${ic('plus', 18)}Salva e aggiungi un altro</button>
+           <button class="btn" type="submit" data-mode="assign">Salva e vai ad Assegna</button>`}
+    </div></form>`;
+}
+function refreshTipiUi(force){
+  const p = $('#tipiPanel');
+  if (p && (force || !(document.activeElement && p.contains && p.contains(document.activeElement)))) p.innerHTML = tipiPanelInner();
+  const sel = $('#fTipo');
+  if (sel) { const cur = sel.value; sel.innerHTML = tipoOptions(cur); sel.value = cur; updateTipoDur(); }
+}
+function tipoNameTaken(name, exceptId){
+  const k = norm(name.trim());
+  return getTipi().some(t => t.id !== exceptId && norm(t.nome) === k);
+}
+function tipoDel(id){
+  ensureTipiSeeded();
+  tipi = tipi.filter(x => x.id !== id);
+  unpersist('tipi', id);
+  refreshTipiUi(true);
+  toast('Tipo eliminato.');
+}
+function mountCarica(){
+  const j = editingJobId ? jobs.find(x => x.id === editingJobId) : draftJob;
+  if (editingJobId && !j) editingJobId = null;
+  $('#app').innerHTML = `<section class="panel" id="formPanel">${jobFormHtml(j, !!editingJobId)}</section>
+    <section class="panel" id="listPanel"></section>
+    <details class="panel smart-panel" id="tipiPanel">${tipiPanelInner()}</details>`;
+  acClose();
+  mapsAuto = !j || !j.maps || j.maps === genMapsLink(j.via);
+  pickedVia = ''; acRemote = []; acRemoteFor = '';
+  updateMapsHint();
+  updateClienteLink(false);
+  if (addrHook) addrHook.status();
+}
+function refreshCarica(){
+  const wById = workerMap();
+  const day = dayJobs(date);
+  const ctx = {wById, day};
+  const un = unassignedOf(day, wById).length;
+  $('#listPanel').innerHTML = `${pageHead('Lavori caricati', true)}
+    ${day.length
+      ? `<p class="muted" style="margin-bottom:12px">${plural(day.length, 'intervento', 'interventi')}, ${un} da assegnare.</p><div class="rows">${day.map(j => jobRow(j, ctx, false)).join('')}</div>`
+      : '<p class="muted">Nessun intervento caricato per questa data.</p>'}`;
+  refreshTipiUi(false);
+  const dl = $('#clientiList'); if (dl) dl.innerHTML = clientiOptions();
+}
+function smartFill(){
+  const ta = $('#smartText'), f = $('#jobForm');
+  if (!ta || !f) return;
+  if (!ta.value.trim()) { toast('Incolla prima il testo del messaggio.'); return; }
+  const r = parseText(ta.value);
+  const found = [];
+  const set = (name, val, label) => {
+    const el = f.elements[name];
+    if (el && val != null && val !== '') { el.value = val; if (label) found.push(label); }
+  };
+  set('cliente', r.cliente, 'nome'); set('via', r.via, 'via'); set('telefono', r.telefono, 'telefono');
+  set('maps', r.maps, 'mappa'); set('data', r.data, 'data'); set('priorita', r.priorita, 'priorità'); set('descrizione', r.descrizione, '');
+  if (r.fascia && f.elements.fascia) { f.elements.fascia.value = r.fascia; found.push('fascia oraria'); }
+  if (r.tipo) { set('tipo', r.tipo, 'tipo'); updateTipoDur(); }
+  updateClienteLink(true);
+  if (r.maps) mapsAuto = false; else scheduleMaps(true);
+  updateMapsHint(); acClose();
+  toast(found.length ? 'Compilati: ' + found.join(', ') + '. Controlla e correggi.' : 'Non ho riconosciuto dati: compila a mano.');
+}
+function saveJob(f, mode){
+  const fd = new FormData(f);
+  const old = jobs.find(x => x.id === f.dataset.id);
+  const tipoName = String(fd.get('tipo') || '').trim();
+  const tp = getTipi().find(t => t.nome === tipoName);
+  const durata = tp ? tp.durata : (old && old.tipo === tipoName ? (old.durata || '') : '');
+  const fa = fd.get('fascia');
+  const cliente = String(fd.get('cliente')).trim();
+  const cl = clienteByName(cliente);
+  const via = String(fd.get('via')).trim();
+  const j = Object.assign({}, old || {}, {
+    id: f.dataset.id || uid(),
+    data: fd.get('data'), fascia: fa === 'mattina' || fa === 'pomeriggio' ? fa : '', ora: '',
+    cliente: cl ? nomeCliente(cl) : cliente, clienteId: cl ? cl.id : '', via,
+    telefono: String(fd.get('telefono')).trim(), maps: String(fd.get('maps')).trim() || genMapsLink(via),
+    descrizione: String(fd.get('descrizione')).trim(), tipo: tipoName, durata,
+    priorita: fd.get('priorita') || 'normale',
+    workerId: old ? (old.workerId || '') : '', stato: old ? old.stato : 'da_fare'
+  });
+  const i = jobs.findIndex(x => x.id === j.id);
+  if (i >= 0) jobs[i] = j; else jobs.push(j);
+  persist('interventi', j);
+  date = j.data; datePicked = true; editingJobId = null; draftJob = null; mounted = null;
+  if (mode === 'assign') { assSub = 'nuova'; view = 'assegna'; wzDate = j.data; wzWorker = ''; wzSel = new Set(); wzOther = false; }
+  render();
+  toast(i >= 0 ? 'Modifiche salvate.' : 'Intervento salvato.');
+  if (view === 'carica') { const c = $('#jobForm input[name="cliente"]'); if (c) c.focus({preventScroll:true}); }
+}
+
+/* ---------- Lavoratori ---------- */
+function workerFormHtml(v, editing){
+  v = v || {};
+  const used = new Set(workers.map(colorOf));
+  let free = 0; while (free < 8 && used.has(free)) free++;
+  const cur = Number.isInteger(v.colore) ? v.colore : (editing ? colorOf(v) : (free < 8 ? free : workers.length % 8));
+  return `<form id="workerForm" data-id="${editing ? esc(v.id) : ''}" autocomplete="off">
+    <h2 class="page-title">${editing ? 'Modifica lavoratore' : 'Aggiungi un lavoratore'}</h2>
+    ${editing ? '<p class="edit-banner">Stai modificando un lavoratore già inserito.</p>' : ''}
+    <div class="fgrid">
+      <label class="field"><span>Nome e cognome</span><input name="nome" required value="${esc(v.nome || '')}"></label>
+      <label class="field"><span>Telefono</span><input type="tel" inputmode="tel" name="telefono" required value="${esc(v.telefono || '')}"></label>
+      <fieldset class="swatches"><legend>Colore nel planner</legend><div>
+        ${[0, 1, 2, 3, 4, 5, 6, 7].map(i => `<label class="sw c${i}"><input type="radio" name="colore" value="${i}"${i === cur ? ' checked' : ''} aria-label="Colore ${i + 1}"><span></span></label>`).join('')}</div></fieldset>
+      <label class="field check span2"><input type="checkbox" name="attivo"${v.attivo === false ? '' : ' checked'}><span>In servizio (compare tra i lavoratori assegnabili)</span></label>
+    </div>
+    <div class="form-actions">
+      <button class="btn primary" type="submit">${ic(editing ? 'check' : 'plus', 18)}${editing ? 'Salva modifiche' : 'Aggiungi lavoratore'}</button>
+      ${editing ? `<button class="btn" type="button" data-act="cancel-edit-worker">Annulla modifica</button>
+        <button class="btn danger" type="button" data-act="del-worker" data-id="${esc(v.id)}">${ic('trash', 16)}Elimina</button>` : ''}
+    </div></form>`;
+}
+function mountLavoratori(){
+  const w = editingWorkerId ? workers.find(x => x.id === editingWorkerId) : null;
+  if (editingWorkerId && !w) editingWorkerId = null;
+  $('#app').innerHTML = (canWrite ? `<section class="panel" id="formPanel">${workerFormHtml(w, !!editingWorkerId)}</section>` : '') + `<section id="listPanel"></section>`;
+}
+function refreshLavoratori(){
+  const el = $('#listPanel');
+  if (!workers.length) {
+    el.innerHTML = `<div class="empty"><h3>Nessun lavoratore inserito</h3><p>${canWrite ? 'Compila il modulo qui sopra per aggiungere il primo lavoratore.' : 'Non ci sono ancora lavoratori.'}</p></div>`;
+    return;
+  }
+  const day = dayJobs(date);
+  el.innerHTML = `<div class="split"><h2 class="page-title" style="margin:0">Elenco lavoratori</h2><span class="muted">Carico di ${esc(fmtShort(date))}</span></div>
+    <div class="workers">` + sortedWorkers().map(w => {
+    const l = day.filter(j => j.workerId === w.id);
+    return `<article class="worker ${cls(w)}${isActive(w) ? '' : ' paused'}">
+      <div class="head"><div class="av" aria-hidden="true">${esc(initials(w.nome))}</div>
+        <div><h3>${esc(w.nome)}${isActive(w) ? '' : '<span class="tag paused">In pausa</span>'}</h3>
+        <p class="meta">${esc(w.telefono || 'telefono non inserito')}</p></div></div>
+      <div>${loadBlock(w, day)}</div>
+      <p class="meta">${plural(l.length, 'intervento', 'interventi')} il ${esc(fmtShort(date))}</p>
+      <div class="acts">
+        ${w.telefono ? `<a class="btn small" href="tel:${esc(digits(w.telefono))}">${ic('phone', 16)}Chiama</a>` : ''}
+        ${canWrite ? `<button class="btn small ghost" data-act="edit-worker" data-id="${esc(w.id)}">${ic('edit', 16)}Modifica</button>
+          <button class="btn small ghost" data-act="toggle-worker" data-id="${esc(w.id)}">${isActive(w) ? 'Metti in pausa' : 'Rimetti in servizio'}</button>` : ''}
+      </div></article>`;
+  }).join('') + '</div>';
+}
+function saveWorker(f){
+  const fd = new FormData(f);
+  const col = parseInt(fd.get('colore'), 10);
+  const w = {id: f.dataset.id || uid(), nome: String(fd.get('nome')).trim(), telefono: String(fd.get('telefono')).trim(),
+    attivo: fd.get('attivo') === 'on', colore: Number.isInteger(col) ? col : 0};
+  const i = workers.findIndex(x => x.id === w.id);
+  if (i >= 0) workers[i] = w; else workers.push(w);
+  persist('lavoratori', w);
+  editingWorkerId = null; mounted = null; render();
+  toast(i >= 0 ? 'Modifiche salvate.' : 'Lavoratore aggiunto.');
+}
+function removeJob(id){ jobs = jobs.filter(j => j.id !== id); unpersist('interventi', id); }
+function removeWorker(id){
+  workers = workers.filter(w => w.id !== id);
+  unpersist('lavoratori', id);
+  jobs.forEach(j => { if (j.workerId === id) { j.workerId = ''; persist('interventi', j); } });
+}
+
+/* ---------- importi, clienti e dati azienda ---------- */
+const round2 = n => Math.round((Number(n) || 0) * 100) / 100;
+const fmtNum = n => round2(n).toLocaleString('it-IT', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+const fmtEur = n => fmtNum(n) + ' €';
+const prezzoOf = nome => {
+  const t = getTipi().find(x => x.nome === nome);
+  if (!t) return 0;
+  if (t.prezzo !== undefined && t.prezzo !== '' && t.prezzo !== null) return round2(t.prezzo);
+  const d = TIPI_DEFAULT.find(x => x.id === t.id);
+  return d ? d.prezzo : 0;
+};
+const importoOf = j => (j.importo !== undefined && j.importo !== null && j.importo !== '') ? round2(j.importo) : prezzoOf(j.tipo);
+const nomeCliente = c => !c ? '' : (c.tipo === 'azienda' ? (c.ragione || '') : [c.nome, c.cognome].filter(Boolean).join(' '));
+const clienteById = id => clienti.find(c => c.id === id) || null;
+const clienteByName = name => { const k = norm(String(name || '').trim()); return k ? (clienti.find(c => norm(nomeCliente(c)) === k) || null) : null; };
+function indirizzoCliente(c){
+  const loc = [c.cap, c.citta].filter(Boolean).join(' ') + (c.prov ? ' (' + c.prov + ')' : '');
+  return [c.via, loc].filter(x => x && String(x).trim()).join(', ');
+}
+const billable = () => jobs.filter(j => stOf(j) === 'fatto' && !j.preFatturaId);
+const slug = s => norm(String(s || '')).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'cliente';
+/* controlli "morbidi" sui dati fiscali: avvisano, non bloccano */
+function pivaOk(v){
+  if (!/^\d{11}$/.test(v)) return false;
+  let s = 0;
+  for (let i = 0; i < 10; i++) { let n = +v[i]; if (i % 2 === 1) { n *= 2; if (n > 9) n -= 9; } s += n; }
+  return (10 - s % 10) % 10 === +v[10];
+}
+const cfOk = v => /^[A-Z]{6}\d{2}[A-Z]\d{2}[A-Z]\d{3}[A-Z]$/i.test(v) || /^\d{11}$/.test(v);
+const mailOk = v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+function clienteWarnings(o){
+  const w = [];
+  if (o.piva && !pivaOk(o.piva)) w.push('la partita IVA non risulta valida (11 cifre)');
+  if (o.cf && !cfOk(o.cf)) w.push('il codice fiscale non ha il formato atteso');
+  if (o.sdi && !/^[A-Z0-9]{7}$/i.test(o.sdi)) w.push('il codice destinatario ha 7 caratteri');
+  if (o.pec && !mailOk(o.pec)) w.push('la PEC non sembra un indirizzo email');
+  if (o.email && !mailOk(o.email)) w.push('l’email non sembra valida');
+  return w;
+}
+function linkJobsByName(c){
+  const k = norm(nomeCliente(c));
+  let n = 0;
+  jobs.forEach(j => { if (!j.clienteId && norm(j.cliente) === k) { j.clienteId = c.id; persist('interventi', j); n++; } });
+  return n;
+}
+function clientiOptions(){
+  return clienti.slice().sort((a, b) => nomeCliente(a).localeCompare(nomeCliente(b)))
+    .map(c => `<option value="${esc(nomeCliente(c))}" label="${c.tipo === 'azienda' ? 'Azienda' : 'Privato'}"></option>`).join('');
+}
+function updateClienteLink(autofill){
+  const inp = $('#fCliente'), hint = $('#cliHint'), f = $('#jobForm');
+  if (!inp || !hint) return;
+  if (!inp.value.trim()) { hint.textContent = ''; return; }
+  const c = clienteByName(inp.value);
+  if (c) {
+    hint.textContent = (c.tipo === 'azienda' ? 'Azienda' : 'Privato') + ' in anagrafica' + (c.piva ? ' · P.IVA ' + c.piva : (c.cf ? ' · C.F. ' + c.cf : ''));
+    if (autofill && f) {
+      const tel = f.elements.telefono;
+      if (tel && !tel.value.trim() && c.telefono) tel.value = c.telefono;
+      const via = $('#fVia'), ind = indirizzoCliente(c);
+      if (via && !via.value.trim() && ind) { via.value = ind; scheduleMaps(true); }
+    }
+  } else hint.textContent = 'Non è in anagrafica: potrai inserirlo dal menu Anagrafica.';
+}
+
+/* ---------- PDF della pre-fattura (generatore integrato, nessuna libreria esterna) ---------- */
+const PDF_W = 595.28, PDF_H = 841.89;
+const HW = [278,278,355,556,556,889,667,191,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,278,278,584,584,584,556,1015,667,667,722,722,667,611,778,722,278,500,667,556,833,722,778,667,778,722,667,611,722,667,944,667,667,611,278,278,278,469,556,333,556,556,500,556,556,278,556,556,222,222,500,222,833,556,556,556,556,333,500,278,556,500,722,500,500,500,334,260,334,584];
+const HWB = [278,333,474,556,556,889,722,238,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,333,333,584,584,584,611,975,722,722,722,722,667,611,778,722,278,556,722,611,833,722,778,667,778,722,667,611,722,667,944,667,667,611,333,278,333,584,556,333,556,611,556,611,556,333,611,611,278,278,556,278,889,611,611,611,611,389,556,333,611,556,778,556,556,500,389,280,389,584];
+const CP1252 = {'€':0x80,'‚':0x82,'ƒ':0x83,'„':0x84,'…':0x85,'†':0x86,'‡':0x87,'ˆ':0x88,'‰':0x89,'Š':0x8A,'‹':0x8B,'Œ':0x8C,'Ž':0x8E,'‘':0x91,'’':0x92,'“':0x93,'”':0x94,'•':0x95,'–':0x96,'—':0x97,'˜':0x98,'™':0x99,'š':0x9A,'›':0x9B,'œ':0x9C,'ž':0x9E,'Ÿ':0x9F};
+function pdfEnc(str){
+  let out = '';
+  for (const ch of String(str == null ? '' : str)) {
+    const c = ch.codePointAt(0);
+    if (CP1252[ch] !== undefined) out += String.fromCharCode(CP1252[ch]);
+    else if (c === 0xA0) out += ' ';
+    else if ((c >= 32 && c < 127) || (c >= 0xA1 && c <= 0xFF)) out += ch;
+    else if (c === 9 || c === 10 || c === 13) out += ' ';
+    else out += '?';
+  }
+  return out;
+}
+function pdfCharW(code, bold){
+  const t = bold ? HWB : HW;
+  if (code >= 32 && code <= 126) return t[code - 32];
+  if (code === 0x80 || code === 0x96) return 556;
+  if (code === 0x97) return 1000;
+  if (code === 0x92 || code === 0x91) return bold ? 278 : 222;
+  if (code === 0xB0) return 400;
+  if (bold && ((code >= 0xF1 && code <= 0xF6) || (code >= 0xF9 && code <= 0xFC))) return 611;
+  if (code === 0x93 || code === 0x94) return 333;
+  if (code === 0x95) return 350;
+  if (code === 0xB7) return 278;
+  if (code >= 0xC0 && code <= 0xC5) return bold ? 722 : 667;
+  if (code >= 0xC8 && code <= 0xCB) return 667;
+  if (code >= 0xCC && code <= 0xCF) return 278;
+  if (code >= 0xD2 && code <= 0xD6) return 778;
+  if (code >= 0xD9 && code <= 0xDC) return 722;
+  if (code === 0xC7) return 722;
+  if (code === 0xE7) return bold ? 556 : 500;
+  if (code === 0xEC || code === 0xED || code === 0xEE || code === 0xEF) return 278;
+  return 556;
+}
+function pdfWidth(str, size, bold){
+  const s = pdfEnc(str); let w = 0;
+  for (let i = 0; i < s.length; i++) w += pdfCharW(s.charCodeAt(i), bold);
+  return w * size / 1000;
+}
+function pdfWrap(str, maxW, size, bold){
+  const out = [];
+  String(str == null ? '' : str).split('\n').forEach(par => {
+    let line = '';
+    par.split(/\s+/).filter(Boolean).forEach(word => {
+      let w = word;
+      while (pdfWidth(w, size, bold) > maxW) {
+        let k = w.length; while (k > 1 && pdfWidth(w.slice(0, k), size, bold) > maxW) k--;
+        if (line) { out.push(line); line = ''; }
+        out.push(w.slice(0, k)); w = w.slice(k);
+      }
+      const t = line ? line + ' ' + w : w;
+      if (pdfWidth(t, size, bold) <= maxW) line = t; else { if (line) out.push(line); line = w; }
+    });
+    out.push(line);
+  });
+  return out.length ? out : [''];
+}
+function pdfBuilder(){
+  const pages = [];
+  let cur = null;
+  const f2 = n => (Math.round(n * 100) / 100).toFixed(2);
+  const esc = s => s.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+  const col = c => (c || [0, 0, 0]).map(v => f2(v)).join(' ');
+  const api = {
+    page(){ cur = []; pages.push(cur); return pages.length; },
+    get count(){ return pages.length; },
+    __goto(n){ cur = pages[n - 1]; },
+    text(x, y, str, size, o){
+      o = o || {};
+      let xx = x; const w = pdfWidth(str, size, o.bold);
+      if (o.align === 'right') xx = x - w; else if (o.align === 'center') xx = x - w / 2;
+      cur.push(`BT /${o.bold ? 'F2' : 'F1'} ${f2(size)} Tf ${col(o.color)} rg ${f2(xx)} ${f2(PDF_H - y)} Td (${esc(pdfEnc(str))}) Tj ET`);
+    },
+    line(x1, y1, x2, y2, w, color){ cur.push(`${col(color)} RG ${f2(w || 0.5)} w ${f2(x1)} ${f2(PDF_H - y1)} m ${f2(x2)} ${f2(PDF_H - y2)} l S`); },
+    rect(x, y, w, h, fill, stroke){
+      cur.push(`${fill ? col(fill) + ' rg ' : ''}${stroke ? col(stroke) + ' RG 0.6 w ' : ''}${f2(x)} ${f2(PDF_H - y - h)} ${f2(w)} ${f2(h)} re ${fill && stroke ? 'B' : fill ? 'f' : 'S'}`);
+    },
+    build(title){
+      const objs = [];
+      objs[1] = '<< /Type /Catalog /Pages 2 0 R >>';
+      const kids = pages.map((_, i) => (5 + i * 2) + ' 0 R').join(' ');
+      objs[2] = `<< /Type /Pages /Kids [${kids}] /Count ${pages.length} >>`;
+      objs[3] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>';
+      objs[4] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>';
+      pages.forEach((ops, i) => {
+        const pn = 5 + i * 2, cn = pn + 1;
+        const stream = ops.join('\n');
+        objs[pn] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${f2(PDF_W)} ${f2(PDF_H)}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${cn} 0 R >>`;
+        objs[cn] = `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`;
+      });
+      const infoN = objs.length;
+      objs[infoN] = `<< /Title (${esc(pdfEnc(title || 'Pre-fattura'))}) /Producer (Gestionale interventi) >>`;
+      let out = '%PDF-1.4\n%\xE2\xE3\xCF\xD3\n';
+      const offs = [];
+      for (let n = 1; n < objs.length; n++) { offs[n] = out.length; out += n + ' 0 obj\n' + objs[n] + '\nendobj\n'; }
+      const xref = out.length;
+      out += 'xref\n0 ' + objs.length + '\n0000000000 65535 f \n';
+      for (let n = 1; n < objs.length; n++) out += String(offs[n]).padStart(10, '0') + ' 00000 n \n';
+      out += `trailer\n<< /Size ${objs.length} /Root 1 0 R /Info ${infoN} 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+      const bytes = new Uint8Array(out.length);
+      for (let i = 0; i < out.length; i++) bytes[i] = out.charCodeAt(i) & 0xFF;
+      return bytes;
+    }
+  };
+  return api;
+}
+
+function buildPrefatturaPdf(pf, az){
+  az = az || {};
+  const d = pf.destinatario || {};
+  const L = 48, R = PDF_W - 48, W = R - L, GREY = [0.42, 0.45, 0.5], DARK = [0.08, 0.1, 0.15], LIGHT = [0.95, 0.96, 0.97];
+  const doc = pdfBuilder();
+  const colData = L + 6, colDesc = L + 66, descW = 262, colQ = R - 118, colP = R - 62, colI = R - 6;
+  const eur = n => fmtNum(n) + ' €';
+  const dmy = s => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || ''); return m ? m[3] + '/' + m[2] + '/' + m[1] : (s || ''); };
+  const tableHead = y => {
+    doc.rect(L, y, W, 20, LIGHT);
+    doc.text(colData, y + 13.5, 'Data', 8.5, {bold: true, color: GREY});
+    doc.text(colDesc, y + 13.5, 'Descrizione', 8.5, {bold: true, color: GREY});
+    doc.text(colQ, y + 13.5, 'Q.tà', 8.5, {bold: true, color: GREY, align: 'right'});
+    doc.text(colP, y + 13.5, 'Prezzo', 8.5, {bold: true, color: GREY, align: 'right'});
+    doc.text(colI, y + 13.5, 'Importo', 8.5, {bold: true, color: GREY, align: 'right'});
+    return y + 20;
+  };
+  doc.page();
+  /* intestazione: dati dell'azienda a sinistra, titolo a destra */
+  let y = 54;
+  const aziendaNome = (az.ragione || '').trim();
+  doc.text(L, y, aziendaNome || 'Intestazione non compilata', 15, {bold: true, color: aziendaNome ? DARK : GREY});
+  y += 16;
+  const aLines = [az.indirizzo, [az.piva ? 'P.IVA ' + az.piva : '', az.cf ? 'C.F. ' + az.cf : ''].filter(Boolean).join('  ·  '), [az.telefono, az.email].filter(Boolean).join('  ·  ')].filter(x => x && String(x).trim());
+  if (!aLines.length && !aziendaNome) aLines.push('Compila i dati dell’azienda nella pagina Pre-fatturazione.');
+  aLines.forEach(t => { doc.text(L, y, t, 9, {color: GREY}); y += 12; });
+  doc.text(R, 54, 'PRE-FATTURA', 20, {bold: true, align: 'right', color: DARK});
+  doc.text(R, 72, 'N. ' + pf.numero, 11, {bold: true, align: 'right'});
+  doc.text(R, 86, 'Data: ' + dmy(pf.data), 10, {align: 'right', color: GREY});
+  y = Math.max(y, 98) + 10;
+  doc.line(L, y, R, y, 0.8, [0.8, 0.82, 0.86]);
+  y += 16;
+  /* destinatario */
+  const nomeD = d.tipo === 'azienda' ? (d.ragione || '') : [d.nome, d.cognome].filter(Boolean).join(' ');
+  const indirizzo = [d.via, [d.cap, d.citta].filter(Boolean).join(' ') + (d.prov ? ' (' + d.prov + ')' : '')].filter(x => x && String(x).trim()).join(', ');
+  const fisc = [d.piva ? 'P.IVA ' + d.piva : '', d.cf ? 'C.F. ' + d.cf : ''].filter(Boolean).join('  ·  ');
+  const sdi = d.tipo === 'azienda' ? [d.sdi ? 'Codice destinatario: ' + d.sdi : '', d.pec ? 'PEC: ' + d.pec : ''].filter(Boolean).join('  ·  ') : (d.pec ? 'PEC: ' + d.pec : '');
+  const contatti = [d.telefono, d.email].filter(Boolean).join('  ·  ');
+  const dLines = [indirizzo, fisc, sdi, d.tipo === 'azienda' && d.referente ? 'Referente: ' + d.referente : '', contatti].filter(x => x && String(x).trim());
+  const nameLines = pdfWrap(nomeD || '—', W - 24, 12, true);
+  const boxH = 34 + (nameLines.length - 1) * 14 + dLines.length * 12 + 6;
+  doc.rect(L, y, W, boxH, LIGHT);
+  doc.text(L + 12, y + 16, 'DESTINATARIO', 8, {bold: true, color: GREY});
+  nameLines.forEach((t, i) => doc.text(L + 12, y + 32 + i * 14, t, 12, {bold: true}));
+  dLines.forEach((t, i) => doc.text(L + 12, y + 46 + (nameLines.length - 1) * 14 + i * 12, t, 9, {color: [0.2, 0.22, 0.28]}));
+  y += boxH + 22;
+  /* tabella righe */
+  y = tableHead(y);
+  const bottom = PDF_H - 150;
+  (pf.righe || []).forEach(r => {
+    const l1 = pdfWrap(r.descrizione || 'Intervento', descW, 10, true);
+    const l2 = r.dettaglio ? pdfWrap(r.dettaglio, descW, 8.5, false) : [];
+    const h = 10 + l1.length * 12 + l2.length * 11 + 4;
+    if (y + h > bottom) { doc.page(); y = 54; doc.text(L, y, 'Pre-fattura ' + pf.numero + ' (continua)', 10, {bold: true, color: GREY}); y = tableHead(y + 14); }
+    doc.text(colData, y + 14, dmy(r.data), 9);
+    l1.forEach((t, i) => doc.text(colDesc, y + 14 + i * 12, t, 10, {bold: true}));
+    l2.forEach((t, i) => doc.text(colDesc, y + 14 + l1.length * 12 + i * 11, t, 8.5, {color: GREY}));
+    doc.text(colQ, y + 14, String(r.qta == null ? 1 : r.qta), 9.5, {align: 'right'});
+    doc.text(colP, y + 14, eur(r.prezzo), 9.5, {align: 'right'});
+    doc.text(colI, y + 14, eur(r.importo), 9.5, {align: 'right', bold: true});
+    y += h;
+    doc.line(L, y, R, y, 0.4, [0.86, 0.88, 0.91]);
+  });
+  /* totali */
+  if (y + 96 > PDF_H - 70) { doc.page(); y = 54; }
+  y += 18;
+  const tx = R - 210, tvx = R - 6;
+  doc.text(tx, y, 'Imponibile', 10, {color: GREY}); doc.text(tvx, y, eur(pf.imponibile), 10, {align: 'right'}); y += 16;
+  doc.text(tx, y, Number(pf.iva) > 0 ? 'IVA ' + pf.iva + '%' : 'IVA (esente / fuori campo)', 10, {color: GREY}); doc.text(tvx, y, eur(pf.ivaImporto), 10, {align: 'right'}); y += 8;
+  doc.line(tx, y, R, y, 0.8, [0.7, 0.72, 0.78]); y += 17;
+  doc.text(tx, y, 'TOTALE', 12, {bold: true}); doc.text(tvx, y, eur(pf.totale), 13, {align: 'right', bold: true}); y += 26;
+  /* note e pagamento */
+  const notes = [];
+  if (pf.note) notes.push(pf.note);
+  if (az.pagamento) notes.push(az.pagamento);
+  if (az.iban) notes.push('IBAN: ' + az.iban);
+  if (notes.length) {
+    if (y + 20 + notes.length * 24 > PDF_H - 60) { doc.page(); y = 54; }
+    doc.text(L, y, 'NOTE E PAGAMENTO', 8, {bold: true, color: GREY}); y += 13;
+    notes.forEach(n => pdfWrap(n, W, 9, false).forEach(t => { doc.text(L, y, t, 9); y += 12; }));
+  }
+  /* piè di pagina su ogni pagina */
+  const total = doc.count;
+  for (let i = 1; i <= total; i++) {
+    doc.__goto(i);
+    doc.line(L, PDF_H - 52, R, PDF_H - 52, 0.4, [0.8, 0.82, 0.86]);
+    doc.text(L, PDF_H - 38, 'Documento di pre-fatturazione, non valido ai fini fiscali. La fattura elettronica viene emessa separatamente.', 7.5, {color: GREY});
+    doc.text(R, PDF_H - 38, 'Pagina ' + i + ' di ' + total, 7.5, {align: 'right', color: GREY});
+  }
+  return doc.build('Pre-fattura ' + pf.numero);
+}
+
+/* ---------- Anagrafica clienti (privati e aziende) ---------- */
+function clienteFormHtml(v, tipo, editing){
+  v = v || {};
+  const az = tipo === 'azienda';
+  const inp = (name, label, o) => {
+    o = o || {};
+    return `<label class="field${o.span ? ' span2' : ''}"><span>${label}</span><input name="${name}"${o.type ? ` type="${o.type}"` : ''}${o.req ? ' required' : ''}${o.mode ? ` inputmode="${o.mode}"` : ''}${o.max ? ` maxlength="${o.max}"` : ''} value="${esc(v[name] || '')}"></label>`;
+  };
+  const top = az
+    ? inp('ragione', 'Ragione sociale', {req: true, span: true}) + inp('piva', 'Partita IVA', {req: true, mode: 'numeric', max: 11}) + inp('cf', 'Codice fiscale (se diverso)', {max: 16}) +
+      inp('sdi', 'Codice destinatario (SDI)', {max: 7}) + inp('pec', 'PEC', {type: 'email'}) + inp('referente', 'Referente') +
+      inp('telefono', 'Telefono', {type: 'tel', mode: 'tel'}) + inp('email', 'Email', {type: 'email'})
+    : inp('nome', 'Nome', {req: true}) + inp('cognome', 'Cognome', {req: true}) + inp('cf', 'Codice fiscale', {max: 16}) +
+      inp('telefono', 'Telefono', {type: 'tel', mode: 'tel'}) + inp('email', 'Email', {type: 'email'});
+  return `<form id="clienteForm" data-id="${editing ? esc(v.id) : ''}" data-tipo="${tipo}" autocomplete="off">
+    <h2 class="page-title">${editing ? (az ? 'Modifica azienda' : 'Modifica cliente privato') : (az ? 'Nuova azienda' : 'Nuovo cliente privato')}</h2>
+    <div class="fgrid">${top}
+      ${inp('via', az ? 'Sede: via e numero' : 'Indirizzo: via e numero', {span: true})}
+      ${inp('cap', 'CAP', {mode: 'numeric', max: 5})}${inp('citta', 'Città')}${inp('prov', 'Provincia (sigla)', {max: 2})}
+      <label class="field span2"><span>Note</span><textarea name="note">${esc(v.note || '')}</textarea></label>
+    </div>
+    <p class="wz-warn" id="cliWarn" style="margin:0 0 10px"></p>
+    <div class="form-actions">
+      <button class="btn primary" type="submit">${ic('check', 18)}${editing ? 'Salva modifiche' : 'Salva cliente'}</button>
+      <button class="btn" type="button" data-act="ana-cancel">Annulla</button>
+      ${editing ? `<button class="btn danger" type="button" data-act="ana-del" data-id="${esc(v.id)}">${ic('trash', 16)}Elimina</button>` : ''}
+    </div></form>`;
+}
+function clienteFromForm(f){
+  const fd = new FormData(f), g = k => String(fd.get(k) || '').trim();
+  return {
+    id: f.dataset.id || uid(), tipo: f.dataset.tipo === 'azienda' ? 'azienda' : 'privato',
+    nome: g('nome'), cognome: g('cognome'), ragione: g('ragione'),
+    piva: g('piva').replace(/\s/g, ''), cf: g('cf').toUpperCase().replace(/\s/g, ''), sdi: g('sdi').toUpperCase().replace(/\s/g, ''),
+    pec: g('pec'), referente: g('referente'), telefono: g('telefono'), email: g('email'),
+    via: g('via'), cap: g('cap').replace(/\D/g, '').slice(0, 5), citta: g('citta'), prov: g('prov').toUpperCase().slice(0, 2), note: g('note')
+  };
+}
+function cliWarnLive(f){
+  const el = $('#cliWarn'); if (!el) return;
+  const w = clienteWarnings(clienteFromForm(f));
+  el.textContent = w.length ? 'Controlla: ' + w.join('; ') + '.' : '';
+}
+function mountAnagrafica(){
+  const edit = editingClienteId ? clienteById(editingClienteId) : null;
+  if (editingClienteId && !edit) editingClienteId = null;
+  const tipo = edit ? edit.tipo : anaTab;
+  const form = canWrite && cliFormOpen ? `<section class="panel" id="cliFormPanel">${clienteFormHtml(edit || cliPrefill, tipo, !!edit)}</section>` : '';
+  const tab = (t, icon, label, id) => `<button role="tab" data-act="ana-tab" data-tab="${t}" aria-selected="${anaTab === t}">${ic(icon, 16)}${label}<span class="pill" id="${id}">0</span></button>`;
+  $('#app').innerHTML = `<div class="pagehead"><div><h2>Anagrafica clienti</h2><p class="sub">Privati e aziende, da usare nei lavori e nelle pre-fatture</p></div>
+      ${canWrite ? `<button class="btn primary" data-act="ana-new">${ic('plus', 18)}${anaTab === 'azienda' ? 'Nuova azienda' : 'Nuovo cliente privato'}</button>` : ''}</div>
+    <div class="subnav" role="tablist" aria-label="Tipo di cliente">${tab('privato', 'user', 'Privati', 'anaCntP')}${tab('azienda', 'building', 'Aziende', 'anaCntA')}</div>
+    ${form}
+    <section class="panel"><label class="field" style="margin-bottom:12px"><span>Cerca (nome, partita IVA, telefono, città)</span><input type="search" id="anaQ" value="${esc(anaQ)}"></label><div id="anaList"></div></section>`;
+}
+function cliCard(c){
+  const nj = jobs.filter(j => j.clienteId === c.id);
+  const da = nj.filter(j => stOf(j) === 'fatto' && !j.preFatturaId);
+  const sum = da.reduce((s, j) => s + importoOf(j), 0);
+  const ind = indirizzoCliente(c);
+  return `<article class="worker ${c.tipo === 'azienda' ? 'c3' : 'c0'}">
+    <div class="head"><div class="av" aria-hidden="true">${ic(c.tipo === 'azienda' ? 'building' : 'user', 18)}</div>
+      <div><h3>${esc(nomeCliente(c))}</h3><p class="meta">${c.tipo === 'azienda' ? 'P.IVA ' + esc(c.piva || '—') : (c.cf ? 'C.F. ' + esc(c.cf) : 'Privato')}${c.tipo === 'azienda' && c.referente ? ' · ' + esc(c.referente) : ''}</p></div></div>
+    ${ind ? `<p class="meta">${esc(ind)}</p>` : ''}
+    ${c.telefono || c.email ? `<p class="meta">${[c.telefono, c.email].filter(Boolean).map(esc).join(' · ')}</p>` : ''}
+    <p class="meta">${plural(nj.length, 'intervento', 'interventi')}${da.length ? ' · ' + esc(fmtEur(sum)) + ' da pre-fatturare' : ''}</p>
+    <div class="acts">
+      ${c.telefono ? `<a class="btn small" href="tel:${esc(digits(c.telefono))}">${ic('phone', 16)}Chiama</a>` : ''}
+      ${canWrite ? `<button class="btn small ghost" data-act="ana-edit" data-id="${esc(c.id)}">${ic('edit', 16)}Modifica</button>` : ''}</div></article>`;
+}
+function refreshAnagrafica(){
+  const p = $('#anaCntP'), a = $('#anaCntA');
+  if (p) p.textContent = clienti.filter(c => c.tipo !== 'azienda').length;
+  if (a) a.textContent = clienti.filter(c => c.tipo === 'azienda').length;
+  const q = norm(anaQ.trim());
+  const list = clienti.filter(c => (anaTab === 'azienda' ? c.tipo === 'azienda' : c.tipo !== 'azienda') &&
+    (!q || norm([nomeCliente(c), c.piva, c.cf, c.telefono, c.email, c.citta, c.via].join(' ')).includes(q)))
+    .sort((x, y) => nomeCliente(x).localeCompare(nomeCliente(y)));
+  const el = $('#anaList'); if (!el) return;
+  el.innerHTML = list.length
+    ? `<div class="workers">${list.map(cliCard).join('')}</div>`
+    : `<div class="empty"><h3>${clienti.length && q ? 'Nessun risultato' : (anaTab === 'azienda' ? 'Nessuna azienda inserita' : 'Nessun cliente privato inserito')}</h3>
+        <p>${canWrite ? 'Usa il pulsante in alto per aggiungerne uno. Potrai sceglierlo quando carichi un lavoro, e comparirà nelle pre-fatture.' : 'Non ci sono ancora clienti.'}</p></div>`;
+}
+function saveCliente(f){
+  const c = clienteFromForm(f);
+  const nome = nomeCliente(c);
+  if (!nome) { toast('Inserisci il nome del cliente.'); return; }
+  if (clienti.some(x => x.id !== c.id && norm(nomeCliente(x)) === norm(nome))) { toast('Esiste già un cliente con questo nome.'); return; }
+  const i = clienti.findIndex(x => x.id === c.id);
+  if (i >= 0) clienti[i] = c; else clienti.push(c);
+  persist('clienti', c);
+  const n = linkJobsByName(c);
+  jobs.forEach(j => { if (j.clienteId === c.id && j.cliente !== nome) { j.cliente = nome; persist('interventi', j); } });
+  const w = clienteWarnings(c);
+  cliFormOpen = false; editingClienteId = null; cliPrefill = null; mounted = null; anaTab = c.tipo; render();
+  toast((i >= 0 ? 'Cliente aggiornato.' : 'Cliente salvato.') + (n ? ` Collegati ${plural(n, 'lavoro', 'lavori')}.` : '') + (w.length ? ' Controlla: ' + w.join('; ') + '.' : ''));
+}
+function deleteCliente(id){
+  const c = clienteById(id); if (!c) return;
+  clienti = clienti.filter(x => x.id !== id);
+  unpersist('clienti', id);
+  jobs.forEach(j => { if (j.clienteId === id) { j.clienteId = ''; persist('interventi', j); } });
+  cliFormOpen = false; editingClienteId = null; mounted = null; render();
+  toast('Cliente eliminato. Le pre-fatture già create restano invariate.');
+}
+function openClienteForm(tipo, prefill){
+  anaTab = tipo; cliFormOpen = true; editingClienteId = null; cliPrefill = prefill || null;
+  view = 'anagrafica'; mounted = null; detailId = null; render(); window.scrollTo(0, 0);
+}
+
+/* ---------- Pre-fatturazione ---------- */
+const dmy = s => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || ''); return m ? m[3] + '/' + m[2] + '/' + m[1] : (s || ''); };
+const IVA_OPTS = [[22, 'IVA 22%'], [10, 'IVA 10%'], [4, 'IVA 4%'], [0, 'Senza IVA (esente / fuori campo)']];
+const nomeDest = p => nomeCliente(p.destinatario || {}) || '—';
+function pfGroups(){
+  const map = new Map();
+  billable().forEach(j => {
+    const c = (j.clienteId && clienteById(j.clienteId)) || clienteByName(j.cliente);
+    const key = c ? c.id : 'n:' + norm(j.cliente);
+    if (!map.has(key)) map.set(key, {key, cliente: c, nome: c ? nomeCliente(c) : j.cliente, jobs: []});
+    map.get(key).jobs.push(j);
+  });
+  return Array.from(map.values()).map(g => { g.jobs.sort((a, b) => a.data.localeCompare(b.data) || byFascia(a, b)); return g; })
+    .sort((a, b) => a.nome.localeCompare(b.nome));
+}
+function pfTotals(sel, iva){
+  const imponibile = round2(sel.reduce((s, j) => s + importoOf(j), 0));
+  const ivaImporto = round2(imponibile * iva / 100);
+  return {imponibile, ivaImporto, totale: round2(imponibile + ivaImporto)};
+}
+function pfGroupHtml(g){
+  const sel = g.jobs.filter(j => !pfOff.has(j.id));
+  const iva = pfIva[g.key] !== undefined ? pfIva[g.key] : 22;
+  const t = pfTotals(sel, iva);
+  const c = g.cliente;
+  return `<section class="panel pfgroup">
+    <div class="split"><div><h3>${esc(g.nome)}</h3><div class="tags">${c ? `<span class="tag type">${c.tipo === 'azienda' ? 'Azienda' : 'Privato'}</span><span class="muted">${esc(c.piva ? 'P.IVA ' + c.piva : (c.cf ? 'C.F. ' + c.cf : ''))}</span>` : '<span class="tag urgent">Non in anagrafica</span>'}</div></div>
+      <div class="pf-total">${esc(fmtEur(t.imponibile))}<small>imponibile</small></div></div>
+    ${c ? '' : `<div class="notice"><span>Per creare la pre-fattura servono i dati del cliente.</span><div class="zone-actions">
+      <button class="btn small primary" data-act="pf-newcli" data-tipo="privato" data-name="${esc(g.nome)}">Crea come privato</button>
+      <button class="btn small" data-act="pf-newcli" data-tipo="azienda" data-name="${esc(g.nome)}">Crea come azienda</button></div></div>`}
+    <div class="pf-rows">${g.jobs.map(j => `<label class="pf-row"><input type="checkbox" data-act="pf-sel" data-id="${esc(j.id)}"${pfOff.has(j.id) ? '' : ' checked'}>
+      <div class="pf-main"><strong>${esc(j.tipo || 'Intervento')}</strong><small>${esc(dmy(j.data))} · ${esc(j.via)}${j.noteFatt ? ' · ' + esc(j.noteFatt) : ''}</small></div>
+      <div class="pf-imp">${importoOf(j) === 0 ? '<span class="tag late">Importo mancante</span>' : ''}${esc(fmtEur(importoOf(j)))}</div></label>`).join('')}</div>
+    <div class="pf-foot">
+      <label class="field" style="margin:0"><span>Aliquota IVA</span><select data-act="pf-iva" data-key="${esc(g.key)}">${IVA_OPTS.map(([v, l]) => `<option value="${v}"${v === iva ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
+      <div class="pf-sum"><span>Imponibile ${esc(fmtEur(t.imponibile))}</span><span>IVA ${esc(fmtEur(t.ivaImporto))}</span><strong>Totale ${esc(fmtEur(t.totale))}</strong></div>
+      <button class="btn primary" data-act="pf-create" data-key="${esc(g.key)}"${sel.length && c ? '' : ' disabled'}>${ic('download', 18)}Crea pre-fattura (PDF)</button>
+    </div></section>`;
+}
+function pfEmesseHtml(){
+  const l = prefatture.slice().sort((a, b) => (b.anno - a.anno) || (b.prog - a.prog));
+  if (!l.length) return '<p class="muted">Nessuna pre-fattura emessa.</p>';
+  return `<div class="rows">` + l.map(p => `<div class="row ${p.stato === 'fatturata' ? 'st-fatto' : 'st-in_corso'}">
+    <div class="row-time" style="min-width:104px;white-space:nowrap">${esc(p.numero)}</div>
+    <div class="row-main"><strong>${esc(nomeDest(p))}</strong> <span class="stat st-${p.stato === 'fatturata' ? 'fatto' : 'in_corso'}">${p.stato === 'fatturata' ? 'Fatturata' : 'Pre-fattura'}</span>
+      <small>${esc(dmy(p.data))} · ${plural((p.righe || []).length, 'intervento', 'interventi')} · Totale ${esc(fmtEur(p.totale))}</small></div>
+    <div class="acts"><button class="btn small primary" data-act="pf-pdf" data-id="${esc(p.id)}">${ic('download', 16)}PDF</button>
+      <button class="btn small" data-act="pf-fatt" data-id="${esc(p.id)}">${p.stato === 'fatturata' ? 'Riporta a pre-fattura' : 'Segna come fatturata'}</button>
+      <button class="btn small danger" data-act="pf-del" data-id="${esc(p.id)}">${ic('trash', 16)}Annulla</button></div></div>`).join('') + `</div>`;
+}
+function pfMainHtml(){
+  const groups = pfGroups();
+  const nJobs = groups.reduce((s, g) => s + g.jobs.length, 0);
+  const tot = groups.reduce((s, g) => s + g.jobs.reduce((x, j) => x + importoOf(j), 0), 0);
+  let h = `<div class="pagehead"><div><h2>Pre-fatturazione</h2><p class="sub">Gli interventi segnati come «Fatto», pronti per il documento</p></div></div>
+    <div class="statline"><span><b>${nJobs}</b>da pre-fatturare</span><span><b>${esc(fmtEur(tot))}</b>imponibile</span><span><b>${prefatture.length}</b>pre-fatture emesse</span></div>`;
+  if (!(azienda.ragione || '').trim()) {
+    h += `<div class="notice"><span>Compila i dati della tua azienda: compaiono nell’intestazione del PDF.</span><button class="btn small" data-act="pf-az-open">Compila ora</button></div>`;
+  }
+  h += groups.length ? groups.map(pfGroupHtml).join('')
+    : `<div class="empty"><h3>Nessun intervento da pre-fatturare</h3><p>Quando segni un intervento come «Fatto» compare qui, con l’importo del suo tipo di intervento.</p></div>`;
+  return h + `<h2 class="page-title" style="margin:8px 0 12px">Pre-fatture emesse</h2><div class="panel">${pfEmesseHtml()}</div>`;
+}
+function aziendaPanelInner(){
+  const a = azienda || {};
+  const f = (name, label, ph, span) => `<label class="field${span ? ' span2' : ''}"><span>${label}</span><input name="${name}" placeholder="${esc(ph || '')}" value="${esc(a[name] || '')}"></label>`;
+  return `<summary>${ic('building', 20)}Dati della tua azienda (intestazione del PDF)</summary>
+    <div class="inner"><form id="aziendaForm" autocomplete="off"><div class="fgrid">
+      ${f('ragione', 'Ragione sociale')}${f('piva', 'Partita IVA')}${f('cf', 'Codice fiscale')}${f('telefono', 'Telefono')}${f('email', 'Email')}
+      ${f('indirizzo', 'Indirizzo completo', 'Via, CAP, città', true)}${f('iban', 'IBAN')}${f('pagamento', 'Condizioni di pagamento', 'Es. Bonifico bancario a 30 giorni', true)}
+    </div><div class="form-actions"><button class="btn primary" type="submit">${ic('check', 18)}Salva dati azienda</button></div></form></div>`;
+}
+function mountPrefat(){
+  $('#app').innerHTML = `<div id="pfMain"></div><details class="panel smart-panel" id="pfAzienda">${aziendaPanelInner()}</details>`;
+}
+function refreshPrefat(){
+  const m = $('#pfMain'); if (m) m.innerHTML = pfMainHtml();
+  const a = $('#pfAzienda');
+  if (a && !(document.activeElement && a.contains && a.contains(document.activeElement))) a.innerHTML = aziendaPanelInner();
+}
+function saveAzienda(f){
+  const fd = new FormData(f), g = k => String(fd.get(k) || '').trim().slice(0, 200);
+  azienda = {id: 'azienda', ragione: g('ragione'), piva: g('piva'), cf: g('cf'), telefono: g('telefono'), email: g('email'), indirizzo: g('indirizzo'), iban: g('iban'), pagamento: g('pagamento')};
+  persist('impostazioni', azienda);
+  refreshPrefat();
+  toast('Dati azienda salvati.');
+}
+async function pfDownload(id){
+  const p = prefatture.find(x => x.id === id); if (!p) return;
+  const bytes = buildPrefatturaPdf(p, azienda);
+  await saveFile(p.numero + '_' + slug(nomeDest(p)) + '.pdf', bytes, 'application/pdf');
+}
+function pfCreate(key){
+  const g = pfGroups().find(x => x.key === key);
+  if (!g || !g.cliente) return;
+  const sel = g.jobs.filter(j => !pfOff.has(j.id));
+  if (!sel.length) return;
+  const anno = new Date().getFullYear();
+  const prog = prefatture.filter(p => p.anno === anno).reduce((m, p) => Math.max(m, p.prog || 0), 0) + 1;
+  const iva = pfIva[key] !== undefined ? pfIva[key] : 22;
+  const t = pfTotals(sel, iva);
+  const c = g.cliente;
+  const pf = {
+    id: uid(), numero: 'PF-' + anno + '-' + String(prog).padStart(3, '0'), anno, prog, data: todayISO(), clienteId: c.id,
+    destinatario: Object.assign({}, c),
+    righe: sel.map(j => ({jobId: j.id, data: j.data, descrizione: j.tipo || 'Intervento', dettaglio: [j.via, j.noteFatt].filter(Boolean).join(' – '), qta: 1, prezzo: importoOf(j), importo: importoOf(j)})),
+    iva, imponibile: t.imponibile, ivaImporto: t.ivaImporto, totale: t.totale, stato: 'pre', note: ''
+  };
+  prefatture.push(pf); persist('prefatture', pf);
+  sel.forEach(j => { j.preFatturaId = pf.id; j.clienteId = c.id; persist('interventi', j); });
+  render();
+  toast(`Pre-fattura ${pf.numero} creata: ${fmtEur(pf.totale)}.`, 'Scarica PDF', () => pfDownload(pf.id));
+  pfDownload(pf.id);
+}
+function pfDelete(id){
+  const p = prefatture.find(x => x.id === id); if (!p) return;
+  prefatture = prefatture.filter(x => x.id !== id);
+  unpersist('prefatture', id);
+  jobs.forEach(j => { if (j.preFatturaId === id) { j.preFatturaId = ''; persist('interventi', j); } });
+  render();
+  toast(`Pre-fattura ${p.numero} annullata: gli interventi sono di nuovo da pre-fatturare.`);
+}
+
+/* ---------- Archivio ---------- */
+function filtered(){
+  const wById = workerMap();
+  const q = flt.q.trim().toLowerCase();
+  return jobs.filter(j =>
+    (!flt.da || j.data >= flt.da) && (!flt.a || j.data <= flt.a) &&
+    (!flt.stato || stOf(j) === flt.stato) &&
+    (!flt.w || (flt.w === '_none' ? !wById[j.workerId] : j.workerId === flt.w)) &&
+    (!q || [j.cliente, j.via, j.telefono, j.descrizione, j.tipo].join(' ').toLowerCase().includes(q))
+  ).sort((a, b) => b.data.localeCompare(a.data) || byOra(a, b));
+}
+function mountArchivio(){
+  $('#app').innerHTML = `<section class="panel"><h2 class="page-title">Finder interventi</h2>
+    <div class="fgrid cols3">
+      <label class="field span2"><span>Cerca (cliente, via, telefono, lavoro)</span><input type="search" data-flt="q" value="${esc(flt.q)}"></label>
+      <label class="field"><span>Stato</span><select data-flt="stato">${opts([['', 'Tutti'], ['da_fare', 'Da fare'], ['in_corso', 'In corso'], ['fatto', 'Fatto']], flt.stato)}</select></label>
+      <label class="field"><span>Dal</span><input type="date" data-flt="da" value="${esc(flt.da)}"></label>
+      <label class="field"><span>Al</span><input type="date" data-flt="a" value="${esc(flt.a)}"></label>
+      <label class="field"><span>Lavoratore</span><select data-flt="w" id="fltW"></select></label>
+    </div>
+    <div class="form-actions"><button class="btn small ghost" data-act="clear-filters">Azzera filtri</button>
+      <button class="btn small" data-act="export">${ic('download', 16)}Esporta in CSV</button>
+      ${canWrite ? `<button class="btn small" data-act="export-json">${ic('download', 16)}Copia dati (JSON)</button>` : ''}
+      ${canWrite ? `<button class="btn small" data-act="import-json">${ic('plus', 16)}Importa copia dati</button><input type="file" id="importFile" accept=".json,application/json" hidden>` : ''}</div></section>
+    <section class="panel" id="listPanel"></section>`;
+}
+function refreshArchivio(){
+  const sel = $('#fltW');
+  if (sel) sel.innerHTML = opts([['', 'Tutti'], ['_none', 'Da assegnare']].concat(sortedWorkers().map(w => [w.id, w.nome])), flt.w);
+  const ctx = {wById: workerMap(), conf: null, day: []};
+  const list = filtered();
+  const shown = list.slice(0, 200);
+  $('#listPanel').innerHTML = `<div class="split"><strong>${plural(list.length, 'intervento trovato', 'interventi trovati')}</strong>${list.length > 200 ? '<span class="muted">Mostrati i primi 200: restringi la ricerca.</span>' : ''}</div>
+    ${list.length ? `<div class="rows">${shown.map(j => jobRow(j, ctx, true)).join('')}</div>` : '<p class="muted">Nessun intervento corrisponde ai filtri.</p>'}`;
+}
+function csvCell(v){
+  let s = String(v == null ? '' : v);
+  if (/^[=@]|^[+\-](?!\d)/.test(s)) s = "'" + s;
+  return '"' + s.replace(/"/g, '""') + '"';
+}
+async function saveFile(filename, text, mime){
+  let d = null;
+  try { if (window.claude && window.claude.use) d = await window.claude.use('downloads'); } catch(e){}
+  if (d) {
+    try { await d.save({filename, data: text}); return true; }
+    catch(err){ if (!err || err.code !== 'declined') toast('Esportazione non riuscita.'); return false; }
+  }
+  if (STANDALONE) {
+    const url = URL.createObjectURL(new Blob([text], {type: mime}));
+    const a = document.createElement('a');
+    a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+    return true;
+  }
+  toast('Esportazione non disponibile in questa vista.');
+  return false;
+}
+async function exportCsv(){
+  const list = filtered();
+  if (!list.length) { toast('Nessun intervento da esportare.'); return; }
+  const wById = workerMap();
+  const head = ['Data', 'Fascia oraria', 'Cliente', 'Via', 'Telefono', 'Maps', 'Tipo di intervento', 'Priorità', 'Durata (min)', 'Lavoro', 'Lavoratore', 'Stato'].concat(canWrite ? ['Importo (€)', 'Pre-fattura'] : []);
+  const rows = list.map(j => [j.data, FASCIA_LABEL[fasciaOf(j)] || '', j.cliente, j.via, j.telefono, j.maps, j.tipo, j.priorita || 'normale', j.durata,
+    j.descrizione, wById[j.workerId] ? wById[j.workerId].nome : '', STATI[stOf(j)]].concat(canWrite ? [
+    stOf(j) === 'fatto' ? fmtNum(importoOf(j)) : '', ((prefatture.find(p => p.id === j.preFatturaId) || {}).numero) || ''] : []));
+  const csv = '\uFEFF' + [head].concat(rows).map(r => r.map(csvCell).join(';')).join('\r\n');
+  await saveFile('interventi-' + todayISO() + '.csv', csv, 'text/csv;charset=utf-8');
+}
+async function exportJson(){
+  if (!canWrite) return;
+  const payload = JSON.stringify({app:'gestionale-interventi', versione:3, esportato:new Date().toISOString(), lavoratori:workers, interventi:jobs, tipi:tipi, clienti:clienti, prefatture:prefatture, azienda:azienda}, null, 1);
+  await saveFile('copia-dati-interventi-' + todayISO() + '.json', payload, 'application/json');
+}
+function cleanTipo(o){
+  if (!o || typeof o !== 'object') return null;
+  const id = str(o.id, 60).replace(/[^\w-]/g, ''), nome = str(o.nome, 80).trim(), d = Number(o.durata) || 0;
+  if (!(id && nome && d > 0 && d <= 1440)) return null;
+  const t = {id, nome, durata: d};
+  if (o.prezzo !== undefined && o.prezzo !== '' && isFinite(Number(o.prezzo))) t.prezzo = Math.max(0, round2(o.prezzo));
+  return t;
+}
+function cleanCliente(o){
+  if (!o || typeof o !== 'object') return null;
+  const id = str(o.id, 60).replace(/[^\w-]/g, '');
+  const c = {id, tipo: o.tipo === 'azienda' ? 'azienda' : 'privato', nome: str(o.nome, 80), cognome: str(o.cognome, 80), ragione: str(o.ragione, 120),
+    piva: str(o.piva, 11), cf: str(o.cf, 16), sdi: str(o.sdi, 7), pec: str(o.pec, 120), referente: str(o.referente, 80), telefono: str(o.telefono, 40),
+    email: str(o.email, 120), via: str(o.via, 200), cap: str(o.cap, 5), citta: str(o.citta, 80), prov: str(o.prov, 2), note: str(o.note, 500)};
+  return id && nomeCliente(c) ? c : null;
+}
+function cleanAzienda(o){
+  if (!o || typeof o !== 'object') return null;
+  const g = (k, n) => str(o[k], n || 200);
+  return {id: 'azienda', ragione: g('ragione'), piva: g('piva', 20), cf: g('cf', 20), telefono: g('telefono', 40), email: g('email'), indirizzo: g('indirizzo'), iban: g('iban', 40), pagamento: g('pagamento')};
+}
+function cleanPre(o){
+  if (!o || typeof o !== 'object') return null;
+  const id = str(o.id, 60).replace(/[^\w-]/g, '');
+  const dest = cleanCliente(Object.assign({}, o.destinatario || {}, {id: 'x'}));
+  if (!id || !dest || !Array.isArray(o.righe)) return null;
+  const righe = o.righe.map(r => r && typeof r === 'object' ? {jobId: str(r.jobId, 60).replace(/[^\w-]/g, ''), data: str(r.data, 10), descrizione: str(r.descrizione, 120), dettaglio: str(r.dettaglio, 300),
+    qta: Number(r.qta) > 0 ? Number(r.qta) : 1, prezzo: round2(r.prezzo), importo: round2(r.importo)} : null).filter(Boolean);
+  if (!righe.length) return null;
+  const anno = parseInt(o.anno, 10) || new Date().getFullYear(), prog = parseInt(o.prog, 10) || 1;
+  return {id, numero: str(o.numero, 30) || ('PF-' + anno + '-' + String(prog).padStart(3, '0')), anno, prog, data: str(o.data, 10), clienteId: str(o.clienteId, 60).replace(/[^\w-]/g, ''),
+    destinatario: dest, righe, iva: Number(o.iva) >= 0 ? Number(o.iva) : 22, imponibile: round2(o.imponibile), ivaImporto: round2(o.ivaImporto), totale: round2(o.totale),
+    stato: o.stato === 'fatturata' ? 'fatturata' : 'pre', note: str(o.note, 500)};
+}
+function cleanJob(o){
+  if (!o || typeof o !== 'object') return null;
+  const id = str(o.id, 60).replace(/[^\w-]/g, ''), data = str(o.data, 10), cliente = str(o.cliente).trim(), via = str(o.via, 300).trim();
+  if (!id || !/^\d{4}-\d{2}-\d{2}$/.test(data) || !cliente || !via) return null;
+  let fascia = o.fascia === 'mattina' || o.fascia === 'pomeriggio' ? o.fascia : '';
+  if (!fascia) fascia = fasciaOf({ora: str(o.ora, 5)});
+  const dur = Number(o.durata) || 0;
+  const j = {id, data, fascia, cliente, via, telefono: str(o.telefono, 40), maps: str(o.maps, 500), descrizione: str(o.descrizione, 2000), tipo: str(o.tipo, 80),
+    priorita: o.priorita === 'urgente' ? 'urgente' : 'normale', durata: dur > 0 && dur <= 1440 ? dur : '',
+    workerId: str(o.workerId, 60).replace(/[^\w-]/g, ''), stato: STATI[o.stato] ? o.stato : 'da_fare',
+    clienteId: str(o.clienteId, 60).replace(/[^\w-]/g, ''), noteFatt: str(o.noteFatt, 160), preFatturaId: str(o.preFatturaId, 60).replace(/[^\w-]/g, '')};
+  if (o.importo !== undefined && o.importo !== '' && o.importo !== null && isFinite(Number(o.importo))) j.importo = Math.max(0, round2(o.importo));
+  return j;
+}
+async function importJson(file){
+  if (!file || !canWrite) return;
+  let data;
+  try { data = JSON.parse(await file.text()); } catch(e){ toast('File non valido.'); return; }
+  importData(data);
+}
+function importData(data){
+  if (!canWrite) return;
+  const arr = k => data && Array.isArray(data[k]) ? data[k] : [];
+  const ws = arr('lavoratori'), js = arr('interventi'), ts = arr('tipi'), cs = arr('clienti'), ps = arr('prefatture');
+  if (!data || data.app !== 'gestionale-interventi' || (!ws.length && !js.length && !cs.length)) { toast('Questo file non è una copia dati del gestionale.'); return; }
+  let nw = 0, nj = 0, nc = 0;
+  ws.forEach(o => { const w = cleanWorker(o); if (!w) return; const i = workers.findIndex(x => x.id === w.id); if (i >= 0) workers[i] = w; else workers.push(w); persist('lavoratori', w); nw++; });
+  js.forEach(o => { const j = cleanJob(o); if (!j) return; const i = jobs.findIndex(x => x.id === j.id); if (i >= 0) jobs[i] = j; else jobs.push(j); persist('interventi', j); nj++; });
+  cs.forEach(o => { const c = cleanCliente(o); if (!c) return; const i = clienti.findIndex(x => x.id === c.id); if (i >= 0) clienti[i] = c; else clienti.push(c); persist('clienti', c); nc++; });
+  ps.forEach(o => { const p = cleanPre(o); if (!p) return; const i = prefatture.findIndex(x => x.id === p.id); if (i >= 0) prefatture[i] = p; else prefatture.push(p); persist('prefatture', p); });
+  if (ts.length) { ensureTipiSeeded(); ts.forEach(o => { const t = cleanTipo(o); if (!t) return; const i = tipi.findIndex(x => x.id === t.id); if (i >= 0) tipi[i] = t; else if (!tipoNameTaken(t.nome, '')) tipi.push(t); else return; persist('tipi', t); }); }
+  const az = data && data.azienda ? cleanAzienda(data.azienda) : null;
+  if (az && az.ragione && !(azienda.ragione || '').trim()) { azienda = az; persist('impostazioni', az); }
+  datePicked = false; pickInitialDate(); mounted = null; render();
+  toast(`Importati ${plural(nw, 'lavoratore', 'lavoratori')}, ${plural(nj, 'intervento', 'interventi')} e ${plural(nc, 'cliente', 'clienti')}.`);
+}
+/* copia di sicurezza: esporta e importa tutti i dati */
+const str = (v, n) => String(v == null ? '' : v).slice(0, n || 200);
+function cleanWorker(o){
+  if (!o || typeof o !== 'object') return null;
+  const id = str(o.id, 60).replace(/[^\w-]/g, ''), nome = str(o.nome).trim();
+  if (!id || !nome) return null;
+  const col = parseInt(o.colore, 10);
+  return {id, nome, telefono: str(o.telefono, 40), attivo: o.attivo !== false, colore: Number.isInteger(col) ? ((col % 8) + 8) % 8 : 0};
+}
+
+/* ---------- rendering ---------- */
+function go(v){
+  view = v; mounted = null; detailId = null;
+  if (v === 'carica') { editingJobId = null; draftJob = null; }
+  if (v === 'lavoratori') editingWorkerId = null;
+  if (v === 'assegna') assSub = 'giornata';
+  if (v === 'anagrafica') { cliFormOpen = false; editingClienteId = null; cliPrefill = null; }
+  render(); window.scrollTo(0, 0);
+}
+function setDate(s){
+  if (!s) return;
+  date = s; datePicked = true; render();
+  const fd = $('#fData');
+  if (view === 'carica' && !editingJobId && fd) fd.value = date;
+}
+function assign(id, workerId, fascia){
+  const j = jobs.find(x => x.id === id); if (!j) return;
+  j.workerId = workerId;
+  if (fascia === 'mattina' || fascia === 'pomeriggio') { j.fascia = fascia; j.ora = ''; }
+  persist('interventi', j); render();
+}
+let toastT, toastFn = null;
+function toast(msg, label, fn){
+  const t = $('#toast');
+  toastFn = fn || null;
+  t.innerHTML = '<span>' + esc(msg) + '</span>' + (label ? `<button data-act="toast-act">${esc(label)}</button>` : '');
+  t.hidden = false;
+  clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; toastFn = null; }, label ? 7000 : 3500);
+}
+
+/* ---------- eventi ---------- */
+document.addEventListener('click', e => {
+  if (e.target.id === 'overlay') { detailId = null; renderDetail(); return; }
+  const t = e.target.closest('[data-act]'); if (!t) return;
+  const id = t.dataset.id;
+  switch (t.dataset.act) {
+    case 'go': go(t.dataset.view); break;
+    case 'prev': setDate(shift(date, -1)); break;
+    case 'next': setDate(shift(date, 1)); break;
+    case 'oggi': setDate(todayISO()); break;
+    case 'theme': toggleTheme(); break;
+    case 'ass-mode': assMode = t.dataset.mode; render(); break;
+    case 'set-fascia': { const j = jobs.find(x => x.id === id); if (j && canWrite) { j.fascia = t.dataset.f; j.ora = ''; persist('interventi', j); render(); } break; }
+    case 'tipo-add': tipoAdd(); break;
+    case 'ana-tab': anaTab = t.dataset.tab; cliFormOpen = false; editingClienteId = null; cliPrefill = null; mounted = null; render(); break;
+    case 'ana-new': cliFormOpen = true; editingClienteId = null; cliPrefill = null; mounted = null; render(); break;
+    case 'ana-edit': cliFormOpen = true; editingClienteId = id; cliPrefill = null; mounted = null; render(); window.scrollTo(0, 0); break;
+    case 'ana-cancel': cliFormOpen = false; editingClienteId = null; cliPrefill = null; mounted = null; render(); break;
+    case 'ana-del':
+      if (t.dataset.armed !== '1') { t.dataset.armed = '1'; t.textContent = 'Tocca ancora per eliminare'; } else deleteCliente(id);
+      break;
+    case 'pf-newcli': {
+      const parts = String(t.dataset.name || '').trim().split(/\s+/);
+      const j0 = jobs.find(x => norm(x.cliente) === norm(t.dataset.name));
+      const base = {telefono: j0 ? j0.telefono : '', via: ''};
+      openClienteForm(t.dataset.tipo, t.dataset.tipo === 'azienda' ? Object.assign(base, {ragione: t.dataset.name}) : Object.assign(base, {nome: parts[0] || '', cognome: parts.slice(1).join(' ')}));
+      break;
+    }
+    case 'logout': if (fb) fb.signOut(fb.auth); break;
+    case 'login-mode': loginMode = t.dataset.mode; render(); break;
+    case 'fb-retry': location.reload(); break;
+    case 'w-stato': setStato(id, t.dataset.st); break;
+    case 'migra-locale': migraLocale(); break;
+    case 'migra-ignora': migHidden = true; render(); break;
+    case 'pf-create': pfCreate(t.dataset.key); break;
+    case 'pf-pdf': pfDownload(id); break;
+    case 'pf-fatt': { const p = prefatture.find(x => x.id === id); if (p) { p.stato = p.stato === 'fatturata' ? 'pre' : 'fatturata'; persist('prefatture', p); render(); } break; }
+    case 'pf-del':
+      if (t.dataset.armed !== '1') { t.dataset.armed = '1'; t.textContent = 'Conferma?'; } else pfDelete(id);
+      break;
+    case 'pf-az-open': { const a = $('#pfAzienda'); if (a) { a.open = true; a.scrollIntoView({behavior: 'smooth'}); } break; }
+    case 'tipo-del':
+      if (t.dataset.armed !== '1') { t.dataset.armed = '1'; t.textContent = 'Conferma?'; } else tipoDel(id);
+      break;
+    case 'ass-sub': if (t.dataset.sub === 'nuova') openWizard(''); else { assSub = 'giornata'; wzSel = new Set(); render(); } break;
+    case 'wz-open': if (canWrite) openWizard(t.dataset.w || ''); break;
+    case 'wz-cancel': assSub = 'giornata'; wzSel = new Set(); render(); break;
+    case 'wz-all': wzCands().forEach(j => wzSel.add(j.id)); render(); break;
+    case 'wz-none': wzSel = new Set(); render(); break;
+    case 'wz-create': wzCreate(); break;
+    case 'open-job': detailId = id; renderDetail(); break;
+    case 'close-detail': detailId = null; renderDetail(); break;
+    case 'stato': { const j = jobs.find(x => x.id === id); if (j) setStato(id, NEXT[stOf(j)]); break; }
+    case 'set-stato': setStato(id, t.dataset.st); break;
+    case 'auto': autoAssign(); break;
+    case 'apply-suggest': assign(id, t.dataset.w); break;
+    case 'smart-fill': smartFill(); break;
+    case 'toast-act': { const fn = toastFn; toastFn = null; $('#toast').hidden = true; if (fn) fn(); break; }
+    case 'edit-job': if (canWrite) { detailId = null; editingJobId = id; draftJob = null; view = 'carica'; mounted = null; render(); window.scrollTo(0, 0); } break;
+    case 'dup-job': {
+      const j = jobs.find(x => x.id === id); if (!j) break;
+      draftJob = Object.assign({}, j, {id: '', data: shift(j.data, 1), stato: 'da_fare', workerId: ''});
+      editingJobId = null; view = 'carica'; mounted = null; render(); window.scrollTo(0, 0);
+      toast('Copia pronta: controlla la data e salva.'); break;
+    }
+    case 'cancel-edit-job': editingJobId = null; draftJob = null; mounted = null; render(); break;
+    case 'del-job':
+      if (t.dataset.armed !== '1') { t.dataset.armed = '1'; t.textContent = 'Tocca ancora per eliminare'; }
+      else {
+        const copy = jobs.find(x => x.id === id);
+        removeJob(id); editingJobId = null; mounted = null; render();
+        toast('Intervento eliminato.', 'Annulla', () => { if (copy) { jobs.push(copy); persist('interventi', copy); render(); } });
+      }
+      break;
+    case 'edit-worker': editingWorkerId = id; view = 'lavoratori'; mounted = null; render(); window.scrollTo(0, 0); break;
+    case 'cancel-edit-worker': editingWorkerId = null; mounted = null; render(); break;
+    case 'toggle-worker': {
+      const w = workers.find(x => x.id === id); if (!w) break;
+      w.attivo = !isActive(w); persist('lavoratori', w); render(); break;
+    }
+    case 'del-worker':
+      if (t.dataset.armed !== '1') { t.dataset.armed = '1'; t.textContent = 'Tocca ancora per eliminare'; }
+      else { removeWorker(id); editingWorkerId = null; mounted = null; render(); toast('Lavoratore eliminato.'); }
+      break;
+    case 'clear-filters': Object.assign(flt, {q:'', da:'', a:'', stato:'', w:''}); mounted = null; render(); break;
+    case 'export': exportCsv(); break;
+    case 'export-json': exportJson(); break;
+    case 'import-json': { const f = $('#importFile'); if (f) f.click(); break; }
+  }
+});
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (t.id === 'dateInput') setDate(t.value);
+  else if (t.id === 'wzWorker') { wzWorker = t.value; render(); }
+  else if (t.id === 'wzDate') { if (t.value) { wzDate = t.value; render(); } }
+  else if (t.id === 'fVia') scheduleMaps(true);
+  else if (t.matches && t.matches('select[data-act="u-ruolo"]')) setUserRole(t.dataset.uid, t.value);
+  else if (t.matches && t.matches('select[data-act="u-worker"]')) setUserWorker(t.dataset.uid, t.value);
+  else if (t.dataset && t.dataset.wnote) { const j = jobs.find(x => x.id === t.dataset.id); if (j) { j.noteLavoratore = t.value.slice(0, 500); persist('interventi', j); } }
+  else if (t.id === 'fTipo') updateTipoDur();
+  else if (t.id === 'fCliente') updateClienteLink(true);
+  else if (t.id === 'dImporto') {
+    const j = jobs.find(x => x.id === t.dataset.id), v = parseFloat(String(t.value).replace(',', '.'));
+    if (j && !j.preFatturaId && isFinite(v) && v >= 0) { j.importo = round2(v); persist('interventi', j); render(); } else toast('Inserisci un importo valido.');
+  }
+  else if (t.id === 'dNoteF') { const j = jobs.find(x => x.id === t.dataset.id); if (j && !j.preFatturaId) { j.noteFatt = t.value.trim().slice(0, 160); persist('interventi', j); } }
+  else if (t.matches && t.matches('input[data-act="pf-sel"]')) { if (t.checked) pfOff.delete(t.dataset.id); else pfOff.add(t.dataset.id); refreshPrefat(); }
+  else if (t.matches && t.matches('select[data-act="pf-iva"]')) { pfIva[t.dataset.key] = Number(t.value); refreshPrefat(); }
+  else if (t.dataset && t.dataset.tf) tipoEdit(t.dataset.id, t.dataset.tf, t.value);
+  else if (t.id === 'importFile') { importJson(t.files && t.files[0]); t.value = ''; }
+  else if (t.matches && t.matches('input[data-act="wz-sel"]')) {
+    if (t.checked) wzSel.add(t.dataset.id); else wzSel.delete(t.dataset.id);
+    const row = t.closest('.pitem'); if (row) row.classList.toggle('sel', t.checked);
+    const s = $('#wzSummary'); if (s) s.innerHTML = wzSummaryHtml();
+  }
+  else if (t.matches && t.matches('input[data-act="wz-other"]')) { wzOther = t.checked; render(); }
+  else if (t.matches && t.matches('select[data-act="assegna-d"]')) assign(t.dataset.id, t.value);
+});
+document.addEventListener('input', e => {
+  const t = e.target;
+  if (t.id === 'fCliente') { updateClienteLink(e.inputType === 'insertReplacementText'); return; }
+  if (t.id === 'anaQ') { anaQ = t.value; refreshAnagrafica(); return; }
+  if (t.form && t.form.id === 'clienteForm') { cliWarnLive(t.form); return; }
+  if (t.id === 'fVia') { acRefresh(); if (mapsAuto) scheduleMaps(false); return; }
+  if (t.id === 'fMaps') { mapsAuto = t.value.trim() === ''; updateMapsHint(); return; }
+  const k = t.dataset && t.dataset.flt;
+  if (k) { flt[k] = t.value; refreshArchivio(); }
+});
+document.addEventListener('click', e => {
+  const it = e.target.closest && e.target.closest('.ac-item');
+  if (it) acPick(Number(it.dataset.i));
+});
+document.addEventListener('mousedown', e => { if (e.target.closest && e.target.closest('.ac-item')) e.preventDefault(); });
+document.addEventListener('focusin', e => { if (acItems.length && !(e.target.closest && e.target.closest('.ac'))) acClose(); });
+document.addEventListener('submit', e => {
+  e.preventDefault();
+  const f = e.target;
+  if (f.id === 'jobForm') saveJob(f, (e.submitter && e.submitter.dataset.mode) || 'another');
+  else if (f.id === 'workerForm') saveWorker(f);
+  else if (f.id === 'clienteForm') saveCliente(f);
+  else if (f.id === 'loginForm') doAuth(f);
+  else if (f.id === 'aziendaForm') saveAzienda(f);
+});
+document.addEventListener('keydown', e => {
+  if (e.target && e.target.id === 'fVia' && acItems.length) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); acMove(1); return; }
+    if (e.key === 'ArrowUp') { e.preventDefault(); acMove(-1); return; }
+    if (e.key === 'Enter' && acActive >= 0) { e.preventDefault(); acPick(acActive); return; }
+    if (e.key === 'Escape') { e.preventDefault(); acClose(); return; }
+    if (e.key === 'Tab') acClose();
+  }
+  if (e.key === 'Escape' && detailId) { detailId = null; renderDetail(); return; }
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('[role="button"][data-act]')) { e.preventDefault(); e.target.click(); }
+});
+
+/* trascinamento (computer): sposta un intervento su un lavoratore */
+document.addEventListener('dragstart', e => {
+  const c = e.target.closest && e.target.closest('[draggable="true"][data-id]');
+  if (c) { e.dataTransfer.setData('text/plain', c.dataset.id); e.dataTransfer.effectAllowed = 'move'; }
+});
+document.addEventListener('dragover', e => {
+  const z = e.target.closest && e.target.closest('[data-drop]');
+  if (z && canWrite) { e.preventDefault(); z.classList.add('over'); }
+});
+document.addEventListener('dragleave', e => {
+  const z = e.target.closest && e.target.closest('[data-drop]');
+  if (z && !z.contains(e.relatedTarget)) z.classList.remove('over');
+});
+document.addEventListener('drop', e => {
+  const z = e.target.closest && e.target.closest('[data-drop]');
+  if (!z || !canWrite) return;
+  e.preventDefault(); z.classList.remove('over');
+  const id = e.dataTransfer.getData('text/plain');
+  if (id) assign(id, z.dataset.drop, z.dataset.fascia);
+});
+
+/* ---------- suggerimenti di indirizzo Geoapify (dati OpenStreetMap) ---------- */
+/* 1) Incolla qui la tua chiave API di Geoapify (registrazione gratuita, senza carta): https://myprojects.geoapify.com */
+const GEOAPIFY_API_KEY = 'INSERISCI_QUI_LA_TUA_CHIAVE';
+/* 2) Facoltativo: dai la precedenza alla tua zona di lavoro. Esempio: {lat: 45.4642, lng: 9.19}. Lascia null per tutta Italia. */
+const ZONA_DI_LAVORO = null;
+
+let gSeq = 0, gTimer = null, gBroken = false, gAbort = null;
+const gKeyOk = () => /^[A-Za-z0-9]{16,64}$/.test(GEOAPIFY_API_KEY);
+const gEnabled = () => gKeyOk() && !gBroken;
+const gNote = t => { const n = $('#gNote'); if (n) n.textContent = t || ''; };
+function gStatus(){
+  if (!gKeyOk()) gNote('Suggerimenti Geoapify non attivi: manca la chiave nel file. Funzionano i suggerimenti dagli indirizzi già usati.');
+  else if (gBroken) gNote('Suggerimenti Geoapify non disponibili: controlla la chiave e i siti consentiti.');
+  else gNote('');
+}
+function gText(x){
+  return String(x.formatted || [x.address_line1, x.address_line2].filter(Boolean).join(', ')).replace(/,\s*Italia$/, '').trim();
+}
+/* se hai scritto il numero civico ma l'indirizzo trovato è solo la via, il numero viene mantenuto */
+function gRow(x, civico){
+  let text = gText(x);
+  if (civico && !x.housenumber && x.result_type === 'street' && x.address_line1 && x.address_line2) {
+    text = x.address_line1 + ' ' + civico + ', ' + String(x.address_line2).replace(/,\s*Italia$/, '');
+  }
+  return text ? {text, maps: genMapsLink(text), kind: 'remote', meta: 'Geoapify'} : null;
+}
+function gQuery(text){
+  clearTimeout(gTimer);
+  if (gAbort) { try { gAbort.abort(); } catch(e){} gAbort = null; }
+  if (!gEnabled()) return;
+  const t = String(text || '').trim();
+  if (t.length < 3) { acRemote = []; acRemoteFor = ''; return; }
+  const seq = ++gSeq;
+  gTimer = setTimeout(async () => {
+    try {
+      const p = new URLSearchParams({text: t, lang: 'it', filter: 'countrycode:it', limit: '6', apiKey: GEOAPIFY_API_KEY});
+      if (ZONA_DI_LAVORO) p.set('bias', 'proximity:' + ZONA_DI_LAVORO.lng + ',' + ZONA_DI_LAVORO.lat);
+      gAbort = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      const r = await fetch('https://api.geoapify.com/v1/geocode/autocomplete?' + p.toString(), gAbort ? {signal: gAbort.signal} : {});
+      if (seq !== gSeq) return;
+      if (r.status === 401 || r.status === 403) { gBroken = true; gStatus(); return; }
+      if (r.status === 429) { gNote('Limite giornaliero di Geoapify raggiunto: restano i suggerimenti dagli indirizzi già usati.'); return; }
+      if (!r.ok) return;
+      const data = await r.json();
+      if (seq !== gSeq) return;
+      const m = t.split(',')[0].trim().match(/\s(\d{1,4}[A-Za-z]?)$/);
+      const rows = Array.isArray(data.results) ? data.results : (data.features || []).map(f => f.properties || {});
+      const seen = new Set();
+      acRemote = rows.map(x => gRow(x, m ? m[1] : '')).filter(x => { if (!x) return false; const k = norm(x.text); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 5);
+      acRemoteFor = text;
+      gNote('');
+      const via = $('#fVia');
+      if (via && document.activeElement === via && via.value === text) acRender();
+    } catch(err) { /* rete assente o richiesta annullata: restano i suggerimenti locali */ }
+  }, 250);
+}
+addrHook = {query: gQuery, status: gStatus,
+  attribution: 'Suggerimenti da <a href="https://www.geoapify.com/" target="_blank" rel="noopener">Geoapify</a> · © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'};
+
+/* ---------- archivio online (Firebase): accesso, ruoli e sincronizzazione ---------- */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDVEypEq-LrQ1KmyNGto4MndtGLN0jUtbA",
+  authDomain: "gestionale-48987.firebaseapp.com",
+  projectId: "gestionale-48987",
+  storageBucket: "gestionale-48987.firebasestorage.app",
+  messagingSenderId: "340515761170",
+  appId: "1:340515761170:web:5849f039b7307bbf85bccb"
+};
+const FB_BASE = 'https://www.gstatic.com/firebasejs/12.7.0/';
+const ROLE_LABEL = {titolare: 'Titolare', ufficio: 'Ufficio', lavoratore: 'Lavoratore', disattivato: 'Disattivato', '': 'In attesa'};
+const FATT_KEYS = ['importo', 'noteFatt', 'preFatturaId'];
+let fb = null, authState = 'loading', role = '', myWorkerId = '', me = null, fbErr = '', loginMode = 'login', migHidden = false;
+let unsubs = [], ownUnsub = null, utenti = [], rawJobs = [], fattMap = {};
+
+const cleanObj = o => JSON.parse(JSON.stringify(o));
+async function fbWrite(coll, item){
+  const {doc, setDoc, updateDoc} = fb;
+  if (coll === 'interventi') {
+    if (role === 'lavoratore') {
+      await updateDoc(doc(fb.db, 'interventi', item.id), {stato: item.stato, noteLavoratore: item.noteLavoratore || ''});
+      return;
+    }
+    const base = cleanObj(item), fat = {};
+    FATT_KEYS.forEach(k => { if (k in base) { fat[k] = base[k]; delete base[k]; } });
+    await setDoc(doc(fb.db, 'interventi', item.id), base);
+    if (Object.keys(fat).length) await setDoc(doc(fb.db, 'fatturazione', item.id), Object.assign({id: item.id}, fat));
+    return;
+  }
+  await setDoc(doc(fb.db, coll, item.id), cleanObj(item));
+}
+async function fbRemove(coll, id){
+  await fb.deleteDoc(fb.doc(fb.db, coll, id));
+  if (coll === 'interventi') await fb.deleteDoc(fb.doc(fb.db, 'fatturazione', id));
+}
+function rebuildJobs(){
+  jobs = rawJobs.map(j => {
+    const f = fattMap[j.id];
+    if (!f) return j;
+    const o = Object.assign({}, j);
+    FATT_KEYS.forEach(k => { if (f[k] !== undefined) o[k] = f[k]; });
+    return o;
+  });
+}
+function stopSubs(){
+  unsubs.forEach(u => { try { u(); } catch(e){} });
+  unsubs = []; usingDb = false;
+  workers = []; jobs = []; rawJobs = []; fattMap = {}; tipi = []; clienti = []; prefatture = []; azienda = {}; utenti = [];
+}
+function fbSnapErr(err){
+  if (err && err.code === 'permission-denied') toast('Permesso negato dall’archivio: controlla il ruolo assegnato.');
+  setSync('local');
+}
+function startSubs(){
+  stopSubs();
+  usingDb = true;
+  canWrite = role === 'titolare' || role === 'ufficio';
+  const col = n => fb.collection(fb.db, n);
+  const sync = s => setSync(s.metadata && s.metadata.fromCache && !navigator.onLine ? 'local' : 'online');
+  const sub = (ref, fn) => unsubs.push(fb.onSnapshot(ref, fn, fbSnapErr));
+  const list = (n, fn) => sub(col(n), s => { fn(s); render(); });
+  if (canWrite) {
+    list('lavoratori', s => { workers = s.docs.map(d => d.data()); sync(s); });
+    list('interventi', s => { rawJobs = s.docs.map(d => d.data()); rebuildJobs(); pickInitialDate(); sync(s); });
+    list('fatturazione', s => { fattMap = {}; s.docs.forEach(d => { fattMap[d.id] = d.data(); }); rebuildJobs(); });
+    list('tipi', s => { tipi = s.docs.map(d => d.data()); });
+    list('clienti', s => { clienti = s.docs.map(d => d.data()); });
+    list('prefatture', s => { prefatture = s.docs.map(d => d.data()); });
+    list('impostazioni', s => { azienda = s.docs.map(d => d.data()).find(x => x.id === 'azienda') || {}; });
+    if (role === 'titolare') list('utenti', s => { utenti = s.docs.map(d => Object.assign({uid: d.id}, d.data())); });
+  } else {
+    sub(fb.query(col('interventi'), fb.where('workerId', '==', myWorkerId)), s => { rawJobs = s.docs.map(d => d.data()); rebuildJobs(); pickInitialDate(); sync(s); render(); });
+    sub(fb.doc(fb.db, 'lavoratori', myWorkerId), s => { workers = s.exists() ? [s.data()] : []; render(); });
+  }
+}
+function onAuth(user){
+  if (ownUnsub) { ownUnsub(); ownUnsub = null; }
+  stopSubs(); role = ''; myWorkerId = '';
+  if (!user) { me = null; authState = 'out'; loginMode = 'login'; view = 'panoramica'; mounted = null; detailId = null; assSub = 'giornata'; setSync('pending'); render(); return; }
+  me = user; authState = 'loading'; render();
+  const ref = fb.doc(fb.db, 'utenti', user.uid);
+  ownUnsub = fb.onSnapshot(ref, snap => {
+    if (!snap.exists()) {
+      fb.setDoc(ref, {email: user.email || '', ruolo: '', creato: todayISO()}).catch(() => { authState = 'error'; fbErr = 'Non riesco a registrare l’account.'; render(); });
+      return;
+    }
+    const d = snap.data(), r = d.ruolo || '', w = d.workerId || '';
+    if (r === 'titolare' || r === 'ufficio' || (r === 'lavoratore' && w)) {
+      if (authState !== 'ready' || role !== r || myWorkerId !== w) { role = r; myWorkerId = w; authState = 'ready'; startSubs(); render(); }
+    } else {
+      stopSubs(); role = ''; authState = r === 'disattivato' ? 'disabled' : (r === 'lavoratore' ? 'nolink' : 'pending'); render();
+    }
+  }, err => { authState = 'error'; fbErr = 'Non riesco a leggere il tuo profilo (' + ((err && err.code) || 'errore') + ').'; render(); });
+}
+async function bootFirebase(){
+  setSync('pending');
+  try {
+    const [a, au, fs] = await Promise.all([import(FB_BASE + 'firebase-app.js'), import(FB_BASE + 'firebase-auth.js'), import(FB_BASE + 'firebase-firestore.js')]);
+    fb = Object.assign({}, a, au, fs);
+    const app = fb.initializeApp(FIREBASE_CONFIG);
+    fb.auth = fb.getAuth(app);
+    try { fb.db = fb.initializeFirestore(app, {localCache: fb.persistentLocalCache({tabManager: fb.persistentMultipleTabManager()})}); }
+    catch(e) { fb.db = fb.getFirestore(app); }
+    fb.onAuthStateChanged(fb.auth, onAuth);
+  } catch(e) {
+    authState = 'error'; fbErr = 'Non riesco a collegarmi all’archivio online. Controlla la connessione e riprova.'; render();
+  }
+}
+window.addEventListener('online', () => { if (usingDb) setSync('online'); });
+window.addEventListener('offline', () => { if (usingDb) setSync('local'); });
+
+/* ---- schermate di accesso ---- */
+function authMsg(e){
+  const c = (e && e.code) || '';
+  if (/invalid-credential|wrong-password|user-not-found|invalid-login/.test(c)) return 'Email o password non corrette.';
+  if (/email-already-in-use/.test(c)) return 'Esiste già un account con questa email: prova ad accedere.';
+  if (/weak-password/.test(c)) return 'La password deve avere almeno 6 caratteri.';
+  if (/invalid-email/.test(c)) return 'L’indirizzo email non sembra valido.';
+  if (/too-many-requests/.test(c)) return 'Troppi tentativi: riprova tra qualche minuto.';
+  if (/network/.test(c)) return 'Nessuna connessione: riprova.';
+  if (/operation-not-allowed/.test(c)) return 'L’accesso con email e password non è attivo nel progetto.';
+  if (/unauthorized-domain/.test(c)) return 'Questo indirizzo non è tra i domini autorizzati del progetto.';
+  return 'Operazione non riuscita (' + (c || 'errore') + ').';
+}
+function gateCard(inner){ return `<div class="gate"><section class="panel gate-card"><div class="gate-brand"><div class="mark" aria-hidden="true">${ic('pin', 20)}</div><div><h2>Gestionale interventi</h2></div></div>${inner}</section></div>`; }
+function loginHtml(){
+  const m = loginMode;
+  const title = m === 'signup' ? 'Crea il tuo account' : m === 'reset' ? 'Recupera la password' : 'Accedi per continuare';
+  return gateCard(`<p class="muted" style="margin-bottom:14px">${title}</p>
+    <form id="loginForm" data-mode="${m}">
+      <label class="field"><span>Email</span><input type="email" name="email" required autocomplete="email" inputmode="email"></label>
+      ${m === 'reset' ? '' : `<label class="field"><span>Password</span><input type="password" name="password" required minlength="6" autocomplete="${m === 'signup' ? 'new-password' : 'current-password'}"></label>`}
+      <p class="wz-warn" id="loginErr" role="alert" style="margin:0 0 10px"></p><p class="muted" id="loginInfo" style="margin:0 0 10px"></p>
+      <button class="btn primary" type="submit" style="width:100%">${m === 'signup' ? 'Crea account' : m === 'reset' ? 'Invia il link per la nuova password' : 'Accedi'}</button>
+    </form>
+    <div class="gate-links">
+      ${m !== 'login' ? '<button class="linkbtn" data-act="login-mode" data-mode="login">Accedi</button>' : ''}
+      ${m !== 'signup' ? '<button class="linkbtn" data-act="login-mode" data-mode="signup">Non hai un account? Registrati</button>' : ''}
+      ${m === 'login' ? '<button class="linkbtn" data-act="login-mode" data-mode="reset">Password dimenticata?</button>' : ''}
+    </div>`);
+}
+function gateHtml(){
+  const out = '<div style="margin-top:14px"><button class="btn" data-act="logout">Esci</button></div>';
+  if (authState === 'loading') return gateCard('<p class="muted">Collegamento in corso…</p>');
+  if (authState === 'error') return gateCard(`<p class="wz-warn" role="alert">${esc(fbErr)}</p><div style="margin-top:14px"><button class="btn primary" data-act="fb-retry">Riprova</button></div>`);
+  if (authState === 'out') return loginHtml();
+  if (authState === 'pending') return gateCard(`<h3 style="font-size:18px;margin-bottom:6px">Account creato</h3><p class="muted">Per entrare, il titolare deve abilitare il tuo accesso e assegnarti un ruolo. Avvisalo: appena lo fa, questa pagina si aggiorna da sola.</p><p class="muted" style="margin-top:8px">Accesso con: <b>${esc(me && me.email || '')}</b></p>${out}`);
+  if (authState === 'nolink') return gateCard(`<h3 style="font-size:18px;margin-bottom:6px">Quasi pronto</h3><p class="muted">Il tuo ruolo è lavoratore, ma il titolare deve ancora collegarti al tuo nome nell’elenco dei lavoratori.</p>${out}`);
+  if (authState === 'disabled') return gateCard(`<h3 style="font-size:18px;margin-bottom:6px">Accesso disattivato</h3><p class="muted">Il titolare ha disattivato questo accesso.</p>${out}`);
+  return '';
+}
+function gateRender(){
+  const lo = $('#logoutBtn'); if (lo) lo.hidden = !me;
+  if (authState === 'ready') {
+    if (role === 'lavoratore') { renderWorkerApp(); return true; }
+    return false;
+  }
+  $('#menu').innerHTML = ''; $('#overlay').hidden = true;
+  $('#app').innerHTML = gateHtml();
+  return true;
+}
+async function doAuth(f){
+  const mode = f.dataset.mode, fd = new FormData(f), email = String(fd.get('email') || '').trim(), pw = String(fd.get('password') || '');
+  const err = $('#loginErr'), info = $('#loginInfo'), btn = f.querySelector('button[type=submit]');
+  if (err) err.textContent = ''; if (info) info.textContent = ''; if (btn) btn.disabled = true;
+  try {
+    if (mode === 'signup') await fb.createUserWithEmailAndPassword(fb.auth, email, pw);
+    else if (mode === 'reset') { await fb.sendPasswordResetEmail(fb.auth, email); if (info) info.textContent = 'Se l’email è registrata, riceverai un messaggio per scegliere una nuova password.'; }
+    else await fb.signInWithEmailAndPassword(fb.auth, email, pw);
+  } catch(e) { if (err) err.textContent = authMsg(e); }
+  finally { if (btn) btn.disabled = false; }
+}
+
+/* ---- vista del lavoratore ---- */
+function wCard(j){
+  const st = stOf(j), href = mapsHref(j);
+  return `<article class="w-job st-${st}" data-id="${esc(j.id)}">
+    <h3>${esc(j.tipo || 'Intervento')}${j.durata ? ` <span class="muted">· ${esc(fmtDur(j.durata))}</span>` : ''} ${tagsOf(j)}</h3>
+    <p class="w-cli"><strong>${esc(j.cliente)}</strong></p>
+    <p class="line">${ic('pin', 16)}<span>${esc(j.via)}</span></p>
+    ${j.descrizione ? `<p class="desc">${esc(j.descrizione)}</p>` : ''}
+    <div class="job-actions">${j.telefono ? `<a class="btn" href="tel:${esc(digits(j.telefono))}">${ic('phone', 16)}Chiama</a>` : ''}
+      ${href ? `<a class="btn" href="${esc(href)}" target="_blank" rel="noopener">${ic('pin', 16)}Mappa</a>` : ''}</div>
+    <div class="seg wide" role="group" aria-label="Stato">${Object.keys(STATI).map(k => `<button data-act="w-stato" data-id="${esc(j.id)}" data-st="${k}" aria-pressed="${k === st}">${STATI[k]}</button>`).join('')}</div>
+    <label class="field" style="margin:0"><span>Nota per l’ufficio</span><textarea data-wnote="1" data-id="${esc(j.id)}" maxlength="500" placeholder="Es. materiale usato, cliente assente…">${esc(j.noteLavoratore || '')}</textarea></label>
+  </article>`;
+}
+function viewOggi(){
+  const day = jobs.filter(j => j.data === date).sort(byFascia);
+  const done = day.filter(j => stOf(j) === 'fatto').length;
+  const w = workers[0];
+  let h = `<div class="pagehead"><div><h2>${w ? 'Ciao ' + esc(String(w.nome).split(' ')[0]) : 'I tuoi interventi'}</h2><p class="sub">${esc(fmtLong(date))}</p></div>${dateBar()}</div>
+    <div class="statline"><span><b>${day.length}</b>${day.length === 1 ? 'intervento' : 'interventi'}</span><span><b>${done}</b>completati</span></div>`;
+  if (!day.length) return h + `<div class="empty"><h3>Nessun intervento per questa giornata</h3><p>Quando te ne assegnano uno, lo trovi qui.</p></div>`;
+  let last = null;
+  day.forEach(j => {
+    const f = fasciaOf(j);
+    if (f !== last) { h += `<div class="fgroup w-group">${esc(FASCIA_LABEL[f] || 'Senza fascia')}</div>`; last = f; }
+    h += wCard(j);
+  });
+  return h;
+}
+function renderWorkerApp(){
+  $('#menu').innerHTML = `<button role="tab" aria-selected="true" data-act="go" data-view="oggi">${ic('clock', 18)}I miei interventi</button>`;
+  $('#overlay').hidden = true;
+  $('#app').innerHTML = viewOggi();
+}
+
+/* ---- gestione utenti (solo titolare) ---- */
+const pendingUsers = () => utenti.filter(u => !u.ruolo).length;
+function viewUtenti(){
+  const list = utenti.slice().sort((a, b) => ((a.ruolo ? 1 : 0) - (b.ruolo ? 1 : 0)) || String(a.email || '').localeCompare(String(b.email || '')));
+  const wopts = '<option value="">Scegli il lavoratore…</option>' + sortedWorkers().map(w => `<option value="__ID__">${esc(w.nome)}</option>`).join('');
+  const roles = [['', 'In attesa'], ['titolare', 'Titolare'], ['ufficio', 'Ufficio'], ['lavoratore', 'Lavoratore'], ['disattivato', 'Disattivato']];
+  return `<div class="pagehead"><div><h2>Utenti e permessi</h2><p class="sub">Chi può accedere e con quale ruolo</p></div></div>
+    <div class="panel">${list.length ? `<div class="rows">` + list.map(u => {
+      const self = me && u.uid === me.uid, r = u.ruolo || '';
+      return `<div class="row ${r ? '' : 'st-in_corso'}"><div class="row-main"><strong>${esc(u.email || '—')}</strong>${self ? ' <span class="tag type">Tu</span>' : ''}${r ? '' : ' <span class="tag late">In attesa</span>'}
+        <small>Registrato il ${esc(dmy(u.creato))}</small></div>
+        <div class="user-ctl"><label class="field"><span>Ruolo</span><select data-act="u-ruolo" data-uid="${esc(u.uid)}"${self ? ' disabled' : ''}>${opts(roles, r)}</select></label>
+        ${r === 'lavoratore' ? `<label class="field"><span>Collegato a</span><select data-act="u-worker" data-uid="${esc(u.uid)}">${sortedWorkers().length ? '<option value="">Scegli il lavoratore…</option>' + sortedWorkers().map(w => `<option value="${esc(w.id)}"${w.id === u.workerId ? ' selected' : ''}>${esc(w.nome)}</option>`).join('') : '<option value="">Prima inserisci i lavoratori</option>'}</select></label>` : ''}</div></div>`;
+    }).join('') + `</div>` : '<p class="muted">Nessun utente registrato.</p>'}</div>
+    <div class="panel"><h2 class="panel-title">Come funzionano i ruoli</h2>
+      <p class="muted"><b>Titolare</b>: vede e fa tutto, compresa la gestione degli utenti. <b>Ufficio</b>: lavori, anagrafica e pre-fatture. <b>Lavoratore</b>: vede solo i propri interventi, cambia lo stato e lascia una nota; non vede prezzi né dati fiscali dei clienti. Chi si registra resta «in attesa» finché non gli assegni un ruolo.</p></div>`;
+}
+async function setUserRole(uid, ruolo){
+  try {
+    const patch = {ruolo};
+    if (ruolo !== 'lavoratore') patch.workerId = '';
+    await fb.updateDoc(fb.doc(fb.db, 'utenti', uid), patch);
+    toast('Ruolo aggiornato.');
+  } catch(e) { toast('Non sono riuscito a salvare il ruolo.'); }
+}
+async function setUserWorker(uid, workerId){
+  try { await fb.updateDoc(fb.doc(fb.db, 'utenti', uid), {workerId}); toast('Collegamento salvato.'); }
+  catch(e) { toast('Non sono riuscito a salvare il collegamento.'); }
+}
+
+/* ---- migrazione dei dati salvati nel browser ---- */
+function localMig(){
+  try {
+    if (role !== 'titolare' || migHidden || localStorage.getItem('gest-migrato') === '1') return null;
+    const o = JSON.parse(localStorage.getItem(LS) || 'null');
+    return o && ((o.jobs || []).length + (o.workers || []).length + (o.clienti || []).length) ? o : null;
+  } catch(e) { return null; }
+}
+function migraLocale(){
+  const o = localMig(); if (!o) return;
+  importData({app: 'gestionale-interventi', lavoratori: o.workers, interventi: o.jobs, tipi: o.tipi, clienti: o.clienti, prefatture: o.prefatture, azienda: o.azienda});
+  try { localStorage.setItem('gest-migrato', '1'); } catch(e){}
+  render();
+}
+function setSync(s){
+  const el = $('#sync'); if (!el) return;
+  const r = ROLE_LABEL[role] && role ? ' · ' + ROLE_LABEL[role] : '';
+  el.dataset.s = s === 'online' ? 'online' : s === 'local' ? 'local' : 'pending';
+  el.textContent = s === 'online' ? 'Online' + r : s === 'local' ? 'Senza rete: salvo appena torna' + r : (me ? 'Collegamento…' : 'Accesso');
+  el.title = me && me.email ? me.email : '';
+}
+function persist(coll, item){ if (usingDb) enqueue(coll + '/' + item.id, () => fbWrite(coll, item)); }
+function unpersist(coll, id){ if (usingDb) enqueue(coll + '/' + id, () => fbRemove(coll, id)); }
+
+/* ---------- avvio ---------- */
+$('#mark').innerHTML = ic('pin', 20);
+let savedTheme = null;
+try { savedTheme = localStorage.getItem(THEME_KEY); } catch(e){}
+applyTheme(savedTheme);
+render();
+bootFirebase();
+/* aggiorna ritardi e linea dell'ora ogni minuto, senza disturbare chi sta scrivendo */
+setInterval(() => {
+  const a = document.activeElement;
+  if (a && /^(SELECT|INPUT|TEXTAREA)$/.test(a.tagName)) return;
+  if (detailId) return;
+  if (authState === 'ready' && (view === 'panoramica' || view === 'assegna')) render();
+}, 60000);
+})();
+</script>
+</body>
+</html>
