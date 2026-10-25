@@ -444,6 +444,20 @@ html,body{overflow-x:hidden}
   #installBtn{order:4}
   #logoutBtn{order:5}
 }
+/* foto dei lavori e invio giornata */
+.fotobox{display:grid;gap:8px;margin:12px 0}
+.fotobox .fl{font-size:13px;font-weight:600;color:var(--muted)}
+.phs{display:flex;flex-wrap:wrap;gap:8px}
+.ph{position:relative;width:92px;height:92px;border-radius:10px;overflow:hidden;border:1px solid var(--line);background:var(--surface-2,var(--surface))}
+.ph-img{display:block;width:100%;height:100%;padding:0;border:0;background:none;cursor:pointer}
+.ph img{width:100%;height:100%;object-fit:cover;display:block}
+.ph-x{position:absolute;top:4px;right:4px;width:26px;height:26px;min-height:0;border-radius:50%;border:0;background:rgba(16,24,38,.72);color:#fff;display:grid;place-items:center;cursor:pointer;padding:0}
+.ph-add{justify-self:start;cursor:pointer}
+.lightbox{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.92);display:grid;place-items:center;padding:12px}
+.lightbox img{max-width:100%;max-height:92dvh;border-radius:6px}
+.lightbox button{position:absolute;top:calc(12px + env(safe-area-inset-top,0px));right:12px}
+.sendbox .row{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.sendbox .row-main{display:grid;gap:2px}
 </style>
 </head>
 <body>
@@ -569,6 +583,10 @@ let detailId = null;
 let anaTab = 'privato', anaQ = '', cliFormOpen = false, editingClienteId = null, cliPrefill = null;
 let pfOff = new Set(), pfIva = {};
 let assSub = 'giornata';
+let fotoW = {}, fotoD = {};              // foto per intervento: del lavoratore (giorno visto) e del dettaglio aperto
+let fotoUnsubW = null, fotoKeyW = '', fotoUnsubD = null, fotoKeyD = '';
+const MAX_FOTO = 8;
+const APP_URL = location.origin + location.pathname.replace(/[^\/]*$/, '');
 let wzWorker = '', wzDate = todayISO(), wzOther = false, wzSel = new Set();
 let editingJobId = null, draftJob = null, editingWorkerId = null;
 const flt = {q:'', da:'', a:'', stato:'', w:''};
@@ -897,6 +915,7 @@ function waHref(w, list){
     if (j.descrizione) out.push(j.descrizione);
     out.push('');
   });
+  out.push('Quando finisci segna "Fatto" nell’app e, se serve, aggiungi le foto: ' + APP_URL);
   return 'https://wa.me/' + n + '?text=' + encodeURIComponent(out.join('\n').trim());
 }
 
@@ -1095,7 +1114,7 @@ function viewElenco(lanesW, day){
         <div class="lane-id"><h3>${esc(w.nome)}${isActive(w) ? '' : '<span class="tag paused">In pausa</span>'}</h3>
           <span class="sub">${plural(l.length, 'intervento', 'interventi')}</span></div>
         <div class="zone-actions">${w.telefono ? `<a class="btn small" href="tel:${esc(digits(w.telefono))}" aria-label="Chiama ${esc(w.nome)}">${ic('phone', 16)}</a>` : ''}
-          ${w.telefono && l.length ? `<a class="btn small" href="${esc(waHref(w, l))}" target="_blank" rel="noopener">${ic('chat', 16)}Invia giornata</a>` : ''}
+          ${w.telefono && l.length ? `<a class="btn small" data-act="wa-sent" data-w="${esc(w.id)}" data-sig="${esc(waSig(l))}" href="${esc(waHref(w, l))}" target="_blank" rel="noopener">${ic('chat', 16)}Invia giornata</a>` : ''}
           ${laneAdd(w)}</div></div>
       <div class="lane-load">${loadBlock(w, day)}</div>
       ${body || '<p class="zone-empty">Nessun intervento assegnato.</p>'}
@@ -1130,7 +1149,31 @@ function viewGiornata(){
     return h + `<div class="empty"><h3>Nessun lavoratore in servizio</h3><p>Inserisci i lavoratori per vedere il carico e assegnare i lavori.</p>
       ${canWrite ? `<button class="btn primary" data-act="go" data-view="lavoratori">${ic('plus', 16)}Aggiungi lavoratore</button>` : ''}</div>`;
   }
-  return h + (assMode === 'fasce' ? viewFasce(lanesW, day) : viewElenco(lanesW, day));
+  return h + sendPanel(lanesW, day) + (assMode === 'fasce' ? viewFasce(lanesW, day) : viewElenco(lanesW, day));
+}
+/* ---------- invio della giornata ai lavoratori (WhatsApp, un tocco ciascuno) ---------- */
+const WA_KEY = 'gestionale-wa-sent-v1';
+function waSig(l){ return l.map(j => [j.id, fasciaOf(j), j.tipo, j.via, j.durata, j.descrizione].join('~')).join('|'); }
+function waSentGet(){ try { return JSON.parse(localStorage.getItem(WA_KEY) || '{}'); } catch(e){ return {}; } }
+function waSentSet(k, v){ const m = waSentGet(); m[k] = v; try { localStorage.setItem(WA_KEY, JSON.stringify(m)); } catch(e){} }
+function sendPanel(lanesW, day){
+  if (!canWrite) return '';
+  const rows = lanesW.map(w => ({w, l: day.filter(j => j.workerId === w.id).sort(byFascia)})).filter(r => r.l.length);
+  if (!rows.length) return '';
+  const m = waSentGet();
+  let sentN = 0;
+  const body = rows.map(({w, l}) => {
+    const sig = waSig(l), prev = m[date + '|' + w.id];
+    const st = !w.telefono ? 'nophone' : prev === sig ? 'sent' : prev ? 'changed' : 'todo';
+    if (st === 'sent') sentN++;
+    const tag = {sent: '<span class="tag type">Inviata</span>', changed: '<span class="tag late">Cambiata dopo l’invio</span>', todo: '<span class="tag paused">Da inviare</span>', nophone: '<span class="tag late">Manca il telefono</span>'}[st];
+    const btn = st === 'nophone' ? `<button class="btn small" data-act="go" data-view="lavoratori">Aggiungi numero</button>`
+      : `<a class="btn small${st === 'sent' ? '' : ' primary'}" data-act="wa-sent" data-w="${esc(w.id)}" data-sig="${esc(sig)}" href="${esc(waHref(w, l))}" target="_blank" rel="noopener">${ic('chat', 16)}${st === 'sent' ? 'Invia di nuovo' : st === 'changed' ? 'Reinvia' : 'Invia su WhatsApp'}</a>`;
+    return `<div class="row"><div class="row-main"><strong>${esc(w.nome)}</strong> ${tag}<small>${plural(l.length, 'intervento', 'interventi')}</small></div>${btn}</div>`;
+  }).join('');
+  return `<div class="panel sendbox"><h2 class="panel-title">Invia la giornata ai lavoratori</h2>
+    <p class="muted" style="margin:0 0 8px">Un tocco per lavoratore: si apre WhatsApp con il messaggio già pronto (fasce, tipo, durata, indirizzo e mappa). ${sentN} di ${rows.length} inviate.</p>
+    <div class="rows">${body}</div></div>`;
 }
 
 /* crea nuova giornata lavorativa: lavoratore + giornata + lavori da selezionare */
@@ -1236,6 +1279,7 @@ function viewAssegna(){
 function renderDetail(){
   const ov = $('#overlay'), sh = $('#sheet');
   const j = detailId ? jobs.find(x => x.id === detailId) : null;
+  fotoSubDetail(j ? j.id : '');
   if (!j) { detailId = null; ov.hidden = true; sh.innerHTML = ''; return; }
   const wById = workerMap();
   const w = wById[j.workerId];
@@ -1262,6 +1306,7 @@ function renderDetail(){
       ${j.noteLavoratore ? `<div><dt>Nota del lavoratore</dt><dd>${esc(j.noteLavoratore)}</dd></div>` : ''}
       <div><dt>Lavoratore</dt><dd>${w ? esc(w.nome) : 'Da assegnare'}</dd></div>
     </dl>
+    ${usingDb ? fotoStrip(j, {add: false, del: canWrite}) : ''}
     <div class="job-actions">
       ${j.telefono ? `<a class="btn" href="tel:${esc(digits(j.telefono))}">${ic('phone', 16)}Chiama</a>` : ''}
       ${href ? `<a class="btn" href="${esc(href)}" target="_blank" rel="noopener">${ic('pin', 16)}Apri mappa</a>` : ''}</div>
@@ -2261,7 +2306,13 @@ document.addEventListener('click', e => {
     case 'logout': if (fb) fb.signOut(fb.auth); break;
     case 'login-mode': loginMode = t.dataset.mode; render(); break;
     case 'fb-retry': location.reload(); break;
-    case 'w-stato': setStato(id, t.dataset.st); break;
+    case 'w-stato':
+      setStato(id, t.dataset.st);
+      if (t.dataset.st === 'fatto' && usingDb && !fotoOf(id).length) toast('Intervento chiuso. Vuoi aggiungere foto del lavoro?', 'Aggiungi foto', () => { const i = document.querySelector('input[data-fotoin="' + id + '"]'); if (i) i.click(); });
+      break;
+    case 'foto-open': { const im = t.querySelector('img'); if (im) showLightbox(im.src); break; }
+    case 'foto-del': { const fid = t.dataset.fid; toast('Eliminare questa foto?', 'Elimina', () => delFoto(fid)); break; }
+    case 'wa-sent': waSentSet(date + '|' + t.dataset.w, t.dataset.sig); setTimeout(render, 500); break;
     case 'migra-locale': migraLocale(); break;
     case 'migra-ignora': migHidden = true; render(); break;
     case 'pf-create': pfCreate(t.dataset.key); break;
@@ -2328,6 +2379,7 @@ document.addEventListener('change', e => {
   else if (t.id === 'fVia') scheduleMaps(true);
   else if (t.matches && t.matches('select[data-act="u-ruolo"]')) setUserRole(t.dataset.uid, t.value);
   else if (t.matches && t.matches('select[data-act="u-worker"]')) setUserWorker(t.dataset.uid, t.value);
+  else if (t.dataset && t.dataset.fotoin) { const fl = Array.from(t.files || []); const jid = t.dataset.fotoin; t.value = ''; addFoto(jid, fl); }
   else if (t.dataset && t.dataset.wnote) { const j = jobs.find(x => x.id === t.dataset.id); if (j) { j.noteLavoratore = t.value.slice(0, 500); persist('interventi', j); } }
   else if (t.id === 'fTipo') updateTipoDur();
   else if (t.id === 'fCliente') updateClienteLink(true);
@@ -2498,7 +2550,10 @@ async function fbWrite(coll, item){
 }
 async function fbRemove(coll, id){
   await fb.deleteDoc(fb.doc(fb.db, coll, id));
-  if (coll === 'interventi') await fb.deleteDoc(fb.doc(fb.db, 'fatturazione', id));
+  if (coll === 'interventi') {
+    await fb.deleteDoc(fb.doc(fb.db, 'fatturazione', id));
+    try { const sn = await fb.getDocs(fb.query(fb.collection(fb.db, 'foto'), fb.where('jobId', '==', id))); await Promise.all(sn.docs.map(d => fb.deleteDoc(fb.doc(fb.db, 'foto', d.id)))); } catch(e){}
+  }
 }
 function rebuildJobs(){
   jobs = rawJobs.map(j => {
@@ -2510,6 +2565,7 @@ function rebuildJobs(){
   });
 }
 function stopSubs(){
+  fotoStop();
   unsubs.forEach(u => { try { u(); } catch(e){} });
   unsubs = []; usingDb = false;
   workers = []; jobs = []; rawJobs = []; fattMap = {}; tipi = []; clienti = []; prefatture = []; azienda = {}; utenti = [];
@@ -2638,6 +2694,85 @@ async function doAuth(f){
   finally { if (btn) btn.disabled = false; }
 }
 
+/* ---- foto dei lavori (compresse, salvate nell'archivio) ---- */
+const sortFoto = a => a.sort((x, y) => String(x.creato) < String(y.creato) ? -1 : 1);
+function fotoOf(jobId){ return (role === 'lavoratore' ? fotoW : fotoD)[jobId] || []; }
+function fotoStop(){
+  if (fotoUnsubW) { try { fotoUnsubW(); } catch(e){} } if (fotoUnsubD) { try { fotoUnsubD(); } catch(e){} }
+  fotoUnsubW = fotoUnsubD = null; fotoKeyW = fotoKeyD = ''; fotoW = {}; fotoD = {};
+}
+function fotoSubWorker(){
+  if (!usingDb || role !== 'lavoratore' || !myWorkerId) return;
+  const key = myWorkerId + '|' + date; if (key === fotoKeyW) return;
+  if (fotoUnsubW) { try { fotoUnsubW(); } catch(e){} }
+  fotoKeyW = key; fotoW = {};
+  fotoUnsubW = fb.onSnapshot(fb.query(fb.collection(fb.db, 'foto'), fb.where('workerId', '==', myWorkerId), fb.where('giorno', '==', date)), snap => {
+    const m = {}; snap.docs.forEach(d => { const f = d.data(); (m[f.jobId] = m[f.jobId] || []).push(f); });
+    Object.keys(m).forEach(k => sortFoto(m[k])); fotoW = m; render();
+  }, fbSnapErr);
+}
+function fotoSubDetail(id){
+  id = (id && usingDb && canWrite) ? id : '';
+  if (id === fotoKeyD) return;
+  if (fotoUnsubD) { try { fotoUnsubD(); } catch(e){} fotoUnsubD = null; }
+  fotoKeyD = id; fotoD = {};
+  if (!id) return;
+  fotoUnsubD = fb.onSnapshot(fb.query(fb.collection(fb.db, 'foto'), fb.where('jobId', '==', id)), snap => {
+    fotoD = {[id]: sortFoto(snap.docs.map(d => d.data()))}; renderDetail();
+  }, fbSnapErr);
+}
+function fotoStrip(j, opt){
+  const l = fotoOf(j.id);
+  if (!l.length && !opt.add) return '';
+  const thumbs = l.map(f => `<div class="ph"><button class="ph-img" data-act="foto-open" aria-label="Apri la foto"><img src="${f.data}" alt="Foto del lavoro"></button>${opt.del ? `<button class="ph-x" data-act="foto-del" data-fid="${esc(f.id)}" aria-label="Elimina la foto">${ic('x', 14)}</button>` : ''}</div>`).join('');
+  const add = opt.add && l.length < MAX_FOTO ? `<label class="btn ph-add">${ic('plus', 16)}Aggiungi foto<input type="file" accept="image/*" multiple hidden data-fotoin="${esc(j.id)}"></label>` : '';
+  return `<div class="fotobox"><span class="fl">Foto del lavoro${l.length ? ' (' + l.length + ')' : ''}</span>${thumbs ? `<div class="phs">${thumbs}</div>` : ''}${add}</div>`;
+}
+async function compressImage(file){
+  let bmp;
+  try { bmp = await createImageBitmap(file, {imageOrientation: 'from-image'}); }
+  catch(e) { bmp = await new Promise((ok, ko) => { const i = new Image(); i.onload = () => ok(i); i.onerror = ko; i.src = URL.createObjectURL(file); }); }
+  const w0 = bmp.width || bmp.naturalWidth, h0 = bmp.height || bmp.naturalHeight;
+  let max = 1280, q = 0.72, out = null;
+  for (let k = 0; k < 5; k++) {
+    const sc = Math.min(1, max / Math.max(w0, h0)), w = Math.max(1, Math.round(w0 * sc)), h = Math.max(1, Math.round(h0 * sc));
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, w, h); x.drawImage(bmp, 0, 0, w, h);
+    const url = c.toDataURL('image/jpeg', q);
+    out = {data: url, w, h};
+    if (url.length < 650000) break;
+    max = Math.round(max * 0.8); q = Math.max(0.5, q - 0.06);
+  }
+  if (bmp.close) { try { bmp.close(); } catch(e){} }
+  return out;
+}
+async function addFoto(jobId, files){
+  const j = jobs.find(x => x.id === jobId);
+  if (!j || !usingDb || !files.length) return;
+  const room = Math.max(0, MAX_FOTO - fotoOf(jobId).length);
+  const list = files.filter(f => !f.type || /^image\//.test(f.type)).slice(0, room);
+  if (!list.length) { toast('Hai raggiunto il massimo di ' + MAX_FOTO + ' foto per questo intervento.'); return; }
+  toast(list.length === 1 ? 'Carico la foto…' : 'Carico ' + list.length + ' foto…');
+  let ok = 0, denied = false;
+  for (const f of list) {
+    try {
+      const img = await compressImage(f);
+      const id = 'f' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      fb.setDoc(fb.doc(fb.db, 'foto', id), {id, jobId, workerId: j.workerId || '', giorno: j.data, creato: new Date().toISOString(), w: img.w, h: img.h, data: img.data})
+        .catch(e => { if (e && e.code === 'permission-denied') toast('Non posso salvare la foto: permesso negato.'); else toast('Una foto non è stata salvata. Riprova.'); });
+      ok++;
+    } catch(e) { /* file non leggibile */ }
+  }
+  if (!denied) toast(ok === list.length ? (ok === 1 ? 'Foto salvata.' : ok + ' foto salvate.') : 'Alcune foto non si sono potute leggere. Riprova.');
+}
+function delFoto(fid){ fb.deleteDoc(fb.doc(fb.db, 'foto', fid)).catch(() => toast('Non sono riuscito a eliminare la foto.')); }
+function showLightbox(src){
+  let lb = document.getElementById('lightbox');
+  if (!lb) { lb = document.createElement('div'); lb.id = 'lightbox'; lb.className = 'lightbox'; lb.addEventListener('click', () => { lb.hidden = true; lb.innerHTML = ''; }); document.body.appendChild(lb); }
+  lb.innerHTML = '<img alt="Foto del lavoro"><button class="icon-btn" aria-label="Chiudi">' + ic('x', 22) + '</button>';
+  lb.firstChild.src = src; lb.hidden = false;
+}
+
 /* ---- vista del lavoratore ---- */
 function wCard(j){
   const st = stOf(j), href = mapsHref(j);
@@ -2649,6 +2784,7 @@ function wCard(j){
     <div class="job-actions">${j.telefono ? `<a class="btn" href="tel:${esc(digits(j.telefono))}">${ic('phone', 16)}Chiama</a>` : ''}
       ${href ? `<a class="btn" href="${esc(href)}" target="_blank" rel="noopener">${ic('pin', 16)}Mappa</a>` : ''}</div>
     <div class="seg wide" role="group" aria-label="Stato">${Object.keys(STATI).map(k => `<button data-act="w-stato" data-id="${esc(j.id)}" data-st="${k}" aria-pressed="${k === st}">${STATI[k]}</button>`).join('')}</div>
+    ${usingDb ? fotoStrip(j, {add: true, del: true}) : ''}
     <label class="field" style="margin:0"><span>Nota per l’ufficio</span><textarea data-wnote="1" data-id="${esc(j.id)}" maxlength="500" placeholder="Es. materiale usato, cliente assente…">${esc(j.noteLavoratore || '')}</textarea></label>
   </article>`;
 }
@@ -2670,6 +2806,7 @@ function viewOggi(){
 function renderWorkerApp(){
   $('#menu').innerHTML = `<button role="tab" aria-selected="true" data-act="go" data-view="oggi">${ic('clock', 18)}I miei interventi</button>`;
   $('#overlay').hidden = true;
+  fotoSubWorker();
   $('#app').innerHTML = viewOggi();
 }
 
