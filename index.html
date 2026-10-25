@@ -458,6 +458,34 @@ html,body{overflow-x:hidden}
 .lightbox button{position:absolute;top:calc(12px + env(safe-area-inset-top,0px));right:12px}
 .sendbox .row{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
 .sendbox .row-main{display:grid;gap:2px}
+/* stato non fatto, esito, notifiche */
+.stat.st-non_fatto{background:var(--bad-tint);color:var(--bad-text)}
+.stat.st-non_fatto::before{background:var(--bad)}
+.st-non_fatto .chip{background:var(--bad-tint);border-color:transparent;color:var(--bad-text)}
+.w-job.st-non_fatto{border-left-color:var(--bad)}
+.blk.st-non_fatto,.fjob.st-non_fatto{box-shadow:inset 0 -3px 0 var(--bad)}
+.esito{border-radius:12px;padding:12px 14px;display:grid;gap:4px}
+.esito strong{display:flex;align-items:center;gap:8px;font-size:17px}
+.esito.esito-fatto{background:var(--ok-tint);color:var(--ok-text)}
+.esito.esito-non_fatto{background:var(--bad-tint);color:var(--bad-text)}
+.esito p{margin:0;color:var(--ink)} .esito small{color:var(--muted)}
+.nfbox{display:grid;gap:8px;background:var(--bad-tint);border-radius:12px;padding:12px}
+.icon-btn.bell{position:relative}
+.bell .badge{position:absolute;top:-4px;right:-4px;min-width:19px;height:19px;padding:0 5px;border-radius:999px;background:var(--bad);color:#fff;font-size:11.5px;font-weight:700;display:grid;place-items:center;line-height:1}
+#bellBtn{order:1}
+.npanel{position:fixed;top:calc(8px + env(safe-area-inset-top,0px));right:8px;left:8px;max-width:420px;margin-left:auto;max-height:80dvh;overflow:auto;z-index:40;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:0 18px 40px rgba(16,24,38,.22)}
+.np-head{display:flex;justify-content:space-between;align-items:center;padding:12px 12px 8px 16px;position:sticky;top:0;background:var(--surface)}
+.np-head h2{font-size:18px}
+.np-perm{margin:0 12px 10px;padding:10px 12px;border-radius:10px;background:var(--brand-tint);color:var(--brand-text);display:grid;gap:8px;font-size:14px}
+.np-perm .btn{justify-self:start}
+.np-list{display:grid;padding:0 6px 8px}
+.np-item{display:flex;gap:10px;text-align:left;border:0;background:none;padding:10px;border-radius:10px;cursor:pointer;color:var(--ink);font:inherit}
+.np-item:hover{background:var(--surface2)}
+.np-item.new{background:var(--brand-tint)}
+.np-ico{flex:none;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:var(--surface2)}
+.k-fatto .np-ico{background:var(--ok-tint);color:var(--ok-text)} .k-non_fatto .np-ico,.k-late .np-ico{background:var(--bad-tint);color:var(--bad-text)}
+.k-assign .np-ico,.k-start .np-ico{background:var(--brand-tint);color:var(--brand-text)}
+.np-txt{display:grid;gap:2px;min-width:0} .np-txt span{font-size:14px;color:var(--muted)} .np-txt small{font-size:12.5px;color:var(--muted)}
 </style>
 </head>
 <body>
@@ -470,6 +498,7 @@ html,body{overflow-x:hidden}
       <span id="sync" data-s="pending">Collegamento…</span>
       <button class="btn small" id="installBtn" hidden>Installa app</button>
       <button class="btn small ghost" id="logoutBtn" data-act="logout" hidden>Esci</button>
+      <button class="icon-btn bell" id="bellBtn" data-act="notif" aria-label="Notifiche" hidden><span id="bellIc"></span><span class="badge" id="bellN" hidden></span></button>
       <button class="icon-btn" id="themeBtn" data-act="theme" aria-label="Cambia tema chiaro o scuro"></button>
     </div>
     <nav class="menu" id="menu" role="tablist" aria-label="Menu principale"></nav>
@@ -511,6 +540,7 @@ const ICONS = {
   left:'<path d="m15 18-6-6 6-6"/>',
   right:'<path d="m9 18 6-6-6-6"/>',
   x:'<path d="M18 6 6 18M6 6l12 12"/>',
+  bell:'<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
   grid:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
   timeline:'<path d="M3 6h10M7 12h14M3 18h8"/>',
   list:'<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
@@ -542,8 +572,13 @@ const fmtDur = m => { m = Number(m) || 0; if (!m) return ''; const h = Math.floo
 const toMin = t => { const p = String(t).split(':').map(Number); return p[0] * 60 + (p[1] || 0); };
 const fmtMin = m => pad(Math.floor(m / 60)) + ':' + pad(m % 60);
 const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
-const STATI = {da_fare:'Da fare', in_corso:'In corso', fatto:'Fatto'};
-const NEXT = {da_fare:'in_corso', in_corso:'fatto', fatto:'da_fare'};
+const STATI = {da_fare:'Da fare', in_corso:'In corso', fatto:'Fatto', non_fatto:'Non fatto'};
+const NEXT = {da_fare:'in_corso', in_corso:'fatto', fatto:'da_fare', non_fatto:'da_fare'};
+const isClosed = st => st === 'fatto' || st === 'non_fatto';
+const hhmm = s => { const d = new Date(s); return isNaN(d) ? '' : d.toLocaleTimeString('it-IT', {hour: '2-digit', minute: '2-digit'}); };
+const whenTxt = s => { const d = new Date(s); if (isNaN(d)) return ''; const t = new Date(); const y = new Date(t.getTime() - 864e5);
+  const same = (a, b) => a.toDateString() === b.toDateString();
+  return (same(d, t) ? 'oggi' : same(d, y) ? 'ieri' : d.toLocaleDateString('it-IT', {day: 'numeric', month: 'short'})) + ' alle ' + hhmm(s); };
 const stOf = j => STATI[j.stato] ? j.stato : 'da_fare';
 const isActive = w => w.attivo !== false;
 const durOf = j => Number(j.durata) || 60;
@@ -995,10 +1030,18 @@ function render(){
   else { mounted = null; $('#app').innerHTML = view === 'assegna' ? viewAssegna() : viewPanoramica(); }
   renderDetail();
 }
-function setStato(id, st){
+function setStato(id, st, causale){
   const j = jobs.find(x => x.id === id);
   if (!j || !STATI[st]) return;
+  const cur = stOf(j);
+  if (cur === st) return;
+  if (usingDb && isClosed(cur) && role !== 'titolare') { toast('Intervento già chiuso: solo il titolare può modificarlo.'); return; }
+  if (st === 'non_fatto' && role === 'lavoratore' && String(causale || '').trim().length < 3) { toast('Scrivi il motivo per cui non è stato fatto.'); return; }
+  const now = new Date().toISOString();
   j.stato = st;
+  if (st === 'in_corso' && role === 'lavoratore') j.inizioIl = now;
+  if (isClosed(st)) { j.esitoIl = now; j.esitoDa = role === 'lavoratore' ? 'lavoratore' : 'ufficio'; }
+  if (st === 'non_fatto' && causale !== undefined) j.causale = String(causale).trim().slice(0, 300);
   let msg = '';
   if (st === 'fatto' && canWrite && (j.importo === undefined || j.importo === null || j.importo === '')) {
     j.importo = prezzoOf(j.tipo);
@@ -1039,7 +1082,9 @@ function viewPanoramica(){
   }
   const al = [];
   if (un.length) al.push(['warn', 'users', `${plural(un.length, 'intervento da assegnare', 'interventi da assegnare')}`, 'Assegna']);
-  const urg = day.filter(j => j.priorita === 'urgente' && stOf(j) !== 'fatto').length;
+  const urg = day.filter(j => j.priorita === 'urgente' && !isClosed(stOf(j))).length;
+  const nfd = day.filter(j => stOf(j) === 'non_fatto').length;
+  if (nfd) al.push(['bad', 'alert', `${plural(nfd, 'intervento non fatto', 'interventi non fatti')} in questa giornata`, 'Vedi', 'archivio']);
   if (urg) al.push(['bad', 'zap', `${plural(urg, 'intervento urgente aperto', 'interventi urgenti aperti')}`, 'Vedi']);
   workers.filter(isActive).forEach(w => { const m = loadOf(w, day); if (m > capOf(w)) al.push(['warn', 'alert', `${esc(w.nome)}: ${esc(fmtDur(m))} in programma, oltre le 8 ore`, 'Riequilibra']); });
   if (canWrite) { const nb = billable(); if (nb.length) al.push(['warn', 'check', `${plural(nb.length, 'intervento fatto da pre-fatturare', 'interventi fatti da pre-fatturare')} (${fmtEur(nb.reduce((a, j) => a + importoOf(j), 0))})`, 'Pre-fatturazione', 'prefat']); }
@@ -1179,7 +1224,7 @@ function sendPanel(lanesW, day){
 /* crea nuova giornata lavorativa: lavoratore + giornata + lavori da selezionare */
 function wzCands(){
   const wById = workerMap();
-  return jobs.filter(j => !wById[j.workerId] && stOf(j) !== 'fatto' && (wzOther || j.data === wzDate))
+  return jobs.filter(j => !wById[j.workerId] && !isClosed(stOf(j)) && (wzOther || j.data === wzDate))
     .sort((a, b) => (a.data === wzDate ? 0 : 1) - (b.data === wzDate ? 0 : 1) || a.data.localeCompare(b.data) || byFascia(a, b));
 }
 function wzCalc(){
@@ -1215,7 +1260,7 @@ function viewNuova(){
   const cands = wzCands();
   const ids = new Set(cands.map(j => j.id));
   wzSel = new Set([...wzSel].filter(id => ids.has(id)));
-  const pool = jobs.filter(j => !wById[j.workerId] && stOf(j) !== 'fatto');
+  const pool = jobs.filter(j => !wById[j.workerId] && !isClosed(stOf(j)));
   const others = pool.filter(j => j.data !== wzDate).length;
   const c = wzCalc();
   if (!act.length) {
@@ -1303,6 +1348,8 @@ function renderDetail(){
       <div><dt>Indirizzo</dt><dd>${esc(j.via)}</dd></div>
       ${j.telefono ? `<div><dt>Telefono</dt><dd>${esc(j.telefono)}</dd></div>` : ''}
       ${j.descrizione ? `<div><dt>Lavoro</dt><dd>${esc(j.descrizione)}</dd></div>` : ''}
+      ${isClosed(st) && j.esitoIl ? `<div><dt>Esito</dt><dd>${STATI[st]} · ${esc(whenTxt(j.esitoIl))}${j.esitoDa === 'lavoratore' ? ' (dal lavoratore)' : ''}</dd></div>` : ''}
+      ${st === 'non_fatto' && j.causale ? `<div><dt>Motivo (non fatto)</dt><dd>${esc(j.causale)}</dd></div>` : ''}
       ${j.noteLavoratore ? `<div><dt>Nota del lavoratore</dt><dd>${esc(j.noteLavoratore)}</dd></div>` : ''}
       <div><dt>Lavoratore</dt><dd>${w ? esc(w.nome) : 'Da assegnare'}</dd></div>
     </dl>
@@ -1314,7 +1361,8 @@ function renderDetail(){
     <div class="field"><span>Fascia oraria</span><div class="seg wide" role="group">
       ${FASCE.map(([v, l]) => `<button data-act="set-fascia" data-id="${esc(j.id)}" data-f="${v}" aria-pressed="${v === fa}">${l}</button>`).join('')}</div></div>
     <div class="field"><span>Stato</span><div class="seg wide" role="group">
-      ${Object.keys(STATI).map(k => `<button data-act="set-stato" data-id="${esc(j.id)}" data-st="${k}" aria-pressed="${k === st}">${STATI[k]}</button>`).join('')}</div></div>
+      ${Object.keys(STATI).map(k => `<button data-act="set-stato" data-id="${esc(j.id)}" data-st="${k}" aria-pressed="${k === st}"${isClosed(st) && role !== 'titolare' && k !== st ? ' disabled' : ''}>${STATI[k]}</button>`).join('')}</div>
+      ${isClosed(st) && role !== 'titolare' ? '<small class="muted">Intervento chiuso: solo il titolare può riaprirlo.</small>' : ''}</div>
     ${closing}
     <label class="field"><span>Assegnato a</span><select data-act="assegna-d" data-id="${esc(j.id)}">
       <option value="">Da assegnare</option>
@@ -2107,7 +2155,7 @@ function mountArchivio(){
   $('#app').innerHTML = `<section class="panel"><h2 class="page-title">Finder interventi</h2>
     <div class="fgrid cols3">
       <label class="field span2"><span>Cerca (cliente, via, telefono, lavoro)</span><input type="search" data-flt="q" value="${esc(flt.q)}"></label>
-      <label class="field"><span>Stato</span><select data-flt="stato">${opts([['', 'Tutti'], ['da_fare', 'Da fare'], ['in_corso', 'In corso'], ['fatto', 'Fatto']], flt.stato)}</select></label>
+      <label class="field"><span>Stato</span><select data-flt="stato">${opts([['', 'Tutti'], ['da_fare', 'Da fare'], ['in_corso', 'In corso'], ['fatto', 'Fatto'], ['non_fatto', 'Non fatto']], flt.stato)}</select></label>
       <label class="field"><span>Dal</span><input type="date" data-flt="da" value="${esc(flt.da)}"></label>
       <label class="field"><span>Al</span><input type="date" data-flt="a" value="${esc(flt.a)}"></label>
       <label class="field"><span>Lavoratore</span><select data-flt="w" id="fltW"></select></label>
@@ -2275,6 +2323,86 @@ function toast(msg, label, fn){
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; toastFn = null; }, label ? 7000 : 3500);
 }
 
+/* ---------- centro notifiche ---------- */
+const lsGet = k => { try { return localStorage.getItem(k) || ''; } catch(e){ return ''; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch(e){} };
+let notifOpen = false;
+function notifEvents(){
+  if (authState !== 'ready') return [];
+  const ev = [], wById = workerMap(), now = Date.now(), since = now - 7 * 864e5, ok = t => t && Date.parse(t) > since;
+  const what = j => (j.tipo || 'Intervento') + ' · ' + (j.cliente || '');
+  if (role === 'lavoratore') {
+    jobs.forEach(j => { if (ok(j.assegnatoIl)) ev.push({id: 'a-' + j.id + '-' + j.assegnatoIl, t: j.assegnatoIl, kind: 'assign', job: j.id,
+      title: 'Nuovo intervento assegnato', body: what(j) + ' · ' + fmtShort(j.data) + (fasciaOf(j) ? ', ' + fasciaLabel(j).toLowerCase() : '')}); });
+  } else {
+    jobs.forEach(j => {
+      const w = wById[j.workerId], wn = w ? w.nome : 'Lavoratore', st = stOf(j);
+      if (ok(j.inizioIl)) ev.push({id: 's-' + j.id + '-' + j.inizioIl, t: j.inizioIl, kind: 'start', job: j.id, title: wn + ' ha iniziato', body: what(j)});
+      if (isClosed(st) && j.esitoDa === 'lavoratore' && ok(j.esitoIl)) ev.push({id: 'e-' + j.id + '-' + j.esitoIl, t: j.esitoIl, kind: st, job: j.id,
+        title: st === 'fatto' ? wn + ': intervento fatto' : wn + ': intervento NON fatto', body: what(j) + (st === 'non_fatto' && j.causale ? ' — Motivo: ' + j.causale : '')});
+      if (st === 'in_corso' && j.inizioIl) { const due = Date.parse(j.inizioIl) + durOf(j) * 90000;
+        if (due < now && due > since) ev.push({id: 'l-' + j.id + '-' + j.inizioIl, t: new Date(due).toISOString(), kind: 'late', job: j.id,
+          title: 'In corso da più del previsto', body: wn + ' · ' + what(j) + ' (previsto ' + fmtDur(durOf(j)) + ')'}); }
+    });
+  }
+  return ev.sort((a, b) => a.t < b.t ? 1 : -1).slice(0, 60);
+}
+const seenKey = () => 'gestionale-notif-seen-' + (me ? me.uid : '');
+function updateBell(){
+  const b = $('#bellBtn'); if (!b) return;
+  b.hidden = authState !== 'ready';
+  if (b.hidden) return;
+  const seen = lsGet(seenKey()), n = notifEvents().filter(e => e.t > seen).length;
+  const badge = $('#bellN'); badge.hidden = !n; badge.textContent = n > 9 ? '9+' : String(n);
+  b.setAttribute('aria-label', n ? 'Notifiche: ' + n + ' nuove' : 'Notifiche');
+  if (notifOpen) renderNotif();
+}
+function notifToggle(force){
+  notifOpen = force === undefined ? !notifOpen : !!force;
+  let p = $('#npanel');
+  if (!p) { if (!notifOpen) return; p = document.createElement('div'); p.id = 'npanel'; p.className = 'npanel'; document.body.appendChild(p); }
+  p.hidden = !notifOpen;
+  if (notifOpen) renderNotif();
+}
+function renderNotif(){
+  const p = $('#npanel'); if (!p) return;
+  const ev = notifEvents(), seen = lsGet(seenKey());
+  const can = 'Notification' in window, perm = can ? Notification.permission : 'unsupported';
+  const icoOf = {assign: 'plus', start: 'clock', fatto: 'check', non_fatto: 'x', late: 'alert'};
+  p.innerHTML = `<div class="np-head"><h2>Notifiche</h2><button class="icon-btn" data-act="notif-close" aria-label="Chiudi">${ic('x', 20)}</button></div>
+    ${can && perm !== 'granted' ? `<div class="np-perm">${perm === 'denied' ? 'Le notifiche sul telefono sono bloccate: riattivale dalle impostazioni del browser per questo sito.' : 'Ricevi gli avvisi anche come notifiche del telefono.'}
+      ${perm !== 'denied' ? `<button class="btn small primary" data-act="notif-perm">Attiva notifiche</button>` : ''}</div>` : ''}
+    ${ev.length ? `<div class="np-list">` + ev.map(e => `<button class="np-item k-${e.kind}${e.t > seen ? ' new' : ''}" data-act="notif-go" data-id="${esc(e.job)}">
+        <span class="np-ico">${ic(icoOf[e.kind] || 'alert', 16)}</span><span class="np-txt"><strong>${esc(e.title)}</strong><span>${esc(e.body)}</span><small>${esc(whenTxt(e.t))}</small></span></button>`).join('') + `</div>`
+      : `<p class="muted" style="padding:16px">${role === 'lavoratore' ? 'Qui trovi gli interventi che ti vengono assegnati.' : 'Qui trovi gli interventi iniziati, chiusi o non fatti dai lavoratori e quelli in ritardo.'}</p>`}`;
+  if (ev.length && ev[0].t > seen) { lsSet(seenKey(), ev[0].t); const badge = $('#bellN'); if (badge) badge.hidden = true; }
+}
+async function notifAskPerm(){
+  try { await Notification.requestPermission(); } catch(e){}
+  renderNotif();
+  if ('Notification' in window && Notification.permission === 'granted') sysNotify({id: 'test', title: 'Notifiche attive', body: 'Riceverai qui gli avvisi del gestionale.'});
+}
+async function sysNotify(e){
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const opt = {body: e.body, tag: e.id, icon: 'icon-192.png', badge: 'icon-192.png', data: {url: APP_URL}};
+  try { const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration(); if (reg) { await reg.showNotification(e.title, opt); return; } } catch(x){}
+  try { new Notification(e.title, opt); } catch(x){}
+}
+function notifyCheck(){
+  if (!me || authState !== 'ready') { updateBell(); return; }
+  const key = 'gestionale-notif-sys-' + me.uid, last = lsGet(key), ev = notifEvents();
+  if (!last) { lsSet(key, ev.length ? ev[0].t : new Date().toISOString()); updateBell(); return; }
+  const fresh = ev.filter(e => e.t > last && Date.now() - Date.parse(e.t) < 6 * 3600e3).reverse();
+  if (fresh.length) {
+    lsSet(key, fresh[fresh.length - 1].t);
+    if (document.visibilityState === 'visible') { const e = fresh[fresh.length - 1]; toast(e.title + ': ' + e.body); }
+    else fresh.slice(-5).forEach(sysNotify);
+  }
+  updateBell();
+}
+setInterval(() => { if (authState === 'ready') notifyCheck(); }, 60000);
+document.addEventListener('click', e => { if (notifOpen && !e.target.closest('#npanel') && !e.target.closest('#bellBtn')) notifToggle(false); }, true);
+
 /* ---------- eventi ---------- */
 const wNoteT = {};
 document.addEventListener('input', e => {
@@ -2313,10 +2441,30 @@ document.addEventListener('click', e => {
     case 'logout': if (fb) fb.signOut(fb.auth); break;
     case 'login-mode': loginMode = t.dataset.mode; render(); break;
     case 'fb-retry': location.reload(); break;
-    case 'w-stato':
-      setStato(id, t.dataset.st);
-      if (t.dataset.st === 'fatto' && usingDb && !fotoOf(id).length) toast('Intervento chiuso. Vuoi aggiungere foto del lavoro?', 'Aggiungi foto', () => { const i = document.querySelector('input[data-fotoin="' + id + '"]'); if (i) i.click(); });
+    case 'w-stato': setStato(id, t.dataset.st); break;
+    case 'w-fatto':
+      if (t.dataset.armed !== '1') { t.dataset.armed = '1'; t.textContent = 'Tocca ancora per confermare'; break; }
+      setStato(id, 'fatto');
+      if (usingDb && !fotoOf(id).length) toast('Intervento chiuso. Vuoi aggiungere foto del lavoro?', 'Aggiungi foto', () => { const i = document.querySelector('input[data-fotoin="' + id + '"]'); if (i) i.click(); });
       break;
+    case 'w-nf-open': wNF[id] = true; render(); { const n = document.querySelector('textarea[data-causale][data-id="' + id + '"]'); if (n) n.focus(); } break;
+    case 'w-nf-cancel': delete wNF[id]; render(); break;
+    case 'w-nf-ok': {
+      const n = document.querySelector('textarea[data-causale][data-id="' + id + '"]'), why = n ? n.value.trim() : '';
+      if (why.length < 3) { toast('Scrivi il motivo per cui non è stato fatto.'); if (n) n.focus(); break; }
+      delete wNF[id]; setStato(id, 'non_fatto', why); toast('Segnato come non fatto. L’ufficio riceve l’avviso.');
+      break;
+    }
+    case 'notif': notifToggle(); break;
+    case 'notif-close': notifToggle(false); break;
+    case 'notif-perm': notifAskPerm(); break;
+    case 'notif-go': {
+      const j = jobs.find(x => x.id === id); notifToggle(false);
+      if (!j) break;
+      if (role === 'lavoratore') { setDate(j.data); setTimeout(() => { const c = document.querySelector('.w-job[data-id="' + id + '"]'); if (c) c.scrollIntoView({block: 'center'}); }, 80); }
+      else { detailId = id; renderDetail(); }
+      break;
+    }
     case 'foto-open': { const im = t.querySelector('img'); if (im) showLightbox(im.src); break; }
     case 'foto-del': { const fid = t.dataset.fid; toast('Eliminare questa foto?', 'Elimina', () => delFoto(fid)); break; }
     case 'wa-sent': waSentSet(date + '|' + t.dataset.w, t.dataset.sig); setTimeout(render, 500); break;
@@ -2541,6 +2689,9 @@ const FIREBASE_CONFIG = {
 const FB_BASE = 'https://www.gstatic.com/firebasejs/12.7.0/';
 const ROLE_LABEL = {titolare: 'Titolare', ufficio: 'Ufficio', lavoratore: 'Lavoratore', disattivato: 'Disattivato', '': 'In attesa'};
 const FATT_KEYS = ['importo', 'noteFatt', 'preFatturaId'];
+const W_KEYS = ['stato', 'noteLavoratore', 'causale', 'inizioIl', 'esitoIl', 'esitoDa'];
+let srvSnap = {};   // ultima versione dall'archivio dei campi che contano (per confronti e notifiche)
+function takeSnap(s){ srvSnap = {}; s.docs.forEach(d => { const x = d.data(), o = {workerId: x.workerId || ''}; W_KEYS.forEach(k => { o[k] = x[k]; }); srvSnap[d.id] = o; }); }
 let fb = null, authState = 'loading', role = '', myWorkerId = '', me = null, fbErr = '', loginMode = 'login', migHidden = false;
 let unsubs = [], ownUnsub = null, utenti = [], rawJobs = [], fattMap = {};
 
@@ -2549,9 +2700,12 @@ async function fbWrite(coll, item){
   const {doc, setDoc, updateDoc} = fb;
   if (coll === 'interventi') {
     if (role === 'lavoratore') {
-      await updateDoc(doc(fb.db, 'interventi', item.id), {stato: item.stato, noteLavoratore: item.noteLavoratore || ''});
+      const prev = srvSnap[item.id] || {}, patch = {};
+      W_KEYS.forEach(k => { const v = item[k]; if (v !== undefined && v !== prev[k]) patch[k] = v; });
+      if (Object.keys(patch).length) await updateDoc(doc(fb.db, 'interventi', item.id), patch);
       return;
     }
+    if (item.workerId && (srvSnap[item.id] || {}).workerId !== item.workerId) item.assegnatoIl = new Date().toISOString();
     const base = cleanObj(item), fat = {};
     FATT_KEYS.forEach(k => { if (k in base) { fat[k] = base[k]; delete base[k]; } });
     await setDoc(doc(fb.db, 'interventi', item.id), base);
@@ -2580,7 +2734,7 @@ function rebuildJobs(){
   });
 }
 function stopSubs(){
-  fotoStop();
+  fotoStop(); srvSnap = {}; notifToggle(false);
   unsubs.forEach(u => { try { u(); } catch(e){} });
   unsubs = []; usingDb = false;
   workers = []; jobs = []; rawJobs = []; fattMap = {}; tipi = []; clienti = []; prefatture = []; azienda = {}; utenti = [];
@@ -2599,7 +2753,7 @@ function startSubs(){
   const list = (n, fn) => sub(col(n), s => { fn(s); render(); });
   if (canWrite) {
     list('lavoratori', s => { workers = s.docs.map(d => d.data()); sync(s); });
-    list('interventi', s => { rawJobs = s.docs.map(d => d.data()); rebuildJobs(); pickInitialDate(); sync(s); });
+    list('interventi', s => { rawJobs = s.docs.map(d => d.data()); takeSnap(s); setTimeout(notifyCheck, 0); rebuildJobs(); pickInitialDate(); sync(s); });
     list('fatturazione', s => { fattMap = {}; s.docs.forEach(d => { fattMap[d.id] = d.data(); }); rebuildJobs(); });
     list('tipi', s => { tipi = s.docs.map(d => d.data()); });
     list('clienti', s => { clienti = s.docs.map(d => d.data()); });
@@ -2607,7 +2761,7 @@ function startSubs(){
     list('impostazioni', s => { azienda = s.docs.map(d => d.data()).find(x => x.id === 'azienda') || {}; });
     if (role === 'titolare') list('utenti', s => { utenti = s.docs.map(d => Object.assign({uid: d.id}, d.data())); });
   } else {
-    sub(fb.query(col('interventi'), fb.where('workerId', '==', myWorkerId)), s => { rawJobs = s.docs.map(d => d.data()); rebuildJobs(); pickInitialDate(); sync(s); render(); });
+    sub(fb.query(col('interventi'), fb.where('workerId', '==', myWorkerId)), s => { rawJobs = s.docs.map(d => d.data()); takeSnap(s); setTimeout(notifyCheck, 0); rebuildJobs(); pickInitialDate(); sync(s); render(); });
     sub(fb.doc(fb.db, 'lavoratori', myWorkerId), s => { workers = s.exists() ? [s.data()] : []; render(); });
   }
 }
@@ -2689,6 +2843,7 @@ function gateHtml(){
 }
 function gateRender(){
   const lo = $('#logoutBtn'); if (lo) lo.hidden = !me;
+  updateBell();
   if (authState === 'ready') {
     if (role === 'lavoratore') { renderWorkerApp(); return true; }
     return false;
@@ -2789,6 +2944,20 @@ function showLightbox(src){
 }
 
 /* ---- vista del lavoratore ---- */
+let wNF = {};   // interventi con il riquadro "Non fatto" aperto
+function wStatoHtml(j, st){
+  const id = esc(j.id);
+  if (isClosed(st)) {
+    return `<div class="esito esito-${st}"><strong>${ic(st === 'fatto' ? 'check' : 'x', 18)}${st === 'fatto' ? 'Fatto' : 'Non fatto'}</strong>${j.esitoIl ? `<span>${esc(whenTxt(j.esitoIl))}</span>` : ''}
+      ${st === 'non_fatto' && j.causale ? `<p>Motivo: ${esc(j.causale)}</p>` : ''}<small>Intervento chiuso. Per modifiche contatta l’ufficio.</small></div>`;
+  }
+  const seg = `<div class="seg wide" role="group" aria-label="Stato">${['da_fare', 'in_corso'].map(k => `<button data-act="w-stato" data-id="${id}" data-st="${k}" aria-pressed="${k === st}">${STATI[k]}</button>`).join('')}</div>`;
+  if (wNF[j.id]) return seg + `<div class="nfbox"><label class="field" style="margin:0"><span>Perché non è stato fatto? (obbligatorio)</span>
+      <textarea data-causale="1" data-id="${id}" maxlength="300" placeholder="Es. cliente assente, manca il materiale, accesso impossibile…"></textarea></label>
+      <div class="job-actions"><button class="btn danger" data-act="w-nf-ok" data-id="${id}">Conferma: non fatto</button><button class="btn" data-act="w-nf-cancel" data-id="${id}">Annulla</button></div>
+      <small class="muted">Dopo la conferma non potrai più cambiarlo.</small></div>`;
+  return seg + `<div class="job-actions"><button class="btn primary" data-act="w-fatto" data-id="${id}">${ic('check', 16)}Fatto</button><button class="btn danger" data-act="w-nf-open" data-id="${id}">${ic('x', 16)}Non fatto</button></div>`;
+}
 function wCard(j){
   const st = stOf(j), href = mapsHref(j);
   return `<article class="w-job st-${st}" data-id="${esc(j.id)}">
@@ -2798,7 +2967,7 @@ function wCard(j){
     ${j.descrizione ? `<p class="desc">${esc(j.descrizione)}</p>` : ''}
     <div class="job-actions">${j.telefono ? `<a class="btn" href="tel:${esc(digits(j.telefono))}">${ic('phone', 16)}Chiama</a>` : ''}
       ${href ? `<a class="btn" href="${esc(href)}" target="_blank" rel="noopener">${ic('pin', 16)}Mappa</a>` : ''}</div>
-    <div class="seg wide" role="group" aria-label="Stato">${Object.keys(STATI).map(k => `<button data-act="w-stato" data-id="${esc(j.id)}" data-st="${k}" aria-pressed="${k === st}">${STATI[k]}</button>`).join('')}</div>
+    ${wStatoHtml(j, st)}
     ${usingDb ? fotoStrip(j, {add: true, del: true}) : ''}
     <label class="field" style="margin:0"><span>Nota per l’ufficio</span><textarea data-wnote="1" data-id="${esc(j.id)}" maxlength="500" placeholder="Es. materiale usato, cliente assente…">${esc(j.noteLavoratore || '')}</textarea></label>
   </article>`;
@@ -2822,9 +2991,12 @@ function renderWorkerApp(){
   $('#menu').innerHTML = `<button role="tab" aria-selected="true" data-act="go" data-view="oggi">${ic('clock', 18)}I miei interventi</button>`;
   $('#overlay').hidden = true;
   fotoSubWorker();
-  const a = document.activeElement, keep = a && a.dataset && a.dataset.wnote ? {id: a.dataset.id, v: a.value, s: a.selectionStart, e: a.selectionEnd} : null;
+  const a = document.activeElement, kAttr = a && a.dataset ? (a.dataset.wnote ? 'wnote' : a.dataset.causale ? 'causale' : '') : '';
+  const keep = kAttr ? {id: a.dataset.id, v: a.value, s: a.selectionStart, e: a.selectionEnd} : null;
+  const cz = {}; document.querySelectorAll('textarea[data-causale]').forEach(n => { cz[n.dataset.id] = n.value; });
   $('#app').innerHTML = viewOggi();
-  if (keep) { const n = document.querySelector('textarea[data-wnote][data-id="' + keep.id + '"]'); if (n) { n.value = keep.v; n.focus({preventScroll: true}); try { n.setSelectionRange(keep.s, keep.e); } catch(e){} } }
+  Object.keys(cz).forEach(k => { const n = document.querySelector('textarea[data-causale][data-id="' + k + '"]'); if (n) n.value = cz[k]; });
+  if (keep) { const n = document.querySelector('textarea[data-' + kAttr + '][data-id="' + keep.id + '"]'); if (n) { n.value = keep.v; n.focus({preventScroll: true}); try { n.setSelectionRange(keep.s, keep.e); } catch(e){} } }
 }
 
 /* ---- gestione utenti (solo titolare) ---- */
@@ -2883,6 +3055,7 @@ function unpersist(coll, id){ if (usingDb) enqueue(coll + '/' + id, () => fbRemo
 
 /* ---------- avvio ---------- */
 $('#mark').innerHTML = ic('pin', 20);
+$('#bellIc').innerHTML = ic('bell', 20);
 let savedTheme = null;
 try { savedTheme = localStorage.getItem(THEME_KEY); } catch(e){}
 applyTheme(savedTheme);
