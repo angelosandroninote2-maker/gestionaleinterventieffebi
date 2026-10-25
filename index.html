@@ -2276,6 +2276,13 @@ function toast(msg, label, fn){
 }
 
 /* ---------- eventi ---------- */
+const wNoteT = {};
+document.addEventListener('input', e => {
+  const t = e.target;
+  if (!(t.dataset && t.dataset.wnote)) return;
+  clearTimeout(wNoteT[t.dataset.id]);
+  wNoteT[t.dataset.id] = setTimeout(() => { const j = jobs.find(x => x.id === t.dataset.id); if (j && (j.noteLavoratore || '') !== t.value.slice(0, 500)) { j.noteLavoratore = t.value.slice(0, 500); persist('interventi', j); } }, 900);
+});
 document.addEventListener('click', e => {
   if (e.target.id === 'overlay') { detailId = null; renderDetail(); return; }
   const t = e.target.closest('[data-act]'); if (!t) return;
@@ -2347,14 +2354,19 @@ document.addEventListener('click', e => {
       toast('Copia pronta: controlla la data e salva.'); break;
     }
     case 'cancel-edit-job': editingJobId = null; draftJob = null; mounted = null; render(); break;
-    case 'del-job':
+    case 'del-job': {
+      const jd = jobs.find(x => x.id === id);
+      if (jd && jd.preFatturaId) { toast('È già in una pre-fattura (' + (((prefatture.find(p => p.id === jd.preFatturaId) || {}).numero) || '') + '): annulla prima la pre-fattura.'); break; }
       if (t.dataset.armed !== '1') { t.dataset.armed = '1'; t.textContent = 'Tocca ancora per eliminare'; }
       else {
         const copy = jobs.find(x => x.id === id);
         removeJob(id); editingJobId = null; mounted = null; render();
-        toast('Intervento eliminato.', 'Annulla', () => { if (copy) { jobs.push(copy); persist('interventi', copy); render(); } });
+        let undone = false;
+        toast('Intervento eliminato.', 'Annulla', () => { undone = true; if (copy) { jobs.push(copy); persist('interventi', copy); render(); } });
+        setTimeout(() => { if (!undone) purgeFoto(id); }, 7600);
       }
       break;
+    }
     case 'edit-worker': editingWorkerId = id; view = 'lavoratori'; mounted = null; render(); window.scrollTo(0, 0); break;
     case 'cancel-edit-worker': editingWorkerId = null; mounted = null; render(); break;
     case 'toggle-worker': {
@@ -2552,8 +2564,11 @@ async function fbRemove(coll, id){
   await fb.deleteDoc(fb.doc(fb.db, coll, id));
   if (coll === 'interventi') {
     await fb.deleteDoc(fb.doc(fb.db, 'fatturazione', id));
-    try { const sn = await fb.getDocs(fb.query(fb.collection(fb.db, 'foto'), fb.where('jobId', '==', id))); await Promise.all(sn.docs.map(d => fb.deleteDoc(fb.doc(fb.db, 'foto', d.id)))); } catch(e){}
   }
+}
+async function purgeFoto(jobId){
+  if (!usingDb || !canWrite || jobs.some(j => j.id === jobId)) return;
+  try { const sn = await fb.getDocs(fb.query(fb.collection(fb.db, 'foto'), fb.where('jobId', '==', jobId))); await Promise.all(sn.docs.map(d => fb.deleteDoc(fb.doc(fb.db, 'foto', d.id)))); } catch(e){}
 }
 function rebuildJobs(){
   jobs = rawJobs.map(j => {
@@ -2807,7 +2822,9 @@ function renderWorkerApp(){
   $('#menu').innerHTML = `<button role="tab" aria-selected="true" data-act="go" data-view="oggi">${ic('clock', 18)}I miei interventi</button>`;
   $('#overlay').hidden = true;
   fotoSubWorker();
+  const a = document.activeElement, keep = a && a.dataset && a.dataset.wnote ? {id: a.dataset.id, v: a.value, s: a.selectionStart, e: a.selectionEnd} : null;
   $('#app').innerHTML = viewOggi();
+  if (keep) { const n = document.querySelector('textarea[data-wnote][data-id="' + keep.id + '"]'); if (n) { n.value = keep.v; n.focus({preventScroll: true}); try { n.setSelectionRange(keep.s, keep.e); } catch(e){} } }
 }
 
 /* ---- gestione utenti (solo titolare) ---- */
