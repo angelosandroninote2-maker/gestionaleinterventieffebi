@@ -19,6 +19,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Gestionale interventi</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0B5FFF">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Interventi">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
@@ -421,6 +428,22 @@ dl.info dd{overflow-wrap:anywhere}
 
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--surface);padding:10px 12px 10px 16px;border-radius:10px;z-index:30;max-width:92vw;font-size:14.5px;display:flex;gap:12px;align-items:center}
 .toast button{border:0;background:color-mix(in srgb,var(--surface) 22%,transparent);color:var(--surface);font-weight:600;border-radius:7px;min-height:32px;padding:0 12px;cursor:pointer}
+/* ---- telefono: barra in alto su due righe, niente scorrimento laterale della pagina ---- */
+[hidden]{display:none!important}
+html,body{overflow-x:hidden}
+.dash>*,.wrap>*,.card{min-width:0}
+.dash{grid-template-columns:minmax(0,1fr)}
+@media (min-width:1000px){.dash{grid-template-columns:minmax(0,1.7fr) minmax(300px,1fr)}}
+#installBtn{white-space:nowrap}
+@media (max-width:560px){
+  .bar{flex-wrap:wrap;gap:8px 10px}
+  .bar::after{content:"";order:2;flex-basis:100%;height:0}
+  h1{font-size:17px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #themeBtn{order:1}
+  #sync{order:3;flex:1 1 auto;min-width:0}
+  #installBtn{order:4}
+  #logoutBtn{order:5}
+}
 </style>
 </head>
 <body>
@@ -431,6 +454,7 @@ dl.info dd{overflow-wrap:anywhere}
       <div class="mark" id="mark" aria-hidden="true"></div>
       <h1>Gestionale interventi</h1>
       <span id="sync" data-s="pending">Collegamento…</span>
+      <button class="btn small" id="installBtn" hidden>Installa app</button>
       <button class="btn small ghost" id="logoutBtn" data-act="logout" hidden>Esci</button>
       <button class="icon-btn" id="themeBtn" data-act="theme" aria-label="Cambia tema chiaro o scuro"></button>
     </div>
@@ -2710,6 +2734,17 @@ try { savedTheme = localStorage.getItem(THEME_KEY); } catch(e){}
 applyTheme(savedTheme);
 render();
 bootFirebase();
+/* ---------- app installabile (Android) ---------- */
+(() => {
+  let ev = null; const b = document.getElementById('installBtn'); if (!b) return;
+  window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); ev = e; b.hidden = false; });
+  b.addEventListener('click', async () => { if (!ev) return; b.hidden = true; ev.prompt(); try { await ev.userChoice; } catch(e){} ev = null; });
+  window.addEventListener('appinstalled', () => { b.hidden = true; ev = null; });
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+    window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
+  }
+})();
+
 /* aggiorna ritardi e linea dell'ora ogni minuto, senza disturbare chi sta scrivendo */
 setInterval(() => {
   const a = document.activeElement;
