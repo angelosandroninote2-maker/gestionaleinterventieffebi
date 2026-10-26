@@ -514,6 +514,25 @@ html,body{overflow-x:hidden}
 .abbbox h4{font-size:16px;color:var(--warn-text)}
 .abbrow{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 10px;cursor:pointer;font:inherit;color:var(--ink);margin-top:6px}
 .abbrow span:first-child{display:grid;gap:2px;min-width:0}.abbrow small{color:var(--muted)}
+/* materiale usato */
+.matbox .split{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.matrow{display:flex;align-items:center;gap:8px;justify-content:space-between;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--surface)}
+.matrow.gone{opacity:.5;text-decoration:line-through}
+.mat-main{display:grid;gap:2px;min-width:0}.mat-main small{color:var(--muted)}
+.matq{width:72px;min-height:38px;text-align:center}
+.icon-btn.small{width:34px;height:34px;min-height:0}
+.matadd{display:grid;gap:8px;border:1px solid var(--brand);border-radius:12px;padding:10px;background:var(--brand-tint)}
+.matsearch{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}
+.matres{display:grid;gap:6px}
+.matsel{display:grid;gap:2px;background:var(--surface);border-radius:10px;padding:8px 10px}.matsel small{color:var(--muted)}
+.matqrow{display:flex;align-items:center;gap:10px}.matqrow .btn{min-width:48px;min-height:46px;font-size:20px}.matqv{font-size:22px;min-width:30px;text-align:center}
+.pf-mats{display:grid;gap:4px;margin:-4px 0 8px 34px;padding:6px 10px;border-left:3px solid var(--line)}
+.pf-mat{display:flex;justify-content:space-between;gap:10px;font-size:14px}
+.camoverlay{position:fixed;inset:0;z-index:70;background:#000;display:grid;place-items:center}
+.camoverlay video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.camframe{position:relative;width:78vw;max-width:420px;height:30vh;border:3px solid #fff;border-radius:14px;box-shadow:0 0 0 100vmax rgba(0,0,0,.45)}
+.camoverlay p{position:absolute;top:calc(18px + env(safe-area-inset-top,0px));color:#fff;font-weight:600}
+.camoverlay .btn{position:absolute;bottom:calc(24px + env(safe-area-inset-bottom,0px))}
 </style>
 </head>
 <body>
@@ -642,6 +661,9 @@ let view = 'panoramica', mounted = null;
 let articoli = [], codeMap = {};            // magazzino: articoli e codice a barre -> articolo
 let magTab = 'carico', magQ = '', magFlt = '', artId = null, artMov = [], artMovUnsub = null, artMovKey = '';
 let scanLog = [];
+let materiali = [], matLoaded = false, artLoaded = false, matBusy = {};   // ufficio: materiale aperto (da scaricare/verificare/pre-fatturare)
+let matW = {}, matUnsubW = null, matKeyW = '', matD = {}, matUnsubD = null, matKeyD = '', wMat = {};
+let catDocs = [], catArr = [];                                         // catalogo senza prezzi (per i lavoratori)
 let listinoDocs = [], listMap = {}, listArr = [], catQ = '', catLoad = '', impPrev = null, abbQ = '';                           // spari di questa sessione (per annullare)
 const MOTIVI_RETT = [['conteggio', 'Conteggio sbagliato'], ['rotto', 'Pezzo rotto'], ['reso', 'Reso al fornitore'], ['garanzia', 'Sostituzione in garanzia'], ['altro', 'Altro']];
 let assMode = (window.innerWidth >= 900) ? 'fasce' : 'elenco';
@@ -1121,6 +1143,7 @@ function viewPanoramica(){
   if (un.length) al.push(['warn', 'users', `${plural(un.length, 'intervento da assegnare', 'interventi da assegnare')}`, 'Assegna']);
   const urg = day.filter(j => j.priorita === 'urgente' && !isClosed(stOf(j))).length;
   const nfd = day.filter(j => stOf(j) === 'non_fatto').length;
+  if (canWrite && matDaVerificare().length) al.push(['warn', 'box', `${plural(matDaVerificare().length, 'materiale usato da verificare', 'materiali usati da verificare')}`, 'Pre-fatturazione', 'prefat']);
   if (nfd) al.push(['bad', 'alert', `${plural(nfd, 'intervento non fatto', 'interventi non fatti')} in questa giornata`, 'Vedi', 'archivio']);
   if (urg) al.push(['bad', 'zap', `${plural(urg, 'intervento urgente aperto', 'interventi urgenti aperti')}`, 'Vedi']);
   workers.filter(isActive).forEach(w => { const m = loadOf(w, day); if (m > capOf(w)) al.push(['warn', 'alert', `${esc(w.nome)}: ${esc(fmtDur(m))} in programma, oltre le 8 ore`, 'Riequilibra']); });
@@ -1361,7 +1384,7 @@ function viewAssegna(){
 function renderDetail(){
   const ov = $('#overlay'), sh = $('#sheet');
   const j = detailId ? jobs.find(x => x.id === detailId) : null;
-  fotoSubDetail(j ? j.id : '');
+  fotoSubDetail(j ? j.id : ''); matSubDetail(j ? j.id : '');
   if (!j) { detailId = null; ov.hidden = true; sh.innerHTML = ''; return; }
   const wById = workerMap();
   const w = wById[j.workerId];
@@ -1377,6 +1400,8 @@ function renderDetail(){
       <label class="field"><span>Nota sulla riga della pre-fattura (facoltativa)</span><input id="dNoteF" data-id="${esc(j.id)}" maxlength="160" value="${esc(j.noteFatt || '')}"${locked ? ' disabled' : ''}></label>
       <p class="muted" style="font-size:14px">${locked ? 'Già inserito nella pre-fattura ' + esc(pfn) + '.' : 'Da pre-fatturare: lo trovi nella pagina Pre-fatturazione.'}</p></div>` : '';
   const wasHidden = ov.hidden;
+  const fa0 = document.activeElement, fk = fa0 && sh.contains(fa0) && fa0.dataset ? ['matq', 'matser', 'matqta'].find(k => fa0.dataset[k] !== undefined) : '';
+  const fkeep = fk ? {k: fk, v: fa0.dataset[fk], val: fa0.value, s: fa0.selectionStart} : null;
   sh.innerHTML = `<div class="sheet-head"><div><p class="eyebrow">${esc(fmtShort(j.data))} · ${esc(fasciaLabel(j))}</p><h2>${esc(j.cliente)}</h2></div>
       <button class="icon-btn" id="sheetClose" data-act="close-detail" aria-label="Chiudi">${ic('x', 20)}</button></div>
     <div class="tags">${tagsOf(j)}<span class="stat st-${st}">${STATI[st]}</span></div>
@@ -1391,6 +1416,7 @@ function renderDetail(){
       <div><dt>Lavoratore</dt><dd>${w ? esc(w.nome) : 'Da assegnare'}</dd></div>
     </dl>
     ${usingDb ? fotoStrip(j, {add: false, del: canWrite}) : ''}
+    ${usingDb && canWrite ? matStripOffice(j) : ''}
     <div class="job-actions">
       ${j.telefono ? `<a class="btn" href="tel:${esc(digits(j.telefono))}">${ic('phone', 16)}Chiama</a>` : ''}
       ${href ? `<a class="btn" href="${esc(href)}" target="_blank" rel="noopener">${ic('pin', 16)}Apri mappa</a>` : ''}</div>
@@ -1406,7 +1432,8 @@ function renderDetail(){
       ${sortedWorkers().filter(x => isActive(x) || x.id === j.workerId).map(x => `<option value="${esc(x.id)}"${x.id === j.workerId ? ' selected' : ''}>${esc(x.nome)} (${esc(fmtDur(loadOf(x, day)) || 'libero')})</option>`).join('')}</select></label>
     <div class="form-actions"><button class="btn" data-act="edit-job" data-id="${esc(j.id)}">${ic('edit', 16)}Modifica intervento</button></div>` : ''}`;
   ov.hidden = false;
-  if (wasHidden) { const c = $('#sheetClose'); if (c) c.focus({preventScroll:true}); }
+  if (fkeep) { const n = sh.querySelector('[data-' + fkeep.k + '="' + fkeep.v + '"]'); if (n) { n.value = fkeep.val; n.focus({preventScroll: true}); try { n.setSelectionRange(fkeep.s, fkeep.s); } catch(e){} } }
+  else if (wasHidden) { const c = $('#sheetClose'); if (c) c.focus({preventScroll:true}); }
 }
 
 /* ---------- Carica lavori ---------- */
@@ -1904,7 +1931,7 @@ function buildPrefatturaPdf(pf, az){
     const l2 = r.dettaglio ? pdfWrap(r.dettaglio, descW, 8.5, false) : [];
     const h = 10 + l1.length * 12 + l2.length * 11 + 4;
     if (y + h > bottom) { doc.page(); y = 54; doc.text(L, y, 'Pre-fattura ' + pf.numero + ' (continua)', 10, {bold: true, color: GREY}); y = tableHead(y + 14); }
-    doc.text(colData, y + 14, dmy(r.data), 9);
+    if (!r.materialeId) doc.text(colData, y + 14, dmy(r.data), 9);
     l1.forEach((t, i) => doc.text(colDesc, y + 14 + i * 12, t, 10, {bold: true}));
     l2.forEach((t, i) => doc.text(colDesc, y + 14 + l1.length * 12 + i * 11, t, 8.5, {color: GREY}));
     doc.text(colQ, y + 14, String(r.qta == null ? 1 : r.qta), 9.5, {align: 'right'});
@@ -2010,7 +2037,8 @@ function cliCard(c){
     <p class="meta">${plural(nj.length, 'intervento', 'interventi')}${da.length ? ' · ' + esc(fmtEur(sum)) + ' da pre-fatturare' : ''}</p>
     <div class="acts">
       ${c.telefono ? `<a class="btn small" href="tel:${esc(digits(c.telefono))}">${ic('phone', 16)}Chiama</a>` : ''}
-      ${canWrite ? `<button class="btn small ghost" data-act="ana-edit" data-id="${esc(c.id)}">${ic('edit', 16)}Modifica</button>` : ''}</div></article>`;
+      ${canWrite ? `<button class="btn small ghost" data-act="ana-edit" data-id="${esc(c.id)}">${ic('edit', 16)}Modifica</button>` : ''}
+      ${canWrite && usingDb ? `<button class="btn small ghost" data-act="sto-open" data-id="${esc(c.id)}">${ic('box', 16)}Materiale installato</button>` : ''}</div></article>`;
 }
 function refreshAnagrafica(){
   const p = $('#anaCntP'), a = $('#anaCntA');
@@ -2068,8 +2096,9 @@ function pfGroups(){
   return Array.from(map.values()).map(g => { g.jobs.sort((a, b) => a.data.localeCompare(b.data) || byFascia(a, b)); return g; })
     .sort((a, b) => a.nome.localeCompare(b.nome));
 }
+const jobTot = j => importoOf(j) + matBillable(j.id).reduce((s, m) => s + (Number(m.qta) || 0) * (matPrezzo(m) || 0), 0);
 function pfTotals(sel, iva){
-  const imponibile = round2(sel.reduce((s, j) => s + importoOf(j), 0));
+  const imponibile = round2(sel.reduce((s, j) => s + jobTot(j), 0));
   const ivaImporto = round2(imponibile * iva / 100);
   return {imponibile, ivaImporto, totale: round2(imponibile + ivaImporto)};
 }
@@ -2086,7 +2115,9 @@ function pfGroupHtml(g){
       <button class="btn small" data-act="pf-newcli" data-tipo="azienda" data-name="${esc(g.nome)}">Crea come azienda</button></div></div>`}
     <div class="pf-rows">${g.jobs.map(j => `<label class="pf-row"><input type="checkbox" data-act="pf-sel" data-id="${esc(j.id)}"${pfOff.has(j.id) ? '' : ' checked'}>
       <div class="pf-main"><strong>${esc(j.tipo || 'Intervento')}</strong><small>${esc(dmy(j.data))} · ${esc(j.via)}${j.noteFatt ? ' · ' + esc(j.noteFatt) : ''}</small></div>
-      <div class="pf-imp">${importoOf(j) === 0 ? '<span class="tag late">Importo mancante</span>' : ''}${esc(fmtEur(importoOf(j)))}</div></label>`).join('')}</div>
+      <div class="pf-imp">${importoOf(j) === 0 ? '<span class="tag late">Importo mancante</span>' : ''}${esc(fmtEur(importoOf(j)))}</div></label>
+      ${matBillable(j.id).length ? `<div class="pf-mats">${matBillable(j.id).map(m => { const pr = matPrezzo(m); return `<div class="pf-mat"><span>${esc(m.qta)} × ${esc(m.descrizione || m.codice)} <small class="muted">${esc(m.codice)}</small>${m.verificato ? '' : ' <span class="tag late">Da verificare</span>'}${pr === null ? ' <span class="tag late">Prezzo mancante</span>' : ''}</span><span>${esc(fmtEur((Number(m.qta) || 0) * (pr || 0)))}</span></div>`; }).join('')}
+        ${matBillable(j.id).some(m => !m.verificato) ? `<button class="btn small" data-act="open-job" data-id="${esc(j.id)}">Verifica materiale</button>` : ''}</div>` : ''}`).join('')}</div>
     <div class="pf-foot">
       <label class="field" style="margin:0"><span>Aliquota IVA</span><select data-act="pf-iva" data-key="${esc(g.key)}">${IVA_OPTS.map(([v, l]) => `<option value="${v}"${v === iva ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
       <div class="pf-sum"><span>Imponibile ${esc(fmtEur(t.imponibile))}</span><span>IVA ${esc(fmtEur(t.ivaImporto))}</span><strong>Totale ${esc(fmtEur(t.totale))}</strong></div>
@@ -2107,7 +2138,7 @@ function pfEmesseHtml(){
 function pfMainHtml(){
   const groups = pfGroups();
   const nJobs = groups.reduce((s, g) => s + g.jobs.length, 0);
-  const tot = groups.reduce((s, g) => s + g.jobs.reduce((x, j) => x + importoOf(j), 0), 0);
+  const tot = groups.reduce((s, g) => s + g.jobs.reduce((x, j) => x + jobTot(j), 0), 0);
   let h = `<div class="pagehead"><div><h2>Pre-fatturazione</h2><p class="sub">Gli interventi segnati come «Fatto», pronti per il documento</p></div></div>
     <div class="statline"><span><b>${nJobs}</b>da pre-fatturare</span><span><b>${esc(fmtEur(tot))}</b>imponibile</span><span><b>${prefatture.length}</b>pre-fatture emesse</span></div>`;
   if (!(azienda.ragione || '').trim()) {
@@ -2159,11 +2190,16 @@ function pfCreate(key){
   const pf = {
     id: uid(), numero: 'PF-' + anno + '-' + String(prog).padStart(3, '0'), anno, prog, data: todayISO(), clienteId: c.id,
     destinatario: Object.assign({}, c),
-    righe: sel.map(j => ({jobId: j.id, data: j.data, descrizione: j.tipo || 'Intervento', dettaglio: [j.via, j.noteFatt].filter(Boolean).join(' – '), qta: 1, prezzo: importoOf(j), importo: importoOf(j)})),
+    righe: sel.flatMap(j => [{jobId: j.id, data: j.data, descrizione: j.tipo || 'Intervento', dettaglio: [j.via, j.noteFatt].filter(Boolean).join(' – '), qta: 1, prezzo: importoOf(j), importo: importoOf(j)}]
+      .concat(matBillable(j.id).map(m => { const pr = matPrezzo(m) || 0, q = Number(m.qta) || 0;
+        return {jobId: j.id, data: j.data, descrizione: m.descrizione || m.codice, dettaglio: ['Cod. ' + m.codice, m.seriale ? 'S/N ' + m.seriale : ''].filter(Boolean).join(' – '), qta: q, prezzo: round2(pr), importo: round2(pr * q), materialeId: m.id}; }))),
     iva, imponibile: t.imponibile, ivaImporto: t.ivaImporto, totale: t.totale, stato: 'pre', note: ''
   };
   prefatture.push(pf); persist('prefatture', pf);
-  sel.forEach(j => { j.preFatturaId = pf.id; j.clienteId = c.id; persist('interventi', j); });
+  sel.forEach(j => { j.preFatturaId = pf.id; j.clienteId = c.id; persist('interventi', j);
+    matBillable(j.id).forEach(m => { const patch = {preFatturaId: pf.id, aperto: false, verificato: true, clienteId: c.id, rev: (Number(m.rev) || 0) + 1};
+      if (m.prezzo === null || m.prezzo === undefined) patch.prezzo = matPrezzo(m); Object.assign(m, patch);
+      if (usingDb) fb.updateDoc(fb.doc(fb.db, 'materiali', m.id), patch).catch(() => {}); }); });
   render();
   toast(`Pre-fattura ${pf.numero} creata: ${fmtEur(pf.totale)}.`, 'Scarica PDF', () => pfDownload(pf.id));
   pfDownload(pf.id);
@@ -2173,6 +2209,8 @@ function pfDelete(id){
   prefatture = prefatture.filter(x => x.id !== id);
   unpersist('prefatture', id);
   jobs.forEach(j => { if (j.preFatturaId === id) { j.preFatturaId = ''; persist('interventi', j); } });
+  if (usingDb) fb.getDocs(fb.query(fb.collection(fb.db, 'materiali'), fb.where('preFatturaId', '==', id))).then(sn => sn.docs.forEach(d => { const m = d.data();
+    fb.updateDoc(fb.doc(fb.db, 'materiali', m.id), {preFatturaId: '', aperto: true, rev: (Number(m.rev) || 0) + 1}).catch(() => {}); })).catch(() => {});
   render();
   toast(`Pre-fattura ${p.numero} annullata: gli interventi sono di nuovo da pre-fatturare.`);
 }
@@ -2368,6 +2406,10 @@ const daAbbinare = () => articoli.filter(a => a.daAbbinare);
 const artById = id => articoli.find(a => a.id === id);
 const artNome = a => a ? (a.descrizione || (a.daAbbinare ? 'Codice da abbinare' : 'Articolo senza nome')) : '';
 const qtaOf = a => Number(a && a.giacenza) || 0;
+const matTarget = m => m.annullato ? 0 : (Number(m.qta) || 0);
+const matOfArt = (m, a) => m.articoloId ? m.articoloId === a.id : (!!a.codice && normCode(m.codice) === normCode(a.codice));
+const pendOf = a => materiali.reduce((s, m) => s + (m.pend && matOfArt(m, a) ? matTarget(m) - (Number(m.applicato) || 0) : 0), 0);
+const stockOf = a => qtaOf(a) - (a ? pendOf(a) : 0);
 const chiSono = () => (me && me.email) || '';
 let audioCtx = null;
 function beep(ok){
@@ -2399,7 +2441,7 @@ function scanCode(raw, qtaRaw){
   scanLog = scanLog.slice(0, 30);
   const a = artById(id), unknown = created && a.daAbbinare;
   beep(!unknown);
-  magFlash(unknown ? 'new' : 'ok', unknown ? `Codice nuovo ${code}: +${qta}, messo tra quelli da abbinare` : `${created ? 'Nuovo in magazzino dal listino: ' : ''}+${qta} ${artNome(a)} · ora ${qtaOf(a)}`);
+  magFlash(unknown ? 'new' : 'ok', unknown ? `Codice nuovo ${code}: +${qta}, messo tra quelli da abbinare` : `${created ? 'Nuovo in magazzino dal listino: ' : ''}+${qta} ${artNome(a)} · ora ${stockOf(a)}`);
   refreshMagazzino();
 }
 function undoScan(mid){
@@ -2445,7 +2487,7 @@ function scanStateUpd(){
   st.innerHTML = on ? '● Pronto: spara il codice' : '● In pausa: <button class="linkbtn" data-act="scan-focus">tocca qui per riprendere a sparare</button>';
 }
 function artRow(a){
-  const q = qtaOf(a);
+  const q = stockOf(a);
   return `<button class="artrow${a.daAbbinare ? ' todo' : ''}" data-act="art-open" data-id="${esc(a.id)}">
     <span class="art-main"><strong>${esc(artNome(a))}</strong><small>${[a.marca, a.codice ? 'Cod. ' + a.codice : '', (a.codici || []).join(', ')].filter(Boolean).map(esc).join(' · ')}</small></span>
     <span class="art-q${q <= 0 ? ' zero' : ''}"><b>${q}</b><small>pz${listPrice(a) !== null ? ' · ' + esc(fmtEur(listPrice(a))) : ''}</small></span></button>`;
@@ -2460,14 +2502,14 @@ function refreshMagazzino(){
   const sl = $('#scanList');
   if (sl) sl.innerHTML = scanLog.length ? `<div class="rows">` + scanLog.map(s => { const a = artById(s.id);
       return `<div class="row${s.annullato ? ' st-fatto' : ''}"><div class="row-main"><strong>+${s.qta} ${esc(a ? artNome(a) : 'Codice ' + s.code)}</strong>${s.created ? (a && !a.daAbbinare ? ' <span class="tag type">Nuovo dal listino</span>' : ' <span class="tag late">Da abbinare</span>') : ''}${s.annullato ? ' <span class="tag paused">Annullato</span>' : ''}
-        <small>${esc(s.code)} · ${esc(hhmm(new Date(s.t).toISOString()))}${a && !s.annullato ? ' · giacenza attuale ' + qtaOf(a) : ''}</small></div>
+        <small>${esc(s.code)} · ${esc(hhmm(new Date(s.t).toISOString()))}${a && !s.annullato ? ' · giacenza attuale ' + stockOf(a) : ''}</small></div>
         ${s.annullato ? '' : `<button class="btn small ghost" data-act="scan-undo" data-id="${esc(s.mid)}">Annulla</button>`}</div>`; }).join('') + `</div>`
     : '<p class="muted">Ancora nessuno sparo in questa sessione.</p>';
   const al = $('#artList');
   if (al) {
     const q = norm(magQ.trim());
     let l = magTab === 'abbinare' ? daAbbinare() : articoli.filter(a => !a.daAbbinare);
-    if (magTab === 'articoli' && magFlt === 'zero') l = l.filter(a => qtaOf(a) <= 0);
+    if (magTab === 'articoli' && magFlt === 'zero') l = l.filter(a => stockOf(a) <= 0);
     if (magTab === 'articoli' && magFlt === 'nome') l = l.filter(a => a.descrizione);
     if (q) l = l.filter(a => norm([a.descrizione, a.codice, a.marca, a.categoria].concat(a.codici || []).join(' ')).includes(q));
     l = l.slice().sort((x, y) => artNome(x).localeCompare(artNome(y)));
@@ -2498,7 +2540,7 @@ function renderArt(){
   ov.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="Scheda articolo">
     <div class="sheet-head"><div><p class="eyebrow">${a.daAbbinare ? 'Codice da abbinare' : 'Articolo'}</p><h2>${esc(artNome(a))}</h2></div>
       <button class="icon-btn" data-act="art-close" aria-label="Chiudi">${ic('x', 20)}</button></div>
-    <div class="art-stock"><div><span class="muted">Giacenza</span><b class="${qtaOf(a) <= 0 ? 'zero' : ''}">${qtaOf(a)} pz</b></div>
+    <div class="art-stock"><div><span class="muted">Giacenza</span><b class="${stockOf(a) <= 0 ? 'zero' : ''}">${stockOf(a)} pz</b>${stockOf(a) < 0 ? '<small class="warnx">Sotto zero: usato più di quanto caricato</small>' : ''}</div>
       ${owner ? `<button class="btn" data-act="rett-open">${ic('edit', 16)}Correggi giacenza</button>` : '<small class="muted">Le correzioni le fa il titolare.</small>'}</div>
     <div id="rettBox" hidden></div>
     ${artListinoHtml(a)}
@@ -2521,8 +2563,8 @@ function artMovHtml(){
 function openRett(){
   const a = artById(artId), b = $('#rettBox'); if (!a || !b) return;
   b.hidden = false;
-  b.innerHTML = `<div class="rettbox"><h4>Correggi giacenza</h4><p class="muted" style="margin:0">Adesso risultano <b>${qtaOf(a)}</b> pezzi. Scrivi quanti ce ne sono davvero.</p>
-    <div class="fgrid"><label class="field"><span>Pezzi reali</span><input id="rettQ" type="number" min="0" max="99999" inputmode="numeric" value="${qtaOf(a)}"></label>
+  b.innerHTML = `<div class="rettbox"><h4>Correggi giacenza</h4><p class="muted" style="margin:0">Adesso risultano <b>${stockOf(a)}</b> pezzi. Scrivi quanti ce ne sono davvero.</p>
+    <div class="fgrid"><label class="field"><span>Pezzi reali</span><input id="rettQ" type="number" min="0" max="99999" inputmode="numeric" value="${Math.max(0, stockOf(a))}"></label>
     <label class="field"><span>Motivo</span><select id="rettM">${opts(MOTIVI_RETT, 'conteggio')}</select></label>
     <label class="field span2"><span>Nota (facoltativa)</span><input id="rettN" maxlength="120" placeholder="Es. trovato danneggiato in furgone"></label></div>
     <div class="form-actions"><button class="btn primary" data-act="rett-ok">Conferma correzione</button><button class="btn" data-act="rett-cancel">Annulla</button></div></div>`;
@@ -2532,10 +2574,10 @@ function doRett(){
   const a = artById(artId); if (!a || role !== 'titolare') return;
   const v = parseInt(($('#rettQ') || {}).value, 10), m = ($('#rettM') || {}).value || 'altro', nota = String(($('#rettN') || {}).value || '').trim().slice(0, 120);
   if (!isFinite(v) || v < 0) { toast('Scrivi un numero di pezzi valido.'); return; }
-  const prima = qtaOf(a), d = v - prima;
+  const prima = stockOf(a), d = v - prima, pend = qtaOf(a) - stockOf(a);
   if (!d) { toast('La giacenza è già ' + v + ': niente da correggere.'); const b = $('#rettBox'); if (b) b.hidden = true; return; }
-  a.giacenza = v;
-  fb.updateDoc(fb.doc(fb.db, 'articoli', a.id), {giacenza: v}).catch(() => toast('Non sono riuscito a salvare la correzione.'));
+  a.giacenza = v + pend;
+  fb.updateDoc(fb.doc(fb.db, 'articoli', a.id), {giacenza: v + pend}).catch(() => toast('Non sono riuscito a salvare la correzione.'));
   const mid = newId('m');
   fb.setDoc(fb.doc(fb.db, 'movimenti', mid), {id: mid, articoloId: a.id, tipo: 'rettifica', qta: d, prima, dopo: v, motivo: m, nota, chi: chiSono(), quando: new Date().toISOString()})
     .catch(e => toast(e && e.code === 'permission-denied' ? 'Solo il titolare può correggere la giacenza.' : 'Correzione non registrata nello storico.'));
@@ -2651,6 +2693,7 @@ async function doImport(){
   try {
     for (let i = 0; i < parts; i++) await fb.setDoc(fb.doc(fb.db, 'listino', f + '-' + (i + 1)), {id: f + '-' + (i + 1), fonte: f, parte: i + 1, items: P.items.slice(i * CH, (i + 1) * CH).map(x => ({c: x[0], d: x[1], p: x[2], m: x[3]}))});
     for (const d of old) if (Number(d.parte) > parts) await fb.deleteDoc(fb.doc(fb.db, 'listino', d.id));
+    await writeCatalogo(f, P.items.map(x => ({c: x[0], d: x[1], m: x[3]})));
     await fb.setDoc(fb.doc(fb.db, 'listino', 'info-' + f), {id: 'info-' + f, fonte: f, info: true, n: P.items.length, versione: P.versione, file: P.file, importato: new Date().toISOString(), chi: chiSono()});
   } catch(e) { toast('Import non riuscito: ' + ((e && e.code) || 'errore') + '. Riprova.'); return; }
   impPrev = null; toast(FONTI[f] + ' importato: ' + P.items.length + ' articoli.');
@@ -2704,7 +2747,7 @@ function catResHtml(){
   const stockBy = {}; articoli.forEach(a => { if (a.codice) stockBy[normCode(a.codice)] = a; });
   return `<div class="artlist">` + l.map(L => { const a = stockBy[L.c];
     return `<div class="catrow"><div class="art-main"><strong>${esc(L.d)}</strong><small>${esc(L.c)} · ${L.m}${L.f === 'ricambi' ? ' · ricambio' : ''}${L.p !== null ? ' · listino ' + esc(fmtEur(L.p)) : ''}</small></div>
-      <div class="cat-act">${a ? `<button class="linkbtn" data-act="art-open" data-id="${esc(a.id)}">In magazzino: ${qtaOf(a)} pz</button>` : '<small class="muted">Non in magazzino</small>'}
+      <div class="cat-act">${a ? `<button class="linkbtn" data-act="art-open" data-id="${esc(a.id)}">In magazzino: ${stockOf(a)} pz</button>` : '<small class="muted">Non in magazzino</small>'}
       ${catLoad === L.c ? `<span class="catload"><input type="number" id="catQta" min="1" max="9999" value="1" inputmode="numeric" aria-label="Pezzi"><button class="btn small primary" data-act="cat-ok" data-code="${esc(L.c)}">Carica</button><button class="btn small ghost" data-act="cat-x">×</button></span>`
         : `<button class="btn small" data-act="cat-load" data-code="${esc(L.c)}">${ic('plus', 14)}Carica pezzi</button>`}</div></div>`; }).join('') + `</div>${l.length >= 60 ? '<p class="muted">Mostro i primi 60: affina la ricerca.</p>' : ''}`;
 }
@@ -2723,7 +2766,7 @@ function catCarica(code, qtaRaw){
     articoli.push(a); buildCodeMap(); fb.setDoc(fb.doc(fb.db, 'articoli', id), a).catch(() => toast('Non sono riuscito a salvare.')); }
   else { a.giacenza = qtaOf(a) + qta; fb.updateDoc(fb.doc(fb.db, 'articoli', a.id), {giacenza: fb.increment(qta)}).catch(() => {}); }
   const mid = newId('m'); fb.setDoc(fb.doc(fb.db, 'movimenti', mid), {id: mid, articoloId: a.id, tipo: 'carico', qta, nota: 'dal catalogo', chi: chiSono(), quando: new Date().toISOString()}).catch(() => {});
-  catLoad = ''; toast('+' + qta + ' ' + L.d + ' · ora ' + qtaOf(a) + ' pz'); refreshMagazzino();
+  catLoad = ''; toast('+' + qta + ' ' + L.d + ' · ora ' + stockOf(a) + ' pz'); refreshMagazzino();
 }
 function artListinoHtml(a){
   if (!a.daAbbinare) { const L = a.codice ? listMap[normCode(a.codice)] : null;
@@ -2732,6 +2775,203 @@ function artListinoHtml(a){
   const res = catSearch(abbQ, 12);
   return `<div class="abbbox"><h4>Abbina al listino</h4><label class="field" style="margin:0"><span>Cerca l’articolo (codice o descrizione)</span><input type="search" id="abbQ" value="${esc(abbQ)}" placeholder="es. deimos 600"></label>
     <div id="abbRes">${res.map(L => `<button class="abbrow" data-act="abb-pick" data-code="${esc(L.c)}"><span><strong>${esc(L.d)}</strong><small>${esc(L.c)} · ${L.m}${L.p !== null ? ' · ' + esc(fmtEur(L.p)) : ''}</small></span><span class="btn small">Abbina</span></button>`).join('')}</div></div>`;
+}
+
+/* ---------- Fase 3: materiale usato negli interventi ---------- */
+function buildCatW(){
+  catArr = []; const seen = {};
+  catDocs.filter(d => Array.isArray(d.items)).sort((a, b) => (a.fonte === b.fonte ? (a.parte || 0) - (b.parte || 0) : a.fonte === 'prodotti' ? -1 : 1))
+    .forEach(d => d.items.forEach(it => { const c = normCode(it.c); if (c && !seen[c]) { seen[c] = 1; catArr.push({c, d: String(it.d || ''), m: it.m || marcaOf(c), f: d.fonte}); } }));
+}
+async function writeCatalogo(f, items){
+  const CH = 1500, parts = Math.ceil(items.length / CH);
+  for (let i = 0; i < parts; i++) await fb.setDoc(fb.doc(fb.db, 'catalogo', f + '-' + (i + 1)), {id: f + '-' + (i + 1), fonte: f, parte: i + 1, items: items.slice(i * CH, (i + 1) * CH)});
+  for (const d of catDocs.filter(d => d.fonte === f && !d.info && Number(d.parte) > parts)) await fb.deleteDoc(fb.doc(fb.db, 'catalogo', d.id));
+  await fb.setDoc(fb.doc(fb.db, 'catalogo', 'info-' + f), {id: 'info-' + f, fonte: f, info: true, n: items.length, quando: new Date().toISOString()});
+}
+let catSyncing = false, lstLoaded = false, catLoaded = false;
+async function ensureCatalogo(){   // il titolare tiene allineato il catalogo dei lavoratori con i listini già importati
+  if (catSyncing || role !== 'titolare' || !usingDb || !lstLoaded || !catLoaded) return;
+  for (const f of ['prodotti', 'ricambi']) {
+    const li = listInfo(f); if (!li) continue;
+    const ci = catDocs.find(d => d.id === 'info-' + f);
+    if (ci && ci.quando >= li.importato) continue;
+    const items = listArr.filter(L => L.f === f).map(L => ({c: L.c, d: L.d, m: L.m}));
+    if (!items.length) continue;
+    catSyncing = true; try { await writeCatalogo(f, items); } catch(e){} catSyncing = false;
+  }
+}
+/* voci cercabili: articoli in magazzino (con descrizione) + catalogo */
+function matCerca(q, max){
+  q = norm(String(q || '').trim()); if (!q) return [];
+  const words = q.split(/\s+/), out = [], seen = {};
+  const hit = h => words.every(w => h.includes(w));
+  articoli.filter(a => a.descrizione).forEach(a => { if (out.length < max && hit(norm([a.descrizione, a.codice, a.marca].concat(a.codici || []).join(' ')))) { out.push({key: 'a:' + a.id, articoloId: a.id, codice: a.codice || (a.codici || [])[0] || '', d: a.descrizione, m: a.marca || ''}); if (a.codice) seen[normCode(a.codice)] = 1; } });
+  const src = canWrite && listArr.length ? listArr : catArr;
+  for (const L of src) { if (out.length >= max) break; if (seen[L.c]) continue; if (hit(norm(L.c + ' ' + L.d + ' ' + L.m))) out.push({key: 'c:' + L.c, articoloId: '', codice: L.c, d: L.d, m: L.m}); }
+  return out;
+}
+function matDaCodice(raw){   // codice letto dalla fotocamera -> voce
+  const code = normCode(raw); if (!code) return null;
+  const aid = codeMap[code]; const a = aid ? artById(aid) : null;
+  if (a && (a.descrizione || a.codice)) return {key: 'a:' + a.id, articoloId: a.id, codice: a.codice || code, d: artNome(a), m: a.marca || ''};
+  const L = (canWrite ? listMap[code] : null) || catArr.find(x => x.c === code);
+  return L ? {key: 'c:' + L.c, articoloId: '', codice: L.c, d: L.d, m: L.m} : null;
+}
+const matSort = l => l.slice().sort((a, b) => String(a.creato) < String(b.creato) ? -1 : 1);
+const matOf = jobId => (role === 'lavoratore' ? matW : matD)[jobId] || [];
+function matSubWorker(){
+  if (!usingDb || role !== 'lavoratore' || !myWorkerId) return;
+  const key = myWorkerId + '|' + date; if (key === matKeyW) return;
+  if (matUnsubW) { try { matUnsubW(); } catch(e){} }
+  matKeyW = key; matW = {};
+  matUnsubW = fb.onSnapshot(fb.query(fb.collection(fb.db, 'materiali'), fb.where('workerId', '==', myWorkerId), fb.where('giorno', '==', date)), snap => {
+    const m = {}; snap.docs.forEach(d => { const x = d.data(); (m[x.jobId] = m[x.jobId] || []).push(x); });
+    Object.keys(m).forEach(k => { m[k] = matSort(m[k]); }); matW = m; render(); }, fbSnapErr);
+}
+function matSubDetail(id){
+  id = (id && usingDb && canWrite) ? id : '';
+  if (id === matKeyD) return;
+  if (matUnsubD) { try { matUnsubD(); } catch(e){} matUnsubD = null; }
+  matKeyD = id; matD = {};
+  if (!id) return;
+  matUnsubD = fb.onSnapshot(fb.query(fb.collection(fb.db, 'materiali'), fb.where('jobId', '==', id)), snap => {
+    matD = {[id]: matSort(snap.docs.map(d => d.data()))}; renderDetail(); }, fbSnapErr);
+}
+function matAdd(j, voce, qta, seriale){
+  if (!usingDb || !j || !voce) return;
+  qta = Math.max(1, Math.min(999, parseInt(qta, 10) || 1));
+  const id = newId('u');
+  const doc = {id, jobId: j.id, workerId: j.workerId || '', clienteId: j.clienteId || '', giorno: j.data, codice: normCode(voce.codice), articoloId: voce.articoloId || '',
+    descrizione: String(voce.d || '').slice(0, 160), marca: voce.m || '', qta, seriale: String(seriale || '').trim().slice(0, 60), creato: new Date().toISOString(),
+    da: role === 'lavoratore' ? 'lavoratore' : 'ufficio', applicato: 0, rev: 0, pend: true, aperto: true, verificato: false, annullato: false, preFatturaId: '', prezzo: null};
+  const box = role === 'lavoratore' ? matW : matD; (box[j.id] = box[j.id] || []).push(doc);
+  if (canWrite) materiali.push(doc);
+  fb.setDoc(fb.doc(fb.db, 'materiali', id), doc).catch(e => toast(e && e.code === 'permission-denied' ? 'Non posso registrare il materiale: permesso negato.' : 'Materiale non salvato. Riprova.'));
+  toast('Registrato: ' + qta + ' × ' + doc.descrizione);
+}
+function matRemove(m){
+  if (!m || m.annullato) return;
+  const patch = role === 'lavoratore' ? {annullato: true, pend: true} : {annullato: true, pend: true, rev: (Number(m.rev) || 0) + 1};
+  Object.assign(m, patch);
+  fb.updateDoc(fb.doc(fb.db, 'materiali', m.id), patch).catch(() => toast('Non sono riuscito a togliere il materiale.'));
+  render();
+}
+function matSetQta(m, v){
+  v = parseInt(v, 10); if (!m || !isFinite(v) || v < 1 || v > 999 || v === Number(m.qta)) return;
+  const patch = {qta: v, pend: true, rev: (Number(m.rev) || 0) + 1}; Object.assign(m, patch);
+  fb.updateDoc(fb.doc(fb.db, 'materiali', m.id), patch).catch(() => toast('Quantità non salvata.'));
+}
+function matVerifica(jobId){
+  const j = jobs.find(x => x.id === jobId), list = matOf(jobId).filter(m => !m.verificato && !m.preFatturaId);
+  list.forEach(m => { const patch = {verificato: true, rev: (Number(m.rev) || 0) + 1};
+    if (j && stOf(j) === 'non_fatto' && !m.pend) patch.aperto = false;   // non fatto: scaricato ma non da pre-fatturare
+    Object.assign(m, patch); fb.updateDoc(fb.doc(fb.db, 'materiali', m.id), patch).catch(() => {}); });
+  toast(list.length ? 'Materiale verificato.' : 'Niente da verificare.'); render();
+}
+/* scarico dal magazzino: lo applica il gestionale dell'ufficio, una sola volta per ogni modifica */
+async function matConsolida(){
+  if (!canWrite || !usingDb || !matLoaded || !artLoaded) return;
+  for (const m of materiali.filter(x => x.pend && !matBusy[x.id + '|' + x.rev])) {
+    const k = m.id + '|' + m.rev; matBusy[k] = true;
+    const target = matTarget(m), delta = target - (Number(m.applicato) || 0);
+    let a = m.articoloId ? artById(m.articoloId) : null;
+    if (!a && m.codice) a = articoli.find(x => normCode(x.codice) === normCode(m.codice)) || (codeMap[normCode(m.codice)] ? artById(codeMap[normCode(m.codice)]) : null);
+    const b = fb.writeBatch(fb.db);
+    let aid = a ? a.id : '';
+    if (!a && delta !== 0) {   // usato un pezzo mai caricato: lo creo (andrà sotto zero e si vede in rosso)
+      aid = newId('a'); const L = listMap[normCode(m.codice)];
+      const na = {id: aid, codici: [], codice: normCode(m.codice), descrizione: (L && L.d) || m.descrizione || '', marca: (L && L.m) || m.marca || '', categoria: L && L.f === 'ricambi' ? 'Ricambi' : '', giacenza: -delta, daAbbinare: false, creato: new Date().toISOString()};
+      b.set(fb.doc(fb.db, 'articoli', aid), na);
+    } else if (a && delta !== 0) b.update(fb.doc(fb.db, 'articoli', aid), {giacenza: fb.increment(-delta)});
+    const patch = {applicato: target, pend: false, rev: (Number(m.rev) || 0) + 1};
+    if (aid && m.articoloId !== aid) patch.articoloId = aid;
+    if (m.prezzo === null || m.prezzo === undefined) { const L = listMap[normCode(m.codice)]; if (L && L.p !== null) patch.prezzo = L.p; }   // prezzo fissato al primo scarico
+    if (m.annullato && !m.preFatturaId) patch.aperto = false;
+    { const jj = jobs.find(x => x.id === m.jobId); if (m.verificato && jj && stOf(jj) === 'non_fatto') patch.aperto = false; }
+    b.update(fb.doc(fb.db, 'materiali', m.id), patch);
+    if (delta !== 0) { const mid = newId('m'); b.set(fb.doc(fb.db, 'movimenti', mid), {id: mid, articoloId: aid, tipo: 'scarico', qta: -delta, nota: (jobs.find(j => j.id === m.jobId) || {}).cliente || '', jobId: m.jobId, chi: m.da === 'lavoratore' ? 'lavoratore' : chiSono(), quando: new Date().toISOString()}); }
+    try { await b.commit(); } catch(e) { /* già applicato da un altro dispositivo dell'ufficio */ }
+  }
+}
+const matPrezzo = m => (m.prezzo !== null && m.prezzo !== undefined) ? Number(m.prezzo) : ((listMap[normCode(m.codice)] || {}).p ?? null);
+const matBillable = jobId => materiali.filter(m => m.jobId === jobId && !m.annullato && !m.preFatturaId);
+const matDaVerificare = () => materiali.filter(m => !m.annullato && !m.verificato && !m.preFatturaId);
+function matRowHtml(m, opt){
+  const pr = opt.prezzi ? matPrezzo(m) : null;
+  return `<div class="matrow${m.annullato ? ' gone' : ''}"><span class="mat-main"><strong>${opt.editQ ? '' : esc(m.qta) + ' × '}${esc(m.descrizione || m.codice)}</strong>
+      <small>${[m.codice, m.seriale ? 'S/N ' + m.seriale : '', opt.prezzi ? (pr === null ? 'prezzo da listino mancante' : fmtEur(pr) + ' cad.') : ''].filter(Boolean).map(esc).join(' · ')}${opt.tag && !m.verificato ? ' <span class="tag late">Da verificare</span>' : ''}</small></span>
+    ${opt.editQ ? `<input type="number" class="matq" data-matqta="${esc(m.id)}" min="1" max="999" value="${esc(m.qta)}" aria-label="Quantità">` : ''}
+    ${opt.del ? `<button class="icon-btn small" data-act="mat-del" data-mid="${esc(m.id)}" data-job="${esc(m.jobId)}" aria-label="Togli">${ic('x', 16)}</button>` : ''}</div>`;
+}
+function matPanelHtml(j){
+  const st = wMat[j.id]; if (!st) return '';
+  const res = st.pick ? [] : matCerca(st.q, 8);
+  if (st.pick) {
+    return `<div class="matadd"><div class="matsel"><strong>${esc(st.pick.d)}</strong><small>${esc(st.pick.codice)}${st.pick.m ? ' · ' + esc(st.pick.m) : ''}</small></div>
+      <div class="matqrow"><button class="btn" data-act="mat-q" data-id="${esc(j.id)}" data-d="-1" aria-label="Meno">−</button><b class="matqv">${st.qta}</b><button class="btn" data-act="mat-q" data-id="${esc(j.id)}" data-d="1" aria-label="Più">+</button><span class="muted">pezzi</span></div>
+      <label class="field" style="margin:0"><span>Numero di serie (motori e centraline, facoltativo)</span><input data-matser="${esc(j.id)}" maxlength="60" value="${esc(st.ser || '')}" autocomplete="off"></label>
+      <div class="job-actions"><button class="btn primary" data-act="mat-ok" data-id="${esc(j.id)}">${ic('check', 16)}Registra</button><button class="btn" data-act="mat-back" data-id="${esc(j.id)}">Cambia articolo</button><button class="btn ghost" data-act="mat-close" data-id="${esc(j.id)}">Annulla</button></div></div>`;
+  }
+  return `<div class="matadd"><div class="matsearch"><label class="field" style="margin:0;flex:1"><span>Cerca il materiale (nome o codice)</span><input type="search" data-matq="${esc(j.id)}" value="${esc(st.q || '')}" placeholder="es. fotocellula, deimos, 2609184" autocomplete="off"></label>
+      <button class="btn" data-act="mat-cam" data-id="${esc(j.id)}">${ic('scan', 16)}Inquadra codice</button></div>
+    <div class="matres" data-matres="${esc(j.id)}">${matResHtml(j.id, res, st.q)}</div>
+    <div class="job-actions"><button class="btn ghost" data-act="mat-close" data-id="${esc(j.id)}">Chiudi</button></div></div>`;
+}
+function matResHtml(jid, res, q){
+  if (!String(q || '').trim()) return '<p class="muted" style="margin:0">Scrivi almeno una parola, oppure inquadra il codice a barre.</p>';
+  if (!res.length) return '<p class="muted" style="margin:0">Nessun articolo trovato.</p>';
+  return res.map(v => `<button class="abbrow" data-act="mat-pick" data-id="${esc(jid)}" data-key="${esc(v.key)}"><span><strong>${esc(v.d)}</strong><small>${esc(v.codice)}${v.m ? ' · ' + esc(v.m) : ''}</small></span><span class="btn small">Scegli</span></button>`).join('');
+}
+function matStripWorker(j){
+  const l = matOf(j.id).filter(m => !m.annullato), open = !isClosed(stOf(j));
+  return `<div class="fotobox matbox"><span class="fl">Materiale usato${l.length ? ' (' + l.length + ')' : ''}</span>
+    ${l.map(m => matRowHtml(m, {del: open && !m.verificato})).join('')}
+    ${wMat[j.id] ? matPanelHtml(j) : `<button class="btn ph-add" data-act="mat-open" data-id="${esc(j.id)}">${ic('plus', 16)}Aggiungi materiale</button>`}</div>`;
+}
+function matStripOffice(j){
+  const l = matOf(j.id).filter(m => !m.annullato);
+  const locked = l.some(m => m.preFatturaId) || !!j.preFatturaId;
+  const toVer = l.filter(m => !m.verificato).length;
+  return `<div class="fotobox matbox"><div class="split"><span class="fl">Materiale usato${l.length ? ' (' + l.length + ')' : ''}</span>
+      ${!locked && toVer ? `<button class="btn small primary" data-act="mat-ver" data-id="${esc(j.id)}">${ic('check', 14)}Verifica materiale</button>` : (l.length && !toVer ? '<span class="tag type">Verificato</span>' : '')}</div>
+    ${l.length ? l.map(m => matRowHtml(m, {prezzi: true, tag: true, editQ: !locked, del: !locked})).join('') : '<p class="muted" style="margin:0">Nessun materiale registrato.</p>'}
+    ${locked ? '<small class="muted">Già in pre-fattura: non modificabile.</small>' : (wMat[j.id] ? matPanelHtml(j) : `<button class="btn small ph-add" data-act="mat-open" data-id="${esc(j.id)}">${ic('plus', 14)}Aggiungi materiale</button>`)}
+    ${stOf(j) === 'non_fatto' && l.length ? '<small class="muted">Intervento non fatto: il materiale è scaricato dal magazzino ma non va in pre-fattura.</small>' : ''}</div>`;
+}
+/* lettura del codice a barre con la fotocamera del telefono */
+let camStream = null, camTimer = null;
+function camStop(){ if (camTimer) { clearTimeout(camTimer); camTimer = null; } if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; } const o = $('#camOverlay'); if (o) o.remove(); }
+async function camScan(onCode){
+  if (!('BarcodeDetector' in window) || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { toast('Questo telefono non legge i codici dalla fotocamera: cerca per nome o codice.'); return; }
+  let det; try { det = new BarcodeDetector({formats: ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e', 'itf', 'qr_code', 'data_matrix']}); } catch(e) { try { det = new BarcodeDetector(); } catch(x) { toast('Lettura codici non disponibile: cerca per nome o codice.'); return; } }
+  const o = document.createElement('div'); o.id = 'camOverlay'; o.className = 'camoverlay';
+  o.innerHTML = `<video playsinline muted></video><div class="camframe"></div><p>Inquadra il codice a barre</p><button class="btn" data-act="cam-x">Chiudi</button>`;
+  document.body.appendChild(o);
+  try { camStream = await navigator.mediaDevices.getUserMedia({video: {facingMode: 'environment'}, audio: false}); }
+  catch(e) { camStop(); toast('Fotocamera non disponibile: consenti l’accesso o cerca per nome.'); return; }
+  const v = o.querySelector('video'); v.srcObject = camStream; try { await v.play(); } catch(e){}
+  const loop = async () => {
+    if (!camStream) return;
+    try { const r = await det.detect(v); if (r && r.length && r[0].rawValue) { const code = r[0].rawValue; camStop(); beep(true); onCode(code); return; } } catch(e){}
+    camTimer = setTimeout(loop, 180);
+  };
+  loop();
+}
+/* storico per cliente */
+let storicoUnsub = null;
+function openStorico(cid){
+  const c = clienteById(cid); if (!c) return;
+  if (storicoUnsub) { try { storicoUnsub(); } catch(e){} }
+  let o = $('#stoOverlay'); if (!o) { o = document.createElement('div'); o.id = 'stoOverlay'; o.className = 'overlay'; document.body.appendChild(o); }
+  const draw = l => { const rows = l.filter(m => !m.annullato).sort((a, b) => a.giorno < b.giorno ? 1 : -1);
+    o.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="Materiale installato"><div class="sheet-head"><div><p class="eyebrow">Materiale installato</p><h2>${esc(nomeCliente(c))}</h2></div>
+      <button class="icon-btn" data-act="sto-x" aria-label="Chiudi">${ic('x', 20)}</button></div>
+      ${rows.length ? `<div class="rows">${rows.map(m => { const j = jobs.find(x => x.id === m.jobId);
+        return `<div class="row"><div class="row-main"><strong>${esc(m.qta)} × ${esc(m.descrizione || m.codice)}</strong><small>${esc(dmy(m.giorno))} · ${esc(m.codice)}${m.seriale ? ' · S/N ' + esc(m.seriale) : ''}${j ? ' · ' + esc(j.tipo || 'Intervento') : ''}</small></div></div>`; }).join('')}</div>`
+        : '<p class="muted">Nessun materiale registrato per questo cliente.</p>'}</div>`; o.hidden = false; };
+  draw([]);
+  storicoUnsub = fb.onSnapshot(fb.query(fb.collection(fb.db, 'materiali'), fb.where('clienteId', '==', cid)), s => draw(s.docs.map(d => d.data())), fbSnapErr);
 }
 
 /* ---------- centro notifiche ---------- */
@@ -2892,6 +3132,19 @@ document.addEventListener('click', e => {
       fb.deleteDoc(fb.doc(fb.db, 'articoli', id)).catch(() => toast('Non sono riuscito a eliminare l’articolo.'));
       toast('Articolo eliminato.'); break;
     }
+    case 'mat-open': wMat[id] = {q: '', pick: null, qta: 1, ser: ''}; render(); renderDetail(); { const i = document.querySelector('input[data-matq="' + id + '"]'); if (i) i.focus(); } break;
+    case 'mat-close': delete wMat[id]; render(); renderDetail(); break;
+    case 'mat-back': if (wMat[id]) { wMat[id].pick = null; render(); renderDetail(); } break;
+    case 'mat-pick': { const st = wMat[id]; if (!st) break; const v = matCerca(st.q, 40).find(x => x.key === t.dataset.key); if (v) { st.pick = v; st.qta = 1; render(); renderDetail(); } break; }
+    case 'mat-q': { const st = wMat[id]; if (st) { st.qta = Math.max(1, Math.min(999, st.qta + Number(t.dataset.d))); render(); renderDetail(); } break; }
+    case 'mat-ok': { const st = wMat[id], j = jobs.find(x => x.id === id); if (st && st.pick && j) { matAdd(j, st.pick, st.qta, st.ser); delete wMat[id]; render(); renderDetail(); } break; }
+    case 'mat-del': { const m = matOf(t.dataset.job).find(x => x.id === t.dataset.mid); if (m) toast('Togliere «' + (m.descrizione || m.codice) + '»?', 'Togli', () => { matRemove(m); renderDetail(); }); break; }
+    case 'mat-ver': matVerifica(id); renderDetail(); break;
+    case 'mat-cam': { const jid = id; camScan(code => { const st = wMat[jid]; if (!st) return; const v = matDaCodice(code);
+        if (v) { st.pick = v; st.qta = 1; } else { st.q = code; toast('Codice ' + code + ' non riconosciuto: cercalo per nome.'); } render(); renderDetail(); }); break; }
+    case 'cam-x': camStop(); break;
+    case 'sto-open': openStorico(id); break;
+    case 'sto-x': { if (storicoUnsub) { try { storicoUnsub(); } catch(e){} storicoUnsub = null; } const o = $('#stoOverlay'); if (o) o.hidden = true; break; }
     case 'notif': notifToggle(); break;
     case 'notif-close': notifToggle(false); break;
     case 'notif-perm': notifAskPerm(); break;
@@ -2972,6 +3225,7 @@ document.addEventListener('change', e => {
   const t = e.target;
   if (t.id === 'dateInput') setDate(t.value);
   else if (t.id === 'magFlt') { magFlt = t.value; refreshMagazzino(); }
+  else if (t.dataset && t.dataset.matqta) { const m = matOf(detailId).find(x => x.id === t.dataset.matqta); if (m) { matSetQta(m, t.value); renderDetail(); } }
   else if (t.id === 'impFile') { const f = t.files && t.files[0]; t.value = ''; if (f) prepImport(f); }
   else if (t.id === 'wzWorker') { wzWorker = t.value; render(); }
   else if (t.id === 'wzDate') { if (t.value) { wzDate = t.value; render(); } }
@@ -3004,6 +3258,8 @@ document.addEventListener('input', e => {
   if (t.id === 'fCliente') { updateClienteLink(e.inputType === 'insertReplacementText'); return; }
   if (t.id === 'anaQ') { anaQ = t.value; refreshAnagrafica(); return; }
   if (t.id === 'magQ') { magQ = t.value; refreshMagazzino(); return; }
+  if (t.dataset && t.dataset.matq) { const st = wMat[t.dataset.matq]; if (st) { st.q = t.value; const r = document.querySelector('[data-matres="' + t.dataset.matq + '"]'); if (r) r.innerHTML = matResHtml(t.dataset.matq, matCerca(st.q, 8), st.q); } return; }
+  if (t.dataset && t.dataset.matser) { const st = wMat[t.dataset.matser]; if (st) st.ser = t.value; return; }
   if (t.id === 'catQ') { catQ = t.value; catLoad = ''; const r = $('#catRes'); if (r) r.innerHTML = catResHtml(); return; }
   if (t.id === 'abbQ') { abbQ = t.value; const a = artById(artId); const r = $('#abbRes'); if (a && r) { const tmp = document.createElement('div'); tmp.innerHTML = artListinoHtml(a); const nr = tmp.querySelector('#abbRes'); r.innerHTML = nr ? nr.innerHTML : ''; } return; }
   if (t.form && t.form.id === 'clienteForm') { cliWarnLive(t.form); return; }
@@ -3181,6 +3437,8 @@ function stopSubs(){
   fotoStop(); srvSnap = {}; notifToggle(false);
   unsubs.forEach(u => { try { u(); } catch(e){} });
   unsubs = []; usingDb = false;
+  materiali = []; matLoaded = artLoaded = lstLoaded = catLoaded = false; matBusy = {}; matW = {}; matD = {}; wMat = {}; catDocs = []; catArr = [];
+  if (matUnsubW) { try { matUnsubW(); } catch(e){} } if (matUnsubD) { try { matUnsubD(); } catch(e){} } matUnsubW = matUnsubD = null; matKeyW = matKeyD = '';
   articoli = []; codeMap = {}; scanLog = []; listinoDocs = []; listMap = {}; listArr = []; impPrev = null; artId = null; if (artMovUnsub) { try { artMovUnsub(); } catch(e){} artMovUnsub = null; artMovKey = ''; }
   workers = []; jobs = []; rawJobs = []; fattMap = {}; tipi = []; clienti = []; prefatture = []; azienda = {}; utenti = [];
 }
@@ -3202,14 +3460,18 @@ function startSubs(){
     list('fatturazione', s => { fattMap = {}; s.docs.forEach(d => { fattMap[d.id] = d.data(); }); rebuildJobs(); });
     list('tipi', s => { tipi = s.docs.map(d => d.data()); });
     list('clienti', s => { clienti = s.docs.map(d => d.data()); });
-    list('articoli', s => { articoli = s.docs.map(d => d.data()); buildCodeMap(); });
-    list('listino', s => { listinoDocs = s.docs.map(d => d.data()); buildListino(); });
+    list('articoli', s => { articoli = s.docs.map(d => d.data()); buildCodeMap(); artLoaded = true; setTimeout(matConsolida, 0); });
+    sub(fb.query(col('materiali'), fb.where('aperto', '==', true)), s => { materiali = s.docs.map(d => d.data()); matLoaded = true; setTimeout(matConsolida, 0); render(); });
+    list('listino', s => { listinoDocs = s.docs.map(d => d.data()); buildListino(); lstLoaded = true; setTimeout(ensureCatalogo, 0); });
+    list('catalogo', s => { catDocs = s.docs.map(d => d.data()); buildCatW(); catLoaded = true; setTimeout(ensureCatalogo, 0); });
     list('prefatture', s => { prefatture = s.docs.map(d => d.data()); });
     list('impostazioni', s => { azienda = s.docs.map(d => d.data()).find(x => x.id === 'azienda') || {}; });
     if (role === 'titolare') list('utenti', s => { utenti = s.docs.map(d => Object.assign({uid: d.id}, d.data())); });
   } else {
     sub(fb.query(col('interventi'), fb.where('workerId', '==', myWorkerId)), s => { rawJobs = s.docs.map(d => d.data()); takeSnap(s); setTimeout(notifyCheck, 0); rebuildJobs(); pickInitialDate(); sync(s); render(); });
     sub(fb.doc(fb.db, 'lavoratori', myWorkerId), s => { workers = s.exists() ? [s.data()] : []; render(); });
+    sub(col('articoli'), s => { articoli = s.docs.map(d => d.data()); buildCodeMap(); render(); });
+    sub(col('catalogo'), s => { catDocs = s.docs.map(d => d.data()); buildCatW(); render(); });
   }
 }
 function onAuth(user){
@@ -3416,6 +3678,7 @@ function wCard(j){
       ${href ? `<a class="btn" href="${esc(href)}" target="_blank" rel="noopener">${ic('pin', 16)}Mappa</a>` : ''}</div>
     ${wStatoHtml(j, st)}
     ${usingDb ? fotoStrip(j, {add: true, del: true}) : ''}
+    ${usingDb ? matStripWorker(j) : ''}
     <label class="field" style="margin:0"><span>Nota per l’ufficio</span><textarea data-wnote="1" data-id="${esc(j.id)}" maxlength="500" placeholder="Es. materiale usato, cliente assente…">${esc(j.noteLavoratore || '')}</textarea></label>
   </article>`;
 }
@@ -3437,8 +3700,8 @@ function viewOggi(){
 function renderWorkerApp(){
   $('#menu').innerHTML = `<button role="tab" aria-selected="true" data-act="go" data-view="oggi">${ic('clock', 18)}I miei interventi</button>`;
   $('#overlay').hidden = true;
-  fotoSubWorker();
-  const a = document.activeElement, kAttr = a && a.dataset ? (a.dataset.wnote ? 'wnote' : a.dataset.causale ? 'causale' : '') : '';
+  fotoSubWorker(); matSubWorker();
+  const a = document.activeElement, kAttr = a && a.dataset ? (a.dataset.wnote ? 'wnote' : a.dataset.causale ? 'causale' : a.dataset.matq ? 'matq' : a.dataset.matser ? 'matser' : '') : '';
   const keep = kAttr ? {id: a.dataset.id, v: a.value, s: a.selectionStart, e: a.selectionEnd} : null;
   const cz = {}; document.querySelectorAll('textarea[data-causale]').forEach(n => { cz[n.dataset.id] = n.value; });
   $('#app').innerHTML = viewOggi();
