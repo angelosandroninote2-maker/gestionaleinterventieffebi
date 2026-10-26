@@ -1,5 +1,5 @@
 /* Service worker: l'app si apre anche con poco campo. Non intercetta mai i dati (Firestore/Auth). */
-const VERSION = 'v2';
+const VERSION = 'v3';
 const SHELL = 'shell-' + VERSION, SDK = 'sdk-' + VERSION;
 const SHELL_FILES = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(SHELL).then(c => c.addAll(SHELL_FILES)).then(() => self.skipWaiting())); });
@@ -12,7 +12,7 @@ self.addEventListener('fetch', e => {
     e.respondWith(caches.open(SDK).then(async c => { const hit = await c.match(r); if (hit) return hit; const res = await fetch(r); if (res.ok) c.put(r, res.clone()); return res; })); return; }
   if (u.origin !== location.origin) return;           // dati e login: sempre in rete, mai in cache
   // pagina: prima la rete (versione aggiornata), se manca il campo l'ultima copia salvata
-  e.respondWith(fetch(r).then(res => { if (res.ok) caches.open(SHELL).then(c => c.put(r, res.clone())); return res; })
+  e.respondWith(fetch(r, {cache: 'no-cache'}).then(res => { if (res.ok) caches.open(SHELL).then(c => c.put(r, res.clone())); return res; })
     .catch(() => caches.match(r).then(h => h || caches.match('index.html'))));
 });
 
