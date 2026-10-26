@@ -491,7 +491,7 @@ html,body{overflow-x:hidden}
 .scanfield{flex:1 1 260px;margin:0}.scanfield input{font-size:20px;min-height:54px;font-family:'IBM Plex Mono',monospace;letter-spacing:.02em}
 .qtyfield{width:96px;margin:0}.qtyfield input{min-height:54px;font-size:18px;text-align:center}
 .scanrow .btn{min-height:54px}
-.scanstate{margin:10px 0 0;font-size:14px;font-weight:600}.scanstate.on{color:var(--ok-text)}.scanstate.off{color:var(--warn-text)}
+.scanstate{margin:10px 0 0;font-size:14px;font-weight:600}.scanstate.scan-on{color:var(--ok-text)}.scanstate.scan-off{color:var(--warn-text)}
 .scanflash{margin-top:10px;border-radius:12px;padding:14px 16px;font-size:17px;font-weight:600;background:var(--surface2);color:var(--muted)}
 .scanflash.k-ok{background:var(--ok-tint);color:var(--ok-text)}.scanflash.k-new{background:var(--warn-tint);color:var(--warn-text)}.scanflash.k-undo{background:var(--surface2);color:var(--ink)}
 .magtools{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
@@ -2483,7 +2483,7 @@ function mountMagazzino(){
 function scanStateUpd(){
   const st = $('#scanState'); if (!st) return;
   const on = document.activeElement && document.activeElement.id === 'scanIn';
-  st.className = 'scanstate ' + (on ? 'on' : 'off');
+  st.className = 'scanstate ' + (on ? 'scan-on' : 'scan-off');
   st.innerHTML = on ? '● Pronto: spara il codice' : '● In pausa: <button class="linkbtn" data-act="scan-focus">tocca qui per riprendere a sparare</button>';
 }
 function artRow(a){
