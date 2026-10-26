@@ -504,6 +504,16 @@ html,body{overflow-x:hidden}
 .art-stock>div{display:grid}.art-stock b{font-size:26px}.art-stock b.zero{color:var(--bad-text)}
 .rettbox{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:12px;display:grid;gap:8px;background:var(--surface)}
 .rettbox h4{font-size:16px}
+/* listini */
+.imprev{margin-top:12px;border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:grid;gap:8px;background:var(--surface2)}
+.imprev p{margin:0}.imprev h4{font-size:16px}
+.catrow{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--surface)}
+.cat-act{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.catload{display:inline-flex;gap:6px;align-items:center}.catload input{width:76px;min-height:36px;text-align:center}
+.abbbox{border:1px solid var(--warn);background:var(--warn-tint);border-radius:12px;padding:12px;display:grid;gap:8px;margin-bottom:12px}
+.abbbox h4{font-size:16px;color:var(--warn-text)}
+.abbrow{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 10px;cursor:pointer;font:inherit;color:var(--ink);margin-top:6px}
+.abbrow span:first-child{display:grid;gap:2px;min-width:0}.abbrow small{color:var(--muted)}
 </style>
 </head>
 <body>
@@ -631,7 +641,8 @@ let workers = [], jobs = [], tipi = [], clienti = [], prefatture = [], azienda =
 let view = 'panoramica', mounted = null;
 let articoli = [], codeMap = {};            // magazzino: articoli e codice a barre -> articolo
 let magTab = 'carico', magQ = '', magFlt = '', artId = null, artMov = [], artMovUnsub = null, artMovKey = '';
-let scanLog = [];                           // spari di questa sessione (per annullare)
+let scanLog = [];
+let listinoDocs = [], listMap = {}, listArr = [], catQ = '', catLoad = '', impPrev = null, abbQ = '';                           // spari di questa sessione (per annullare)
 const MOTIVI_RETT = [['conteggio', 'Conteggio sbagliato'], ['rotto', 'Pezzo rotto'], ['reso', 'Reso al fornitore'], ['garanzia', 'Sostituzione in garanzia'], ['altro', 'Altro']];
 let assMode = (window.innerWidth >= 900) ? 'fasce' : 'elenco';
 let date = todayISO();
@@ -2371,9 +2382,11 @@ function scanCode(raw, qtaRaw){
   const code = normCode(raw), qta = Math.max(1, Math.min(9999, parseInt(qtaRaw, 10) || 1));
   if (!code || !usingDb) return;
   let id = codeMap[code], created = false;
-  if (!id) {   // codice mai visto: nuovo articolo "da abbinare"
+  const L = !id ? listMap[code] : null;
+  if (!id) {   // codice mai visto: dal listino se c'è, altrimenti "da abbinare"
     id = newId('a'); created = true;
-    const a = {id, codici: [code], codice: '', descrizione: '', marca: '', categoria: '', prezzo: null, giacenza: qta, daAbbinare: true, creato: new Date().toISOString()};
+    const a = L ? {id, codici: [code], codice: L.c, descrizione: L.d, marca: L.m, categoria: L.f === 'ricambi' ? 'Ricambi' : '', giacenza: qta, daAbbinare: false, creato: new Date().toISOString()}
+      : {id, codici: [code], codice: '', descrizione: '', marca: '', categoria: '', giacenza: qta, daAbbinare: true, creato: new Date().toISOString()};
     articoli.push(a); codeMap[code] = id;
     fb.setDoc(fb.doc(fb.db, 'articoli', id), a).catch(() => toast('Non sono riuscito a salvare il codice nuovo.'));
   } else {
@@ -2384,9 +2397,9 @@ function scanCode(raw, qtaRaw){
   fb.setDoc(fb.doc(fb.db, 'movimenti', mid), {id: mid, articoloId: id, tipo: 'carico', qta, codice: code, chi: chiSono(), quando: new Date().toISOString()}).catch(() => {});
   scanLog.unshift({mid, id, code, qta, created, t: Date.now(), annullato: false});
   scanLog = scanLog.slice(0, 30);
-  beep(!created);
-  const a = artById(id);
-  magFlash(created ? 'new' : 'ok', created ? `Codice nuovo ${code}: +${qta}, messo tra quelli da abbinare` : `+${qta} ${artNome(a)} · ora ${qtaOf(a)}`);
+  const a = artById(id), unknown = created && a.daAbbinare;
+  beep(!unknown);
+  magFlash(unknown ? 'new' : 'ok', unknown ? `Codice nuovo ${code}: +${qta}, messo tra quelli da abbinare` : `${created ? 'Nuovo in magazzino dal listino: ' : ''}+${qta} ${artNome(a)} · ora ${qtaOf(a)}`);
   refreshMagazzino();
 }
 function undoScan(mid){
@@ -2402,9 +2415,11 @@ function magFlash(kind, msg){ const f = $('#scanFlash'); if (!f) return; f.class
 function mountMagazzino(){
   const tab = (t, icon, label, pill) => `<button role="tab" data-act="mag-tab" data-tab="${t}" aria-selected="${magTab === t}">${ic(icon, 16)}${label}${pill || ''}</button>`;
   const head = `<div class="pagehead"><div><h2>Magazzino</h2><p class="sub">Somfy e BFT: carico con la pistola, giacenze e correzioni</p></div></div>
-    <div class="subnav" role="tablist" aria-label="Sezioni del magazzino">${tab('carico', 'scan', 'Carico rapido')}${tab('articoli', 'box', 'Articoli', '<span class="pill" id="magCntA">0</span>')}${tab('abbinare', 'alert', 'Da abbinare', '<span class="pill warn" id="magCntD">0</span>')}</div>`;
+    <div class="subnav" role="tablist" aria-label="Sezioni del magazzino">${tab('carico', 'scan', 'Carico rapido')}${tab('articoli', 'box', 'Articoli', '<span class="pill" id="magCntA">0</span>')}${tab('abbinare', 'alert', 'Da abbinare', '<span class="pill warn" id="magCntD">0</span>')}${tab('catalogo', 'filetext', 'Catalogo listini', '<span class="pill" id="magCntL">0</span>')}</div>`;
   let body = '';
-  if (magTab === 'carico') {
+  if (magTab === 'catalogo') {
+    body = catalogoHtml();
+  } else if (magTab === 'carico') {
     body = `<section class="panel scanpanel">
       <form id="scanForm" autocomplete="off"><div class="scanrow">
         <label class="field scanfield"><span>Spara il codice a barre</span><input id="scanIn" name="code" inputmode="none" autocomplete="off" spellcheck="false" placeholder="In attesa della pistola…"></label>
@@ -2433,15 +2448,18 @@ function artRow(a){
   const q = qtaOf(a);
   return `<button class="artrow${a.daAbbinare ? ' todo' : ''}" data-act="art-open" data-id="${esc(a.id)}">
     <span class="art-main"><strong>${esc(artNome(a))}</strong><small>${[a.marca, a.codice ? 'Cod. ' + a.codice : '', (a.codici || []).join(', ')].filter(Boolean).map(esc).join(' · ')}</small></span>
-    <span class="art-q${q <= 0 ? ' zero' : ''}"><b>${q}</b><small>pz</small></span></button>`;
+    <span class="art-q${q <= 0 ? ' zero' : ''}"><b>${q}</b><small>pz${listPrice(a) !== null ? ' · ' + esc(fmtEur(listPrice(a))) : ''}</small></span></button>`;
 }
 function refreshMagazzino(){
-  const ca = $('#magCntA'), cd = $('#magCntD');
+  const ca = $('#magCntA'), cd = $('#magCntD'), cl = $('#magCntL');
+  if (cl) cl.textContent = listArr.length;
+  const cr = $('#catRes'); if (cr) cr.innerHTML = catResHtml();
+  const ci = $('#catInfo'); if (ci) ci.innerHTML = catInfoHtml();
   if (ca) ca.textContent = articoli.filter(a => !a.daAbbinare).length;
   if (cd) cd.textContent = daAbbinare().length;
   const sl = $('#scanList');
   if (sl) sl.innerHTML = scanLog.length ? `<div class="rows">` + scanLog.map(s => { const a = artById(s.id);
-      return `<div class="row${s.annullato ? ' st-fatto' : ''}"><div class="row-main"><strong>+${s.qta} ${esc(a ? artNome(a) : 'Codice ' + s.code)}</strong>${s.created ? ' <span class="tag late">Nuovo</span>' : ''}${s.annullato ? ' <span class="tag paused">Annullato</span>' : ''}
+      return `<div class="row${s.annullato ? ' st-fatto' : ''}"><div class="row-main"><strong>+${s.qta} ${esc(a ? artNome(a) : 'Codice ' + s.code)}</strong>${s.created ? (a && !a.daAbbinare ? ' <span class="tag type">Nuovo dal listino</span>' : ' <span class="tag late">Da abbinare</span>') : ''}${s.annullato ? ' <span class="tag paused">Annullato</span>' : ''}
         <small>${esc(s.code)} · ${esc(hhmm(new Date(s.t).toISOString()))}${a && !s.annullato ? ' · giacenza attuale ' + qtaOf(a) : ''}</small></div>
         ${s.annullato ? '' : `<button class="btn small ghost" data-act="scan-undo" data-id="${esc(s.mid)}">Annulla</button>`}</div>`; }).join('') + `</div>`
     : '<p class="muted">Ancora nessuno sparo in questa sessione.</p>';
@@ -2483,6 +2501,7 @@ function renderArt(){
     <div class="art-stock"><div><span class="muted">Giacenza</span><b class="${qtaOf(a) <= 0 ? 'zero' : ''}">${qtaOf(a)} pz</b></div>
       ${owner ? `<button class="btn" data-act="rett-open">${ic('edit', 16)}Correggi giacenza</button>` : '<small class="muted">Le correzioni le fa il titolare.</small>'}</div>
     <div id="rettBox" hidden></div>
+    ${artListinoHtml(a)}
     <form id="artForm" data-id="${esc(a.id)}"><div class="fgrid">
       <label class="field span2"><span>Descrizione</span><input id="artDesc" name="descrizione" maxlength="160" value="${esc(a.descrizione || '')}" placeholder="Es. Motore scorrevole BFT Deimos"></label>
       <label class="field"><span>Marca</span><select id="artMarca" name="marca">${opts(marche, a.marca || '')}</select></label>
@@ -2535,6 +2554,184 @@ function saveArt(f){
   fb.updateDoc(fb.doc(fb.db, 'articoli', a.id), patch).catch(() => toast('Non sono riuscito a salvare la scheda.'));
   toast(patch.daAbbinare === false ? 'Scheda salvata: l’articolo passa tra gli Articoli.' : 'Scheda salvata.');
   const ov = $('#artOverlay'); if (ov) ov.innerHTML = ''; renderArt(); refreshMagazzino();
+}
+
+/* ---------- Magazzino fase 2: listini Somfy/BFT ---------- */
+const FONTI = {prodotti: 'Listino prodotti', ricambi: 'Listino ricambi'};
+const marcaOf = c => /^26/.test(c) ? 'BFT' : 'Somfy';
+function buildListino(){
+  listMap = {}; listArr = [];
+  const docs = listinoDocs.filter(d => Array.isArray(d.items)).sort((a, b) => (a.fonte === b.fonte ? (a.parte || 0) - (b.parte || 0) : a.fonte === 'prodotti' ? -1 : 1));
+  docs.forEach(d => d.items.forEach(it => { const c = normCode(it.c); if (!c || listMap[c]) return;
+    const o = {c, d: String(it.d || ''), p: typeof it.p === 'number' ? it.p : null, m: it.m || marcaOf(c), f: d.fonte}; listMap[c] = o; listArr.push(o); }));
+}
+const listPrice = a => { const L = a && a.codice ? listMap[normCode(a.codice)] : null; return L && L.p !== null ? L.p : null; };
+const listInfo = f => listinoDocs.find(d => d.id === 'info-' + f);
+/* lettore .xlsx essenziale (zip + xml) senza librerie esterne */
+async function unzipEntries(buf){
+  const dv = new DataView(buf), u8 = new Uint8Array(buf), dec = new TextDecoder();
+  let eocd = -1; for (let i = buf.byteLength - 22; i >= Math.max(0, buf.byteLength - 70000); i--) { if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; } }
+  if (eocd < 0) throw new Error('Il file non sembra un Excel .xlsx');
+  const n = dv.getUint16(eocd + 10, true); let off = dv.getUint32(eocd + 16, true); const out = {};
+  for (let k = 0; k < n; k++) {
+    if (dv.getUint32(off, true) !== 0x02014b50) break;
+    const method = dv.getUint16(off + 10, true), csize = dv.getUint32(off + 20, true), nl = dv.getUint16(off + 28, true), el = dv.getUint16(off + 30, true), cl = dv.getUint16(off + 32, true), lho = dv.getUint32(off + 42, true);
+    const name = dec.decode(u8.subarray(off + 46, off + 46 + nl));
+    out[name] = {method, csize, lho}; off += 46 + nl + el + cl;
+  }
+  out.__read = async name => { const e = out[name]; if (!e) return null;
+    const ln = dv.getUint16(e.lho + 26, true), le = dv.getUint16(e.lho + 28, true), start = e.lho + 30 + ln + le, data = u8.subarray(start, start + e.csize);
+    if (e.method === 0) return dec.decode(data);
+    const ds = new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+    return await new Response(ds).text(); };
+  return out;
+}
+async function readXlsx(file){
+  const z = await unzipEntries(await file.arrayBuffer()), P = new DOMParser();
+  const xml = async n => { const t = await z.__read(n); return t ? P.parseFromString(t, 'application/xml') : null; };
+  const ss = [], sx = await xml('xl/sharedStrings.xml');
+  if (sx) [...sx.getElementsByTagName('si')].forEach(si => ss.push([...si.getElementsByTagName('t')].map(t => t.textContent).join('')));
+  let sheet = 'xl/worksheets/sheet1.xml';
+  try { const wb = await xml('xl/workbook.xml'), rel = await xml('xl/_rels/workbook.xml.rels');
+    const first = wb.getElementsByTagName('sheet')[0], rid = first && (first.getAttribute('r:id') || first.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'id'));
+    const r = rel && [...rel.getElementsByTagName('Relationship')].find(x => x.getAttribute('Id') === rid);
+    if (r) { const tg = r.getAttribute('Target'); sheet = tg.startsWith('/') ? tg.slice(1) : 'xl/' + tg.replace(/^\.\//, ''); }
+  } catch(e){}
+  const sh = await xml(sheet); if (!sh) throw new Error('Foglio non trovato nel file');
+  const colIdx = ref => { const m = /^([A-Z]+)/.exec(ref || ''); if (!m) return -1; let n = 0; for (const ch of m[1]) n = n * 26 + ch.charCodeAt(0) - 64; return n - 1; };
+  return [...sh.getElementsByTagName('row')].map(row => { const arr = [];
+    [...row.getElementsByTagName('c')].forEach((c, i) => { const t = c.getAttribute('t'), v = c.getElementsByTagName('v')[0], ix = colIdx(c.getAttribute('r')); let val = null;
+      if (t === 's') val = v ? ss[Number(v.textContent)] : ''; else if (t === 'inlineStr') val = [...c.getElementsByTagName('t')].map(x => x.textContent).join('');
+      else if (t === 'str' || t === 'e') val = v ? v.textContent : ''; else if (t === 'b') val = v ? v.textContent === '1' : false;
+      else if (v) { const num = Number(v.textContent); val = isFinite(num) ? num : v.textContent; }
+      arr[ix >= 0 ? ix : i] = val; });
+    return arr; });
+}
+function readCsv(text){
+  const sep = (text.split('\n')[0].match(/;/g) || []).length > (text.split('\n')[0].match(/,/g) || []).length ? ';' : ',';
+  return text.split(/\r?\n/).filter(l => l.trim()).map(l => { const out = []; let cur = '', q = false;
+    for (const ch of l) { if (ch === '"') q = !q; else if (ch === sep && !q) { out.push(cur); cur = ''; } else cur += ch; } out.push(cur);
+    return out.map(x => { const t = x.trim(); const n = Number(t.replace(/\./g, '').replace(',', '.')); return t && /^-?[\d.,]+$/.test(t) && isFinite(n) ? n : t; }); });
+}
+const cellStr = v => v === null || v === undefined ? '' : typeof v === 'number' ? (Number.isInteger(v) ? String(v) : String(v)) : String(v).replace(/ /g, ' ').replace(/\s+/g, ' ').trim();
+function parseListino(rows){
+  let h = -1, ci = -1, di = -1, pi = -1;
+  for (let r = 0; r < Math.min(15, rows.length); r++) {
+    const row = (rows[r] || []).map(x => cellStr(x).toLowerCase());
+    const p = row.findIndex(x => /prezzo|price|listino|euro|€/.test(x)); if (p < 0) continue;
+    const c = row.findIndex(x => /codice|prodotto|articolo|mdm|code|cod\./.test(x));
+    const d = row.findIndex((x, i) => i !== c && /descr|nome|denominaz/.test(x));
+    if (c >= 0) { h = r; ci = c; pi = p; di = d >= 0 ? d : [0, 1, 2].find(i => i !== c && i !== p); break; }
+  }
+  if (h < 0) throw new Error('Non trovo le colonne: servono codice, descrizione e prezzo.');
+  const head = rows[h].map(cellStr), items = [], skip = [], seen = {};
+  for (let r = h + 1; r < rows.length; r++) {
+    const row = rows[r] || [], c = normCode(cellStr(row[ci])), d = cellStr(row[di]);
+    const pr = typeof row[pi] === 'number' ? Math.round(row[pi] * 100) / 100 : (isFinite(Number(String(row[pi] || '').replace(',', '.'))) && String(row[pi] || '').trim() ? Math.round(Number(String(row[pi]).replace(',', '.')) * 100) / 100 : null);
+    if (!c && !d) continue;
+    if (!c || seen[c]) { skip.push(r + 1); continue; }
+    seen[c] = 1; items.push([c, d.slice(0, 120), pr, marcaOf(c)]);
+  }
+  return {items, skip, cols: {codice: head[ci], descrizione: head[di], prezzo: head[pi]}};
+}
+const MESI = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre'];
+function versioneDa(nome){ const n = String(nome).toLowerCase(), m = MESI.findIndex(x => n.includes(x)), y = (n.match(/20\d\d/) || [])[0];
+  return m >= 0 && y ? MESI[m] + ' ' + y : new Date().toLocaleDateString('it-IT', {month: 'long', year: 'numeric'}); }
+async function prepImport(file){
+  try {
+    const rows = /\.csv$/i.test(file.name) ? readCsv(await file.text()) : await readXlsx(file);
+    const r = parseListino(rows);
+    impPrev = Object.assign(r, {file: file.name, fonte: /ricamb/i.test(file.name) ? 'ricambi' : 'prodotti', versione: versioneDa(file.name)});
+  } catch(e) { impPrev = {err: (e && e.message) || 'File non leggibile'}; }
+  refreshMagazzino();
+}
+async function doImport(){
+  const P = impPrev; if (!P || P.err || role !== 'titolare') return;
+  const f = P.fonte, CH = 800, old = listinoDocs.filter(d => d.fonte === f && d.id !== 'info-' + f), parts = Math.ceil(P.items.length / CH);
+  try {
+    for (let i = 0; i < parts; i++) await fb.setDoc(fb.doc(fb.db, 'listino', f + '-' + (i + 1)), {id: f + '-' + (i + 1), fonte: f, parte: i + 1, items: P.items.slice(i * CH, (i + 1) * CH).map(x => ({c: x[0], d: x[1], p: x[2], m: x[3]}))});
+    for (const d of old) if (Number(d.parte) > parts) await fb.deleteDoc(fb.doc(fb.db, 'listino', d.id));
+    await fb.setDoc(fb.doc(fb.db, 'listino', 'info-' + f), {id: 'info-' + f, fonte: f, info: true, n: P.items.length, versione: P.versione, file: P.file, importato: new Date().toISOString(), chi: chiSono()});
+  } catch(e) { toast('Import non riuscito: ' + ((e && e.code) || 'errore') + '. Riprova.'); return; }
+  impPrev = null; toast(FONTI[f] + ' importato: ' + P.items.length + ' articoli.');
+  setTimeout(() => { const n = autoAbbina(); if (n) toast(n + ' codici da abbinare riconosciuti dal listino.'); refreshMagazzino(); }, 300);
+}
+function abbinaA(a, L){   // collega un articolo "da abbinare" a una voce di listino
+  const ex = articoli.find(x => x.id !== a.id && normCode(x.codice) === L.c);
+  if (ex) {   // c'è già in magazzino: unisco codici e pezzi
+    const cod = (ex.codici || []).concat(a.codici || []).filter((c, i, arr) => arr.indexOf(c) === i), q = qtaOf(a);
+    ex.codici = cod; ex.giacenza = qtaOf(ex) + q;
+    fb.updateDoc(fb.doc(fb.db, 'articoli', ex.id), {codici: cod, giacenza: fb.increment(q)}).catch(() => {});
+    if (q) { const mid = newId('m'); fb.setDoc(fb.doc(fb.db, 'movimenti', mid), {id: mid, articoloId: ex.id, tipo: 'carico', qta: q, nota: 'Unito da codice ' + (a.codici || []).join(', '), chi: chiSono(), quando: new Date().toISOString()}).catch(() => {}); }
+    articoli = articoli.filter(x => x.id !== a.id); fb.deleteDoc(fb.doc(fb.db, 'articoli', a.id)).catch(() => {});
+    buildCodeMap(); return ex.id;
+  }
+  const patch = {codice: L.c, descrizione: L.d, marca: L.m, categoria: L.f === 'ricambi' ? 'Ricambi' : (a.categoria || ''), daAbbinare: false};
+  Object.assign(a, patch); buildCodeMap();
+  fb.updateDoc(fb.doc(fb.db, 'articoli', a.id), patch).catch(() => toast('Abbinamento non salvato.'));
+  return a.id;
+}
+function autoAbbina(){ let n = 0; daAbbinare().slice().forEach(a => { const L = (a.codici || []).map(c => listMap[normCode(c)]).find(Boolean); if (L) { abbinaA(a, L); n++; } }); return n; }
+function catSearch(q, max){
+  q = norm(String(q || '').trim()); if (!q) return [];
+  const words = q.split(/\s+/), out = [];
+  for (const L of listArr) { const hay = norm(L.c + ' ' + L.d + ' ' + L.m); if (words.every(w => hay.includes(w))) { out.push(L); if (out.length >= max) break; } }
+  return out;
+}
+function catInfoHtml(){
+  const line = f => { const i = listInfo(f); return `<div class="row"><div class="row-main"><strong>${FONTI[f]}</strong><small>${i ? `${i.n} articoli · ${esc(i.versione)} · importato ${esc(whenTxt(i.importato))}` : 'Non ancora importato'}</small></div></div>`; };
+  let h = `<div class="rows">${line('prodotti')}${line('ricambi')}</div>`;
+  if (impPrev) {
+    if (impPrev.err) h += `<div class="notice" style="margin-top:10px"><span>${esc(impPrev.err)}</span><button class="btn small" data-act="imp-cancel">Chiudi</button></div>`;
+    else { const P = impPrev, nb = P.items.filter(x => x[3] === 'BFT').length, np = P.items.filter(x => x[2] === null).length;
+      h += `<div class="imprev"><h4>Controlla prima di importare</h4>
+        <p><b>${esc(P.file)}</b></p>
+        <p>${P.items.length} articoli · Somfy ${P.items.length - nb} · BFT ${nb}${np ? ` · <span class="warnx">${np} senza prezzo</span>` : ''}${P.skip.length ? ` · ${P.skip.length} righe saltate (codice vuoto o ripetuto)` : ''}</p>
+        <p class="muted">Colonne usate: codice «${esc(P.cols.codice)}», descrizione «${esc(P.cols.descrizione)}», prezzo «${esc(P.cols.prezzo)}». La marca è ricavata dal codice (26… = BFT).</p>
+        <div class="fgrid"><label class="field"><span>È il</span><select id="impFonte">${opts([['prodotti', 'Listino prodotti'], ['ricambi', 'Listino ricambi']], P.fonte)}</select></label>
+          <label class="field"><span>Versione</span><input id="impVer" value="${esc(P.versione)}" maxlength="40"></label></div>
+        <div class="tbl-wrap"><table class="tbl"><tr><th>Codice</th><th>Descrizione</th><th>Marca</th><th>Prezzo</th></tr>${P.items.slice(0, 5).map(x => `<tr><td>${esc(x[0])}</td><td>${esc(x[1])}</td><td>${x[3]}</td><td>${x[2] === null ? '—' : esc(fmtEur(x[2]))}</td></tr>`).join('')}</table></div>
+        ${listInfo(P.fonte) ? `<p class="muted">Sostituisce il ${FONTI[P.fonte].toLowerCase()} attuale (${listInfo(P.fonte).n} articoli). Gli articoli in magazzino e le giacenze non cambiano.</p>` : ''}
+        <div class="form-actions"><button class="btn primary" data-act="imp-ok">${ic('check', 16)}Importa ${P.items.length} articoli</button><button class="btn" data-act="imp-cancel">Annulla</button></div></div>`; }
+  }
+  return h;
+}
+function catResHtml(){
+  if (!listArr.length) return `<p class="muted">${role === 'titolare' ? 'Importa i listini Somfy/BFT qui sopra per avere il catalogo completo.' : 'Il titolare non ha ancora importato i listini.'}</p>`;
+  const l = catSearch(catQ, 60);
+  if (!catQ.trim()) return `<p class="muted">${listArr.length} articoli nei listini. Cerca per codice o descrizione (es. «deimos 600», «2609184», «sonesse»).</p>`;
+  if (!l.length) return '<p class="muted">Nessun articolo trovato.</p>';
+  const stockBy = {}; articoli.forEach(a => { if (a.codice) stockBy[normCode(a.codice)] = a; });
+  return `<div class="artlist">` + l.map(L => { const a = stockBy[L.c];
+    return `<div class="catrow"><div class="art-main"><strong>${esc(L.d)}</strong><small>${esc(L.c)} · ${L.m}${L.f === 'ricambi' ? ' · ricambio' : ''}${L.p !== null ? ' · listino ' + esc(fmtEur(L.p)) : ''}</small></div>
+      <div class="cat-act">${a ? `<button class="linkbtn" data-act="art-open" data-id="${esc(a.id)}">In magazzino: ${qtaOf(a)} pz</button>` : '<small class="muted">Non in magazzino</small>'}
+      ${catLoad === L.c ? `<span class="catload"><input type="number" id="catQta" min="1" max="9999" value="1" inputmode="numeric" aria-label="Pezzi"><button class="btn small primary" data-act="cat-ok" data-code="${esc(L.c)}">Carica</button><button class="btn small ghost" data-act="cat-x">×</button></span>`
+        : `<button class="btn small" data-act="cat-load" data-code="${esc(L.c)}">${ic('plus', 14)}Carica pezzi</button>`}</div></div>`; }).join('') + `</div>${l.length >= 60 ? '<p class="muted">Mostro i primi 60: affina la ricerca.</p>' : ''}`;
+}
+function catalogoHtml(){
+  return `<section class="panel"><div class="split"><h2 class="panel-title" style="margin:0">Listini Somfy / BFT</h2>
+      ${role === 'titolare' ? `<label class="btn">${ic('download', 16)}Importa Excel<input type="file" id="impFile" accept=".xlsx,.csv" hidden></label>` : ''}</div>
+      <div id="catInfo" style="margin-top:10px">${catInfoHtml()}</div></section>
+    <section class="panel"><label class="field" style="margin:0"><span>Cerca nel catalogo</span><input type="search" id="catQ" value="${esc(catQ)}" placeholder="Codice o descrizione"></label>
+      <p class="muted" style="margin:8px 0 0;font-size:14px">Per i pezzi senza codice a barre: cercali qui e usa «Carica pezzi».</p>
+      <div id="catRes" style="margin-top:12px">${catResHtml()}</div></section>`;
+}
+function catCarica(code, qtaRaw){
+  const L = listMap[code], qta = Math.max(1, Math.min(9999, parseInt(qtaRaw, 10) || 1)); if (!L) return;
+  let a = articoli.find(x => normCode(x.codice) === code);
+  if (!a) { const id = newId('a'); a = {id, codici: [], codice: L.c, descrizione: L.d, marca: L.m, categoria: L.f === 'ricambi' ? 'Ricambi' : '', giacenza: qta, daAbbinare: false, creato: new Date().toISOString()};
+    articoli.push(a); buildCodeMap(); fb.setDoc(fb.doc(fb.db, 'articoli', id), a).catch(() => toast('Non sono riuscito a salvare.')); }
+  else { a.giacenza = qtaOf(a) + qta; fb.updateDoc(fb.doc(fb.db, 'articoli', a.id), {giacenza: fb.increment(qta)}).catch(() => {}); }
+  const mid = newId('m'); fb.setDoc(fb.doc(fb.db, 'movimenti', mid), {id: mid, articoloId: a.id, tipo: 'carico', qta, nota: 'dal catalogo', chi: chiSono(), quando: new Date().toISOString()}).catch(() => {});
+  catLoad = ''; toast('+' + qta + ' ' + L.d + ' · ora ' + qtaOf(a) + ' pz'); refreshMagazzino();
+}
+function artListinoHtml(a){
+  if (!a.daAbbinare) { const L = a.codice ? listMap[normCode(a.codice)] : null;
+    return L ? `<p class="muted" style="margin:0 0 10px">Dal ${FONTI[L.f].toLowerCase()}: <b>${esc(L.c)}</b>${L.p !== null ? ' · prezzo di listino <b>' + esc(fmtEur(L.p)) + '</b>' : ''}</p>` : ''; }
+  if (!listArr.length) return '';
+  const res = catSearch(abbQ, 12);
+  return `<div class="abbbox"><h4>Abbina al listino</h4><label class="field" style="margin:0"><span>Cerca l’articolo (codice o descrizione)</span><input type="search" id="abbQ" value="${esc(abbQ)}" placeholder="es. deimos 600"></label>
+    <div id="abbRes">${res.map(L => `<button class="abbrow" data-act="abb-pick" data-code="${esc(L.c)}"><span><strong>${esc(L.d)}</strong><small>${esc(L.c)} · ${L.m}${L.p !== null ? ' · ' + esc(fmtEur(L.p)) : ''}</small></span><span class="btn small">Abbina</span></button>`).join('')}</div></div>`;
 }
 
 /* ---------- centro notifiche ---------- */
@@ -2616,7 +2813,8 @@ function notifyCheck(){
 }
 setInterval(() => { if (authState === 'ready') notifyCheck(); }, 60000);
 document.addEventListener('focusin', scanStateUpd); document.addEventListener('focusout', () => setTimeout(scanStateUpd, 0));
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && artId) { artId = null; renderArt(); } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && artId) { artId = null; renderArt(); }
+  if (e.key === 'Enter' && e.target && e.target.id === 'catQta') { e.preventDefault(); catCarica(catLoad, e.target.value); } });
 document.addEventListener('click', e => { if (notifOpen && !e.target.closest('#npanel') && !e.target.closest('#bellBtn')) notifToggle(false); }, true);
 
 /* ---------- eventi ---------- */
@@ -2672,9 +2870,17 @@ document.addEventListener('click', e => {
       break;
     }
     case 'mag-tab': magTab = t.dataset.tab; mounted = null; render(); break;
+    case 'imp-ok': { const f = $('#impFonte'), v = $('#impVer'); if (impPrev && f) impPrev.fonte = f.value; if (impPrev && v && v.value.trim()) impPrev.versione = v.value.trim().slice(0, 40); doImport(); break; }
+    case 'imp-cancel': impPrev = null; refreshMagazzino(); break;
+    case 'cat-load': catLoad = t.dataset.code; refreshMagazzino(); { const q = $('#catQta'); if (q) { q.focus(); q.select(); } } break;
+    case 'cat-x': catLoad = ''; refreshMagazzino(); break;
+    case 'cat-ok': catCarica(t.dataset.code, ($('#catQta') || {}).value); break;
+    case 'abb-pick': { const a = artById(artId), L = listMap[t.dataset.code]; if (!a || !L) break;
+      const nid = abbinaA(a, L); abbQ = ''; artId = nid; const ov = $('#artOverlay'); if (ov) ov.innerHTML = ''; renderArt(); refreshMagazzino();
+      toast('Abbinato a «' + L.d + '».'); break; }
     case 'scan-focus': { const i = $('#scanIn'); if (i) i.focus(); scanStateUpd(); break; }
     case 'scan-undo': undoScan(id); { const i = $('#scanIn'); if (i) i.focus(); } break;
-    case 'art-open': artId = id; renderArt(); break;
+    case 'art-open': artId = id; abbQ = ''; { const ov = $('#artOverlay'); if (ov) ov.innerHTML = ''; } renderArt(); break;
     case 'art-close': artId = null; renderArt(); { const i = $('#scanIn'); if (i) i.focus(); } break;
     case 'rett-open': openRett(); break;
     case 'rett-cancel': { const b = $('#rettBox'); if (b) { b.hidden = true; b.innerHTML = ''; } break; }
@@ -2766,6 +2972,7 @@ document.addEventListener('change', e => {
   const t = e.target;
   if (t.id === 'dateInput') setDate(t.value);
   else if (t.id === 'magFlt') { magFlt = t.value; refreshMagazzino(); }
+  else if (t.id === 'impFile') { const f = t.files && t.files[0]; t.value = ''; if (f) prepImport(f); }
   else if (t.id === 'wzWorker') { wzWorker = t.value; render(); }
   else if (t.id === 'wzDate') { if (t.value) { wzDate = t.value; render(); } }
   else if (t.id === 'fVia') scheduleMaps(true);
@@ -2797,6 +3004,8 @@ document.addEventListener('input', e => {
   if (t.id === 'fCliente') { updateClienteLink(e.inputType === 'insertReplacementText'); return; }
   if (t.id === 'anaQ') { anaQ = t.value; refreshAnagrafica(); return; }
   if (t.id === 'magQ') { magQ = t.value; refreshMagazzino(); return; }
+  if (t.id === 'catQ') { catQ = t.value; catLoad = ''; const r = $('#catRes'); if (r) r.innerHTML = catResHtml(); return; }
+  if (t.id === 'abbQ') { abbQ = t.value; const a = artById(artId); const r = $('#abbRes'); if (a && r) { const tmp = document.createElement('div'); tmp.innerHTML = artListinoHtml(a); const nr = tmp.querySelector('#abbRes'); r.innerHTML = nr ? nr.innerHTML : ''; } return; }
   if (t.form && t.form.id === 'clienteForm') { cliWarnLive(t.form); return; }
   if (t.id === 'fVia') { acRefresh(); if (mapsAuto) scheduleMaps(false); return; }
   if (t.id === 'fMaps') { mapsAuto = t.value.trim() === ''; updateMapsHint(); return; }
@@ -2972,7 +3181,7 @@ function stopSubs(){
   fotoStop(); srvSnap = {}; notifToggle(false);
   unsubs.forEach(u => { try { u(); } catch(e){} });
   unsubs = []; usingDb = false;
-  articoli = []; codeMap = {}; scanLog = []; artId = null; if (artMovUnsub) { try { artMovUnsub(); } catch(e){} artMovUnsub = null; artMovKey = ''; }
+  articoli = []; codeMap = {}; scanLog = []; listinoDocs = []; listMap = {}; listArr = []; impPrev = null; artId = null; if (artMovUnsub) { try { artMovUnsub(); } catch(e){} artMovUnsub = null; artMovKey = ''; }
   workers = []; jobs = []; rawJobs = []; fattMap = {}; tipi = []; clienti = []; prefatture = []; azienda = {}; utenti = [];
 }
 function fbSnapErr(err){
@@ -2994,6 +3203,7 @@ function startSubs(){
     list('tipi', s => { tipi = s.docs.map(d => d.data()); });
     list('clienti', s => { clienti = s.docs.map(d => d.data()); });
     list('articoli', s => { articoli = s.docs.map(d => d.data()); buildCodeMap(); });
+    list('listino', s => { listinoDocs = s.docs.map(d => d.data()); buildListino(); });
     list('prefatture', s => { prefatture = s.docs.map(d => d.data()); });
     list('impostazioni', s => { azienda = s.docs.map(d => d.data()).find(x => x.id === 'azienda') || {}; });
     if (role === 'titolare') list('utenti', s => { utenti = s.docs.map(d => Object.assign({uid: d.id}, d.data())); });
