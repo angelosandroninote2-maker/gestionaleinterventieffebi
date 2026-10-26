@@ -486,6 +486,24 @@ html,body{overflow-x:hidden}
 .k-fatto .np-ico{background:var(--ok-tint);color:var(--ok-text)} .k-non_fatto .np-ico,.k-late .np-ico{background:var(--bad-tint);color:var(--bad-text)}
 .k-assign .np-ico,.k-start .np-ico{background:var(--brand-tint);color:var(--brand-text)}
 .np-txt{display:grid;gap:2px;min-width:0} .np-txt span{font-size:14px;color:var(--muted)} .np-txt small{font-size:12.5px;color:var(--muted)}
+/* magazzino */
+.scanrow{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.scanfield{flex:1 1 260px;margin:0}.scanfield input{font-size:20px;min-height:54px;font-family:'IBM Plex Mono',monospace;letter-spacing:.02em}
+.qtyfield{width:96px;margin:0}.qtyfield input{min-height:54px;font-size:18px;text-align:center}
+.scanrow .btn{min-height:54px}
+.scanstate{margin:10px 0 0;font-size:14px;font-weight:600}.scanstate.on{color:var(--ok-text)}.scanstate.off{color:var(--warn-text)}
+.scanflash{margin-top:10px;border-radius:12px;padding:14px 16px;font-size:17px;font-weight:600;background:var(--surface2);color:var(--muted)}
+.scanflash.k-ok{background:var(--ok-tint);color:var(--ok-text)}.scanflash.k-new{background:var(--warn-tint);color:var(--warn-text)}.scanflash.k-undo{background:var(--surface2);color:var(--ink)}
+.magtools{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.artlist{display:grid;gap:6px}
+.artrow{display:flex;justify-content:space-between;align-items:center;gap:12px;text-align:left;width:100%;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;cursor:pointer;font:inherit;color:var(--ink)}
+.artrow:hover{border-color:var(--brand)}.artrow.todo{border-left:4px solid var(--warn)}
+.art-main{display:grid;gap:2px;min-width:0}.art-main small{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.art-q{display:grid;justify-items:end;flex:none}.art-q b{font-size:20px}.art-q small{color:var(--muted);font-size:12px}.art-q.zero b{color:var(--bad-text)}
+.art-stock{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;background:var(--surface2);border-radius:12px;padding:12px 14px;margin:8px 0 12px}
+.art-stock>div{display:grid}.art-stock b{font-size:26px}.art-stock b.zero{color:var(--bad-text)}
+.rettbox{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:12px;display:grid;gap:8px;background:var(--surface)}
+.rettbox h4{font-size:16px}
 </style>
 </head>
 <body>
@@ -540,6 +558,8 @@ const ICONS = {
   left:'<path d="m15 18-6-6 6-6"/>',
   right:'<path d="m9 18 6-6-6-6"/>',
   x:'<path d="M18 6 6 18M6 6l12 12"/>',
+  box:'<path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/>',
+  scan:'<path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 8v8M10 8v8M13 8v8M17 8v8"/>',
   bell:'<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
   grid:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
   timeline:'<path d="M3 6h10M7 12h14M3 18h8"/>',
@@ -609,6 +629,10 @@ const capOf = () => DAY_CAP;
 /* ---------- stato ---------- */
 let workers = [], jobs = [], tipi = [], clienti = [], prefatture = [], azienda = {};
 let view = 'panoramica', mounted = null;
+let articoli = [], codeMap = {};            // magazzino: articoli e codice a barre -> articolo
+let magTab = 'carico', magQ = '', magFlt = '', artId = null, artMov = [], artMovUnsub = null, artMovKey = '';
+let scanLog = [];                           // spari di questa sessione (per annullare)
+const MOTIVI_RETT = [['conteggio', 'Conteggio sbagliato'], ['rotto', 'Pezzo rotto'], ['reso', 'Reso al fornitore'], ['garanzia', 'Sostituzione in garanzia'], ['altro', 'Altro']];
 let assMode = (window.innerWidth >= 900) ? 'fasce' : 'elenco';
 let date = todayISO();
 let datePicked = false;
@@ -1009,6 +1033,7 @@ function renderMenu(){
     ['assegna', 'Assegna', 'timeline', un ? `<span class="pill warn" title="Da assegnare">${un}</span>` : ''],
     ['lavoratori', 'Lavoratori', 'users', workers.length ? `<span class="pill">${workers.length}</span>` : ''],
     ['anagrafica', 'Anagrafica', 'contact', clienti.length ? `<span class="pill">${clienti.length}</span>` : '', true],
+    ['magazzino', 'Magazzino', 'box', daAbbinare().length ? `<span class="pill warn" title="Codici da abbinare">${daAbbinare().length}</span>` : '', true],
     ['prefat', 'Pre-fatturazione', 'filetext', nb ? `<span class="pill warn" title="Interventi da pre-fatturare">${nb}</span>` : '', true],
     ['utenti', 'Utenti', 'users', (role === 'titolare' && pendingUsers()) ? `<span class="pill warn" title="In attesa di abilitazione">${pendingUsers()}</span>` : '', true],
     ['archivio', 'Finder', 'search', '']
@@ -1018,12 +1043,13 @@ function renderMenu(){
 }
 function render(){
   if (gateRender()) return;
-  if (!canWrite && (view === 'carica' || view === 'anagrafica' || view === 'prefat')) view = 'panoramica';
+  if (!canWrite && (view === 'carica' || view === 'anagrafica' || view === 'prefat' || view === 'magazzino')) view = 'panoramica';
   if (view === 'utenti' && role !== 'titolare') view = 'panoramica';
   renderMenu();
   if (view === 'carica') { if (mounted !== 'carica') { mountCarica(); mounted = 'carica'; } refreshCarica(); }
   else if (view === 'lavoratori') { if (mounted !== 'lavoratori') { mountLavoratori(); mounted = 'lavoratori'; } refreshLavoratori(); }
   else if (view === 'anagrafica') { if (mounted !== 'anagrafica') { mountAnagrafica(); mounted = 'anagrafica'; } refreshAnagrafica(); }
+  else if (view === 'magazzino') { if (mounted !== 'magazzino') { mountMagazzino(); mounted = 'magazzino'; } refreshMagazzino(); }
   else if (view === 'prefat') { if (mounted !== 'prefat') { mountPrefat(); mounted = 'prefat'; } refreshPrefat(); }
   else if (view === 'utenti') { mounted = null; $('#app').innerHTML = viewUtenti(); }
   else if (view === 'archivio') { if (mounted !== 'archivio') { mountArchivio(); mounted = 'archivio'; } refreshArchivio(); }
@@ -2299,6 +2325,7 @@ function go(v){
   if (v === 'carica') { editingJobId = null; draftJob = null; }
   if (v === 'lavoratori') editingWorkerId = null;
   if (v === 'assegna') assSub = 'giornata';
+  if (v === 'magazzino') { magTab = 'carico'; artId = null; }
   if (v === 'anagrafica') { cliFormOpen = false; editingClienteId = null; cliPrefill = null; }
   render(); window.scrollTo(0, 0);
 }
@@ -2321,6 +2348,193 @@ function toast(msg, label, fn){
   t.innerHTML = '<span>' + esc(msg) + '</span>' + (label ? `<button data-act="toast-act">${esc(label)}</button>` : '');
   t.hidden = false;
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; toastFn = null; }, label ? 7000 : 3500);
+}
+
+/* ---------- Magazzino (fase 1: carico rapido, articoli, da abbinare, rettifica) ---------- */
+const normCode = c => String(c || '').replace(/\s+/g, '').toUpperCase();
+function buildCodeMap(){ codeMap = {}; articoli.forEach(a => { (a.codici || []).forEach(c => { codeMap[normCode(c)] = a.id; }); if (a.codice) codeMap[normCode(a.codice)] = codeMap[normCode(a.codice)] || a.id; }); }
+const daAbbinare = () => articoli.filter(a => a.daAbbinare);
+const artById = id => articoli.find(a => a.id === id);
+const artNome = a => a ? (a.descrizione || (a.daAbbinare ? 'Codice da abbinare' : 'Articolo senza nome')) : '';
+const qtaOf = a => Number(a && a.giacenza) || 0;
+const chiSono = () => (me && me.email) || '';
+let audioCtx = null;
+function beep(ok){
+  try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const tones = ok ? [[1046, 0, 0.07]] : [[523, 0, 0.09], [392, 0.12, 0.12]];
+    tones.forEach(([f, at, d]) => { const o = audioCtx.createOscillator(), g = audioCtx.createGain(); o.frequency.value = f; o.type = 'sine';
+      g.gain.value = 0.08; o.connect(g); g.connect(audioCtx.destination); const t0 = audioCtx.currentTime + at; o.start(t0); o.stop(t0 + d); });
+  } catch(e){}
+}
+function newId(p){ return p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+function scanCode(raw, qtaRaw){
+  const code = normCode(raw), qta = Math.max(1, Math.min(9999, parseInt(qtaRaw, 10) || 1));
+  if (!code || !usingDb) return;
+  let id = codeMap[code], created = false;
+  if (!id) {   // codice mai visto: nuovo articolo "da abbinare"
+    id = newId('a'); created = true;
+    const a = {id, codici: [code], codice: '', descrizione: '', marca: '', categoria: '', prezzo: null, giacenza: qta, daAbbinare: true, creato: new Date().toISOString()};
+    articoli.push(a); codeMap[code] = id;
+    fb.setDoc(fb.doc(fb.db, 'articoli', id), a).catch(() => toast('Non sono riuscito a salvare il codice nuovo.'));
+  } else {
+    const a = artById(id); if (a) a.giacenza = qtaOf(a) + qta;
+    fb.updateDoc(fb.doc(fb.db, 'articoli', id), {giacenza: fb.increment(qta)}).catch(() => toast('Non sono riuscito ad aggiornare la giacenza.'));
+  }
+  const mid = newId('m');
+  fb.setDoc(fb.doc(fb.db, 'movimenti', mid), {id: mid, articoloId: id, tipo: 'carico', qta, codice: code, chi: chiSono(), quando: new Date().toISOString()}).catch(() => {});
+  scanLog.unshift({mid, id, code, qta, created, t: Date.now(), annullato: false});
+  scanLog = scanLog.slice(0, 30);
+  beep(!created);
+  const a = artById(id);
+  magFlash(created ? 'new' : 'ok', created ? `Codice nuovo ${code}: +${qta}, messo tra quelli da abbinare` : `+${qta} ${artNome(a)} · ora ${qtaOf(a)}`);
+  refreshMagazzino();
+}
+function undoScan(mid){
+  const s = scanLog.find(x => x.mid === mid); if (!s || s.annullato) return;
+  s.annullato = true;
+  const a = artById(s.id);
+  if (s.created && a && qtaOf(a) <= s.qta) { articoli = articoli.filter(x => x.id !== s.id); delete codeMap[s.code]; fb.deleteDoc(fb.doc(fb.db, 'articoli', s.id)).catch(() => {}); }
+  else { if (a) a.giacenza = qtaOf(a) - s.qta; fb.updateDoc(fb.doc(fb.db, 'articoli', s.id), {giacenza: fb.increment(-s.qta)}).catch(() => {}); }
+  fb.deleteDoc(fb.doc(fb.db, 'movimenti', mid)).catch(() => {});
+  magFlash('undo', 'Sparo annullato.'); refreshMagazzino();
+}
+function magFlash(kind, msg){ const f = $('#scanFlash'); if (!f) return; f.className = 'scanflash k-' + kind; f.textContent = msg; }
+function mountMagazzino(){
+  const tab = (t, icon, label, pill) => `<button role="tab" data-act="mag-tab" data-tab="${t}" aria-selected="${magTab === t}">${ic(icon, 16)}${label}${pill || ''}</button>`;
+  const head = `<div class="pagehead"><div><h2>Magazzino</h2><p class="sub">Somfy e BFT: carico con la pistola, giacenze e correzioni</p></div></div>
+    <div class="subnav" role="tablist" aria-label="Sezioni del magazzino">${tab('carico', 'scan', 'Carico rapido')}${tab('articoli', 'box', 'Articoli', '<span class="pill" id="magCntA">0</span>')}${tab('abbinare', 'alert', 'Da abbinare', '<span class="pill warn" id="magCntD">0</span>')}</div>`;
+  let body = '';
+  if (magTab === 'carico') {
+    body = `<section class="panel scanpanel">
+      <form id="scanForm" autocomplete="off"><div class="scanrow">
+        <label class="field scanfield"><span>Spara il codice a barre</span><input id="scanIn" name="code" inputmode="none" autocomplete="off" spellcheck="false" placeholder="In attesa della pistola…"></label>
+        <label class="field qtyfield"><span>Pezzi</span><input id="scanQta" name="qta" type="number" min="1" max="9999" value="1" inputmode="numeric"></label>
+        <button class="btn primary" type="submit">Aggiungi</button></div></form>
+      <p class="scanstate" id="scanState"></p>
+      <div class="scanflash k-idle" id="scanFlash" role="status" aria-live="polite">Ogni sparo aggiunge i pezzi indicati. Per una confezione da 10, scrivi 10 in "Pezzi" prima di sparare.</div>
+    </section>
+    <section class="panel"><h2 class="panel-title">Ultimi spari</h2><div id="scanList"></div></section>`;
+  } else {
+    body = `<section class="panel"><div class="magtools"><label class="field" style="margin:0;flex:1"><span>Cerca (descrizione, codice articolo o codice a barre)</span><input type="search" id="magQ" value="${esc(magQ)}"></label>
+      ${magTab === 'articoli' ? `<label class="field" style="margin:0"><span>Mostra</span><select id="magFlt">${opts([['', 'Tutti'], ['zero', 'A zero o sotto'], ['nome', 'Con descrizione']], magFlt)}</select></label>` : ''}</div>
+      ${magTab === 'abbinare' ? `<p class="muted" style="margin:10px 0 0">Codici sparati che non sono ancora nel catalogo. Quando arriva l’Excel Somfy/BFT si abbinano in automatico; intanto puoi scrivere tu una descrizione.</p>` : ''}
+      <div id="artList" style="margin-top:12px"></div></section>`;
+  }
+  $('#app').innerHTML = head + body;
+  if (magTab === 'carico') setTimeout(() => { const i = $('#scanIn'); if (i) i.focus(); scanStateUpd(); }, 0);
+}
+function scanStateUpd(){
+  const st = $('#scanState'); if (!st) return;
+  const on = document.activeElement && document.activeElement.id === 'scanIn';
+  st.className = 'scanstate ' + (on ? 'on' : 'off');
+  st.innerHTML = on ? '● Pronto: spara il codice' : '● In pausa: <button class="linkbtn" data-act="scan-focus">tocca qui per riprendere a sparare</button>';
+}
+function artRow(a){
+  const q = qtaOf(a);
+  return `<button class="artrow${a.daAbbinare ? ' todo' : ''}" data-act="art-open" data-id="${esc(a.id)}">
+    <span class="art-main"><strong>${esc(artNome(a))}</strong><small>${[a.marca, a.codice ? 'Cod. ' + a.codice : '', (a.codici || []).join(', ')].filter(Boolean).map(esc).join(' · ')}</small></span>
+    <span class="art-q${q <= 0 ? ' zero' : ''}"><b>${q}</b><small>pz</small></span></button>`;
+}
+function refreshMagazzino(){
+  const ca = $('#magCntA'), cd = $('#magCntD');
+  if (ca) ca.textContent = articoli.filter(a => !a.daAbbinare).length;
+  if (cd) cd.textContent = daAbbinare().length;
+  const sl = $('#scanList');
+  if (sl) sl.innerHTML = scanLog.length ? `<div class="rows">` + scanLog.map(s => { const a = artById(s.id);
+      return `<div class="row${s.annullato ? ' st-fatto' : ''}"><div class="row-main"><strong>+${s.qta} ${esc(a ? artNome(a) : 'Codice ' + s.code)}</strong>${s.created ? ' <span class="tag late">Nuovo</span>' : ''}${s.annullato ? ' <span class="tag paused">Annullato</span>' : ''}
+        <small>${esc(s.code)} · ${esc(hhmm(new Date(s.t).toISOString()))}${a && !s.annullato ? ' · giacenza attuale ' + qtaOf(a) : ''}</small></div>
+        ${s.annullato ? '' : `<button class="btn small ghost" data-act="scan-undo" data-id="${esc(s.mid)}">Annulla</button>`}</div>`; }).join('') + `</div>`
+    : '<p class="muted">Ancora nessuno sparo in questa sessione.</p>';
+  const al = $('#artList');
+  if (al) {
+    const q = norm(magQ.trim());
+    let l = magTab === 'abbinare' ? daAbbinare() : articoli.filter(a => !a.daAbbinare);
+    if (magTab === 'articoli' && magFlt === 'zero') l = l.filter(a => qtaOf(a) <= 0);
+    if (magTab === 'articoli' && magFlt === 'nome') l = l.filter(a => a.descrizione);
+    if (q) l = l.filter(a => norm([a.descrizione, a.codice, a.marca, a.categoria].concat(a.codici || []).join(' ')).includes(q));
+    l = l.slice().sort((x, y) => artNome(x).localeCompare(artNome(y)));
+    al.innerHTML = l.length ? `<div class="artlist">${l.slice(0, 300).map(artRow).join('')}</div>${l.length > 300 ? `<p class="muted">Mostro i primi 300 di ${l.length}: affina la ricerca.</p>` : ''}`
+      : `<p class="muted">${magTab === 'abbinare' ? 'Nessun codice da abbinare.' : articoli.length ? 'Nessun articolo corrisponde.' : 'Ancora nessun articolo: inizia dal Carico rapido.'}</p>`;
+  }
+  renderArt();
+}
+/* scheda articolo */
+function artSubMov(id){
+  if (id === artMovKey) return;
+  if (artMovUnsub) { try { artMovUnsub(); } catch(e){} artMovUnsub = null; }
+  artMovKey = id || ''; artMov = [];
+  if (!id) return;
+  artMovUnsub = fb.onSnapshot(fb.query(fb.collection(fb.db, 'movimenti'), fb.where('articoloId', '==', id)), s => {
+    artMov = s.docs.map(d => d.data()).sort((a, b) => a.quando < b.quando ? 1 : -1); renderArt(); }, fbSnapErr);
+}
+function renderArt(){
+  let ov = $('#artOverlay');
+  const a = artId ? artById(artId) : null;
+  artSubMov(a ? a.id : '');
+  if (!a) { artId = null; if (ov) { ov.hidden = true; ov.innerHTML = ''; } return; }
+  if (!ov) { ov = document.createElement('div'); ov.id = 'artOverlay'; ov.className = 'overlay'; document.body.appendChild(ov); }
+  const keep = document.activeElement && ov.contains(document.activeElement) ? document.activeElement.id : '';
+  if (keep && ov.innerHTML) { /* l'utente sta scrivendo nella scheda: aggiorno solo lo storico */ const h = $('#artMovList'); if (h) h.innerHTML = artMovHtml(); return; }
+  const owner = role === 'titolare';
+  const marche = [['', 'Scegli…'], ['Somfy', 'Somfy'], ['BFT', 'BFT'], ['Altro', 'Altro']];
+  ov.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="Scheda articolo">
+    <div class="sheet-head"><div><p class="eyebrow">${a.daAbbinare ? 'Codice da abbinare' : 'Articolo'}</p><h2>${esc(artNome(a))}</h2></div>
+      <button class="icon-btn" data-act="art-close" aria-label="Chiudi">${ic('x', 20)}</button></div>
+    <div class="art-stock"><div><span class="muted">Giacenza</span><b class="${qtaOf(a) <= 0 ? 'zero' : ''}">${qtaOf(a)} pz</b></div>
+      ${owner ? `<button class="btn" data-act="rett-open">${ic('edit', 16)}Correggi giacenza</button>` : '<small class="muted">Le correzioni le fa il titolare.</small>'}</div>
+    <div id="rettBox" hidden></div>
+    <form id="artForm" data-id="${esc(a.id)}"><div class="fgrid">
+      <label class="field span2"><span>Descrizione</span><input id="artDesc" name="descrizione" maxlength="160" value="${esc(a.descrizione || '')}" placeholder="Es. Motore scorrevole BFT Deimos"></label>
+      <label class="field"><span>Marca</span><select id="artMarca" name="marca">${opts(marche, a.marca || '')}</select></label>
+      <label class="field"><span>Codice articolo (del produttore)</span><input id="artCod" name="codice" maxlength="40" value="${esc(a.codice || '')}"></label>
+      <label class="field span2"><span>Codici a barre abbinati</span><input id="artBar" name="codici" value="${esc((a.codici || []).join(', '))}"><small class="muted">Separati da virgola. Si riempiono da soli sparando.</small></label>
+    </div><div class="form-actions"><button class="btn primary" type="submit">${ic('check', 16)}Salva scheda</button>
+      ${owner ? `<button class="btn danger" type="button" data-act="art-del" data-id="${esc(a.id)}">${ic('trash', 16)}Elimina articolo</button>` : ''}</div></form>
+    <h3 class="panel-title" style="margin-top:18px">Movimenti</h3><div id="artMovList">${artMovHtml()}</div></div>`;
+  ov.hidden = false;
+}
+function artMovHtml(){
+  if (!artMov.length) return '<p class="muted">Nessun movimento registrato.</p>';
+  const lab = {carico: 'Entrata', scarico: 'Uscita', rettifica: 'Correzione'}, mot = Object.fromEntries(MOTIVI_RETT);
+  return `<div class="rows">` + artMov.slice(0, 50).map(m => `<div class="row"><div class="row-main"><strong>${lab[m.tipo] || m.tipo} ${m.qta > 0 ? '+' : ''}${m.qta}</strong>${m.tipo === 'rettifica' ? ` <span class="muted">(${m.prima} → ${m.dopo} pz · ${esc(mot[m.motivo] || m.motivo || '')})</span>` : ''}
+    <small>${esc(whenTxt(m.quando))}${m.chi ? ' · ' + esc(m.chi) : ''}${m.nota ? ' · ' + esc(m.nota) : ''}</small></div></div>`).join('') + `</div>`;
+}
+function openRett(){
+  const a = artById(artId), b = $('#rettBox'); if (!a || !b) return;
+  b.hidden = false;
+  b.innerHTML = `<div class="rettbox"><h4>Correggi giacenza</h4><p class="muted" style="margin:0">Adesso risultano <b>${qtaOf(a)}</b> pezzi. Scrivi quanti ce ne sono davvero.</p>
+    <div class="fgrid"><label class="field"><span>Pezzi reali</span><input id="rettQ" type="number" min="0" max="99999" inputmode="numeric" value="${qtaOf(a)}"></label>
+    <label class="field"><span>Motivo</span><select id="rettM">${opts(MOTIVI_RETT, 'conteggio')}</select></label>
+    <label class="field span2"><span>Nota (facoltativa)</span><input id="rettN" maxlength="120" placeholder="Es. trovato danneggiato in furgone"></label></div>
+    <div class="form-actions"><button class="btn primary" data-act="rett-ok">Conferma correzione</button><button class="btn" data-act="rett-cancel">Annulla</button></div></div>`;
+  const i = $('#rettQ'); if (i) { i.focus(); i.select(); }
+}
+function doRett(){
+  const a = artById(artId); if (!a || role !== 'titolare') return;
+  const v = parseInt(($('#rettQ') || {}).value, 10), m = ($('#rettM') || {}).value || 'altro', nota = String(($('#rettN') || {}).value || '').trim().slice(0, 120);
+  if (!isFinite(v) || v < 0) { toast('Scrivi un numero di pezzi valido.'); return; }
+  const prima = qtaOf(a), d = v - prima;
+  if (!d) { toast('La giacenza è già ' + v + ': niente da correggere.'); const b = $('#rettBox'); if (b) b.hidden = true; return; }
+  a.giacenza = v;
+  fb.updateDoc(fb.doc(fb.db, 'articoli', a.id), {giacenza: v}).catch(() => toast('Non sono riuscito a salvare la correzione.'));
+  const mid = newId('m');
+  fb.setDoc(fb.doc(fb.db, 'movimenti', mid), {id: mid, articoloId: a.id, tipo: 'rettifica', qta: d, prima, dopo: v, motivo: m, nota, chi: chiSono(), quando: new Date().toISOString()})
+    .catch(e => toast(e && e.code === 'permission-denied' ? 'Solo il titolare può correggere la giacenza.' : 'Correzione non registrata nello storico.'));
+  toast('Giacenza corretta: ' + prima + ' → ' + v + ' pz.');
+  const ov = $('#artOverlay'); if (ov) ov.innerHTML = ''; renderArt(); refreshMagazzino();
+}
+function saveArt(f){
+  const a = artById(f.dataset.id); if (!a) return;
+  const fd = new FormData(f);
+  const codici = String(fd.get('codici') || '').split(/[,;\n]/).map(normCode).filter(Boolean).filter((c, i, arr) => arr.indexOf(c) === i);
+  const clash = codici.find(c => codeMap[c] && codeMap[c] !== a.id);
+  if (clash) { toast('Il codice ' + clash + ' è già abbinato a «' + artNome(artById(codeMap[clash])) + '».'); return; }
+  const patch = {descrizione: String(fd.get('descrizione') || '').trim().slice(0, 160), marca: String(fd.get('marca') || ''), codice: normCode(fd.get('codice')).slice(0, 40), codici};
+  if (patch.descrizione && a.daAbbinare) patch.daAbbinare = false;
+  Object.assign(a, patch); buildCodeMap();
+  fb.updateDoc(fb.doc(fb.db, 'articoli', a.id), patch).catch(() => toast('Non sono riuscito a salvare la scheda.'));
+  toast(patch.daAbbinare === false ? 'Scheda salvata: l’articolo passa tra gli Articoli.' : 'Scheda salvata.');
+  const ov = $('#artOverlay'); if (ov) ov.innerHTML = ''; renderArt(); refreshMagazzino();
 }
 
 /* ---------- centro notifiche ---------- */
@@ -2401,6 +2615,8 @@ function notifyCheck(){
   updateBell();
 }
 setInterval(() => { if (authState === 'ready') notifyCheck(); }, 60000);
+document.addEventListener('focusin', scanStateUpd); document.addEventListener('focusout', () => setTimeout(scanStateUpd, 0));
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && artId) { artId = null; renderArt(); } });
 document.addEventListener('click', e => { if (notifOpen && !e.target.closest('#npanel') && !e.target.closest('#bellBtn')) notifToggle(false); }, true);
 
 /* ---------- eventi ---------- */
@@ -2454,6 +2670,21 @@ document.addEventListener('click', e => {
       if (why.length < 3) { toast('Scrivi il motivo per cui non è stato fatto.'); if (n) n.focus(); break; }
       delete wNF[id]; setStato(id, 'non_fatto', why); toast('Segnato come non fatto. L’ufficio riceve l’avviso.');
       break;
+    }
+    case 'mag-tab': magTab = t.dataset.tab; mounted = null; render(); break;
+    case 'scan-focus': { const i = $('#scanIn'); if (i) i.focus(); scanStateUpd(); break; }
+    case 'scan-undo': undoScan(id); { const i = $('#scanIn'); if (i) i.focus(); } break;
+    case 'art-open': artId = id; renderArt(); break;
+    case 'art-close': artId = null; renderArt(); { const i = $('#scanIn'); if (i) i.focus(); } break;
+    case 'rett-open': openRett(); break;
+    case 'rett-cancel': { const b = $('#rettBox'); if (b) { b.hidden = true; b.innerHTML = ''; } break; }
+    case 'rett-ok': doRett(); break;
+    case 'art-del': {
+      const a = artById(id); if (!a || role !== 'titolare') break;
+      if (t.dataset.armed !== '1') { t.dataset.armed = '1'; t.textContent = 'Tocca ancora per eliminare'; break; }
+      articoli = articoli.filter(x => x.id !== id); buildCodeMap(); artId = null; renderArt(); refreshMagazzino();
+      fb.deleteDoc(fb.doc(fb.db, 'articoli', id)).catch(() => toast('Non sono riuscito a eliminare l’articolo.'));
+      toast('Articolo eliminato.'); break;
     }
     case 'notif': notifToggle(); break;
     case 'notif-close': notifToggle(false); break;
@@ -2534,6 +2765,7 @@ document.addEventListener('click', e => {
 document.addEventListener('change', e => {
   const t = e.target;
   if (t.id === 'dateInput') setDate(t.value);
+  else if (t.id === 'magFlt') { magFlt = t.value; refreshMagazzino(); }
   else if (t.id === 'wzWorker') { wzWorker = t.value; render(); }
   else if (t.id === 'wzDate') { if (t.value) { wzDate = t.value; render(); } }
   else if (t.id === 'fVia') scheduleMaps(true);
@@ -2564,6 +2796,7 @@ document.addEventListener('input', e => {
   const t = e.target;
   if (t.id === 'fCliente') { updateClienteLink(e.inputType === 'insertReplacementText'); return; }
   if (t.id === 'anaQ') { anaQ = t.value; refreshAnagrafica(); return; }
+  if (t.id === 'magQ') { magQ = t.value; refreshMagazzino(); return; }
   if (t.form && t.form.id === 'clienteForm') { cliWarnLive(t.form); return; }
   if (t.id === 'fVia') { acRefresh(); if (mapsAuto) scheduleMaps(false); return; }
   if (t.id === 'fMaps') { mapsAuto = t.value.trim() === ''; updateMapsHint(); return; }
@@ -2583,6 +2816,8 @@ document.addEventListener('submit', e => {
   else if (f.id === 'workerForm') saveWorker(f);
   else if (f.id === 'clienteForm') saveCliente(f);
   else if (f.id === 'loginForm') doAuth(f);
+  else if (f.id === 'scanForm') { const i = $('#scanIn'), q = $('#scanQta'); const v = i ? i.value : ''; if (i) i.value = ''; scanCode(v, q ? q.value : 1); if (q) q.value = 1; if (i) i.focus(); }
+  else if (f.id === 'artForm') saveArt(f);
   else if (f.id === 'aziendaForm') saveAzienda(f);
 });
 document.addEventListener('keydown', e => {
@@ -2737,6 +2972,7 @@ function stopSubs(){
   fotoStop(); srvSnap = {}; notifToggle(false);
   unsubs.forEach(u => { try { u(); } catch(e){} });
   unsubs = []; usingDb = false;
+  articoli = []; codeMap = {}; scanLog = []; artId = null; if (artMovUnsub) { try { artMovUnsub(); } catch(e){} artMovUnsub = null; artMovKey = ''; }
   workers = []; jobs = []; rawJobs = []; fattMap = {}; tipi = []; clienti = []; prefatture = []; azienda = {}; utenti = [];
 }
 function fbSnapErr(err){
@@ -2757,6 +2993,7 @@ function startSubs(){
     list('fatturazione', s => { fattMap = {}; s.docs.forEach(d => { fattMap[d.id] = d.data(); }); rebuildJobs(); });
     list('tipi', s => { tipi = s.docs.map(d => d.data()); });
     list('clienti', s => { clienti = s.docs.map(d => d.data()); });
+    list('articoli', s => { articoli = s.docs.map(d => d.data()); buildCodeMap(); });
     list('prefatture', s => { prefatture = s.docs.map(d => d.data()); });
     list('impostazioni', s => { azienda = s.docs.map(d => d.data()).find(x => x.id === 'azienda') || {}; });
     if (role === 'titolare') list('utenti', s => { utenti = s.docs.map(d => Object.assign({uid: d.id}, d.data())); });
