@@ -539,6 +539,9 @@ html,body{overflow-x:hidden}
 .camframe{position:relative;width:78vw;max-width:420px;height:30vh;border:3px solid #fff;border-radius:14px;box-shadow:0 0 0 100vmax rgba(0,0,0,.45)}
 .camoverlay p{position:absolute;top:calc(18px + env(safe-area-inset-top,0px));color:#fff;font-weight:600}
 .camoverlay .btn{position:absolute;bottom:calc(24px + env(safe-area-inset-bottom,0px))}
+.invpanel{border:2px solid var(--brand)}
+.tbl td.neg{color:var(--bad-text);font-weight:700}.tbl td.pos{color:var(--ok-text);font-weight:700}
+.pf-addmat{justify-self:start;margin-top:2px}
 </style>
 </head>
 <body>
@@ -667,7 +670,7 @@ const capOf = () => DAY_CAP;
 let workers = [], jobs = [], tipi = [], clienti = [], prefatture = [], azienda = {};
 let view = 'panoramica', mounted = null;
 let articoli = [], codeMap = {};            // magazzino: articoli e codice a barre -> articolo
-let magTab = 'carico', magQ = '', magFlt = '', artId = null, artMov = [], artMovUnsub = null, artMovKey = '';
+let magTab = 'carico', magQ = '', magFlt = '', inv = null, artId = null, artMov = [], artMovUnsub = null, artMovKey = '';
 let scanLog = [];
 let materiali = [], matLoaded = false, artLoaded = false, matBusy = {};   // ufficio: materiale aperto (da scaricare/verificare/pre-fatturare)
 let matW = {}, matUnsubW = null, matKeyW = '', matD = {}, matUnsubD = null, matKeyD = '', wMat = {};
@@ -1151,7 +1154,6 @@ function viewPanoramica(){
   if (un.length) al.push(['warn', 'users', `${plural(un.length, 'intervento da assegnare', 'interventi da assegnare')}`, 'Assegna']);
   const urg = day.filter(j => j.priorita === 'urgente' && !isClosed(stOf(j))).length;
   const nfd = day.filter(j => stOf(j) === 'non_fatto').length;
-  if (canWrite && matDaVerificare().length) al.push(['warn', 'box', `${plural(matDaVerificare().length, 'materiale usato da verificare', 'materiali usati da verificare')}`, 'Pre-fatturazione', 'prefat']);
   if (nfd) al.push(['bad', 'alert', `${plural(nfd, 'intervento non fatto', 'interventi non fatti')} in questa giornata`, 'Vedi', 'archivio']);
   if (urg) al.push(['bad', 'zap', `${plural(urg, 'intervento urgente aperto', 'interventi urgenti aperti')}`, 'Vedi']);
   workers.filter(isActive).forEach(w => { const m = loadOf(w, day); if (m > capOf(w)) al.push(['warn', 'alert', `${esc(w.nome)}: ${esc(fmtDur(m))} in programma, oltre le 8 ore`, 'Riequilibra']); });
@@ -2124,8 +2126,8 @@ function pfGroupHtml(g){
     <div class="pf-rows">${g.jobs.map(j => `<label class="pf-row"><input type="checkbox" data-act="pf-sel" data-id="${esc(j.id)}"${pfOff.has(j.id) ? '' : ' checked'}>
       <div class="pf-main"><strong>${esc(j.tipo || 'Intervento')}</strong><small>${esc(dmy(j.data))} · ${esc(j.via)}${j.noteFatt ? ' · ' + esc(j.noteFatt) : ''}</small></div>
       <div class="pf-imp">${importoOf(j) === 0 ? '<span class="tag late">Importo mancante</span>' : ''}${esc(fmtEur(importoOf(j)))}</div></label>
-      ${matBillable(j.id).length ? `<div class="pf-mats">${matBillable(j.id).map(m => { const pr = matPrezzo(m); return `<div class="pf-mat"><span>${esc(m.qta)} × ${esc(m.descrizione || m.codice)} <small class="muted">${esc(m.codice)}</small>${m.verificato ? '' : ' <span class="tag late">Da verificare</span>'}${pr === null ? ' <span class="tag late">Prezzo mancante</span>' : ''}</span><span>${esc(fmtEur((Number(m.qta) || 0) * (pr || 0)))}</span></div>`; }).join('')}
-        ${matBillable(j.id).some(m => !m.verificato) ? `<button class="btn small" data-act="open-job" data-id="${esc(j.id)}">Verifica materiale</button>` : ''}</div>` : ''}`).join('')}</div>
+      <div class="pf-mats">${matBillable(j.id).map(m => { const pr = matPrezzo(m); return `<div class="pf-mat"><span>${esc(m.qta)} × ${esc(m.descrizione || m.codice)} <small class="muted">${esc(m.codice)}</small>${pr === null ? ' <span class="tag late">Prezzo mancante</span>' : ''}</span><span>${esc(fmtEur((Number(m.qta) || 0) * (pr || 0)))}</span></div>`; }).join('')}
+        <button class="btn small ghost pf-addmat" data-act="pf-mat" data-id="${esc(j.id)}">${ic('plus', 14)}${matBillable(j.id).length ? 'Modifica materiale' : 'Materiale usato'}</button></div>`).join('')}</div>
     <div class="pf-foot">
       <label class="field" style="margin:0"><span>Aliquota IVA</span><select data-act="pf-iva" data-key="${esc(g.key)}">${IVA_OPTS.map(([v, l]) => `<option value="${v}"${v === iva ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
       <div class="pf-sum"><span>Imponibile ${esc(fmtEur(t.imponibile))}</span><span>IVA ${esc(fmtEur(t.ivaImporto))}</span><strong>Totale ${esc(fmtEur(t.totale))}</strong></div>
@@ -2463,14 +2465,13 @@ function undoScan(mid){
 }
 function magFlash(kind, msg){ const f = $('#scanFlash'); if (!f) return; f.className = 'scanflash k-' + kind; f.textContent = msg; }
 function mountMagazzino(){
+  if (magTab !== 'carico' && magTab !== 'inventario') magTab = 'carico';
   const tab = (t, icon, label, pill) => `<button role="tab" data-act="mag-tab" data-tab="${t}" aria-selected="${magTab === t}">${ic(icon, 16)}${label}${pill || ''}</button>`;
-  const head = `<div class="pagehead"><div><h2>Magazzino</h2><p class="sub">Somfy e BFT: carico con la pistola, giacenze e correzioni</p></div></div>
-    <div class="subnav" role="tablist" aria-label="Sezioni del magazzino">${tab('carico', 'scan', 'Carico rapido')}${tab('articoli', 'box', 'Articoli', '<span class="pill" id="magCntA">0</span>')}${tab('abbinare', 'alert', 'Da abbinare', '<span class="pill warn" id="magCntD">0</span>')}${tab('catalogo', 'filetext', 'Catalogo listini', '<span class="pill" id="magCntL">0</span>')}</div>`;
+  const head = `<div class="pagehead"><div><h2>Magazzino</h2><p class="sub">Somfy e BFT: entrate con la pistola e controllo della merce</p></div></div>
+    <div class="subnav" role="tablist" aria-label="Sezioni del magazzino">${tab('carico', 'scan', 'Carico merci')}${tab('inventario', 'box', 'Inventario', '<span class="pill" id="magCntA">0</span>')}</div>`;
   let body = '';
-  if (magTab === 'catalogo') {
-    body = catalogoHtml();
-  } else if (magTab === 'carico') {
-    body = `<section class="panel scanpanel">
+  if (magTab === 'carico') {
+    body = `<section class="panel scanpanel"><h2 class="panel-title">Merce entrata</h2>
       <form id="scanForm" autocomplete="off"><div class="scanrow">
         <label class="field scanfield"><span>Spara il codice a barre</span><input id="scanIn" name="code" inputmode="none" autocomplete="off" spellcheck="false" placeholder="In attesa della pistola…"></label>
         <label class="field qtyfield"><span>Pezzi</span><input id="scanQta" name="qta" type="number" min="1" max="9999" value="1" inputmode="numeric"></label>
@@ -2478,15 +2479,27 @@ function mountMagazzino(){
       <p class="scanstate" id="scanState"></p>
       <div class="scanflash k-idle" id="scanFlash" role="status" aria-live="polite">Ogni sparo aggiunge i pezzi indicati. Per una confezione da 10, scrivi 10 in "Pezzi" prima di sparare.</div>
     </section>
+    <section class="panel"><h2 class="panel-title">Merce senza codice a barre</h2>
+      <label class="field" style="margin:0"><span>Cerca nel catalogo Somfy/BFT e carica i pezzi</span><input type="search" id="catQ" value="${esc(catQ)}" placeholder="Codice o descrizione"></label>
+      <div id="catRes" style="margin-top:12px">${catResHtml()}</div></section>
     <section class="panel"><h2 class="panel-title">Ultimi spari</h2><div id="scanList"></div></section>`;
   } else {
-    body = `<section class="panel"><div class="magtools"><label class="field" style="margin:0;flex:1"><span>Cerca (descrizione, codice articolo o codice a barre)</span><input type="search" id="magQ" value="${esc(magQ)}"></label>
-      ${magTab === 'articoli' ? `<label class="field" style="margin:0"><span>Mostra</span><select id="magFlt">${opts([['', 'Tutti'], ['zero', 'A zero o sotto'], ['nome', 'Con descrizione']], magFlt)}</select></label>` : ''}</div>
-      ${magTab === 'abbinare' ? `<p class="muted" style="margin:10px 0 0">Codici sparati che non sono ancora nel catalogo. Quando arriva l’Excel Somfy/BFT si abbinano in automatico; intanto puoi scrivere tu una descrizione.</p>` : ''}
-      <div id="artList" style="margin-top:12px"></div></section>`;
+    body = `${inv ? invPanelHtml() : ''}
+    <section class="panel"><div class="split"><h2 class="panel-title" style="margin:0">Giacenze</h2>
+        ${inv ? '' : `<button class="btn primary" data-act="inv-start">${ic('scan', 16)}Conteggio inventario</button>`}</div>
+      <div class="magtools" style="margin-top:12px"><label class="field" style="margin:0;flex:1"><span>Cerca (descrizione, codice articolo o codice a barre)</span><input type="search" id="magQ" value="${esc(magQ)}"></label>
+        <label class="field" style="margin:0"><span>Mostra</span><select id="magFlt">${opts([['', 'Tutti gli articoli'], ['abbinare', 'Codici da abbinare'], ['zero', 'A zero o sotto zero']], magFlt)}</select></label></div>
+      <div id="abbNote"></div>
+      <div id="artList" style="margin-top:12px"></div></section>
+    <details class="panel smart-panel" id="lstPanel"><summary>${ic('filetext', 20)}Listini Somfy / BFT <span class="pill" id="magCntL">0</span></summary>
+      <div class="inner"><div class="split"><span class="muted">Prezzi e descrizioni degli articoli. Ogni anno reimporti i listini nuovi.</span>
+        ${role === 'titolare' ? `<label class="btn">${ic('download', 16)}Importa Excel<input type="file" id="impFile" accept=".xlsx,.csv" hidden></label>` : ''}</div>
+        <div id="catInfo" style="margin-top:10px">${catInfoHtml()}</div></div></details>`;
   }
   $('#app').innerHTML = head + body;
+  if (impPrev) { const d = $('#lstPanel'); if (d) d.open = true; }
   if (magTab === 'carico') setTimeout(() => { const i = $('#scanIn'); if (i) i.focus(); scanStateUpd(); }, 0);
+  if (magTab === 'inventario' && inv) setTimeout(() => { const i = $('#invIn'); if (i) i.focus(); }, 0);
 }
 function scanStateUpd(){
   const st = $('#scanState'); if (!st) return;
@@ -2501,11 +2514,15 @@ function artRow(a){
     <span class="art-q${q <= 0 ? ' zero' : ''}"><b>${q}</b><small>pz${listPrice(a) !== null ? ' · ' + esc(fmtEur(listPrice(a))) : ''}</small></span></button>`;
 }
 function refreshMagazzino(){
-  const ca = $('#magCntA'), cd = $('#magCntD'), cl = $('#magCntL');
+  const ca = $('#magCntA'), cd = null, cl = $('#magCntL');
+  const an = $('#abbNote'); if (an) { const n = daAbbinare().length;
+    an.innerHTML = magFlt === 'abbinare' ? '<p class="muted" style="margin:10px 0 0">Codici sparati che non sono nel listino: aprili e abbinali all’articolo giusto (o scrivi tu la descrizione). Da lì in poi la pistola li riconosce.</p>'
+      : n ? `<div class="notice" style="margin:10px 0 0"><span>${plural(n, 'codice da abbinare', 'codici da abbinare')} tra quelli sparati.</span><button class="btn small" data-act="mag-flt" data-f="abbinare">Mostra</button></div>` : ''; }
+  const il = $('#invList'); if (il) il.innerHTML = invListHtml();
   if (cl) cl.textContent = listArr.length;
   const cr = $('#catRes'); if (cr) cr.innerHTML = catResHtml();
   const ci = $('#catInfo'); if (ci) ci.innerHTML = catInfoHtml();
-  if (ca) ca.textContent = articoli.filter(a => !a.daAbbinare).length;
+  if (ca) ca.textContent = articoli.length;
   if (cd) cd.textContent = daAbbinare().length;
   const sl = $('#scanList');
   if (sl) sl.innerHTML = scanLog.length ? `<div class="rows">` + scanLog.map(s => { const a = artById(s.id);
@@ -2516,13 +2533,12 @@ function refreshMagazzino(){
   const al = $('#artList');
   if (al) {
     const q = norm(magQ.trim());
-    let l = magTab === 'abbinare' ? daAbbinare() : articoli.filter(a => !a.daAbbinare);
-    if (magTab === 'articoli' && magFlt === 'zero') l = l.filter(a => stockOf(a) <= 0);
-    if (magTab === 'articoli' && magFlt === 'nome') l = l.filter(a => a.descrizione);
+    let l = magFlt === 'abbinare' ? daAbbinare() : articoli.slice();
+    if (magFlt === 'zero') l = l.filter(a => stockOf(a) <= 0);
     if (q) l = l.filter(a => norm([a.descrizione, a.codice, a.marca, a.categoria].concat(a.codici || []).join(' ')).includes(q));
     l = l.slice().sort((x, y) => artNome(x).localeCompare(artNome(y)));
     al.innerHTML = l.length ? `<div class="artlist">${l.slice(0, 300).map(artRow).join('')}</div>${l.length > 300 ? `<p class="muted">Mostro i primi 300 di ${l.length}: affina la ricerca.</p>` : ''}`
-      : `<p class="muted">${magTab === 'abbinare' ? 'Nessun codice da abbinare.' : articoli.length ? 'Nessun articolo corrisponde.' : 'Ancora nessun articolo: inizia dal Carico rapido.'}</p>`;
+      : `<p class="muted">${magFlt === 'abbinare' ? 'Nessun codice da abbinare.' : articoli.length ? 'Nessun articolo corrisponde.' : 'Ancora nessun articolo: inizia da Carico merci.'}</p>`;
   }
   renderArt();
 }
@@ -2604,6 +2620,69 @@ function saveArt(f){
   fb.updateDoc(fb.doc(fb.db, 'articoli', a.id), patch).catch(() => toast('Non sono riuscito a salvare la scheda.'));
   toast(patch.daAbbinare === false ? 'Scheda salvata: l’articolo passa tra gli Articoli.' : 'Scheda salvata.');
   const ov = $('#artOverlay'); if (ov) ov.innerHTML = ''; renderArt(); refreshMagazzino();
+}
+
+/* ---------- Inventario: conteggio con la pistola e correzioni ---------- */
+const INV_KEY = 'effebi-inventario-v1';
+function invLoad(){ try { const o = JSON.parse(localStorage.getItem(INV_KEY) || 'null'); if (o && o.counts) inv = o; } catch(e){} }
+function invSave(){ try { if (inv) localStorage.setItem(INV_KEY, JSON.stringify(inv)); else localStorage.removeItem(INV_KEY); } catch(e){} }
+function invRows(){
+  return Object.keys(inv ? inv.counts : {}).map(k => { const a = k.startsWith('c:') ? null : artById(k);
+    return {k, a, code: k.startsWith('c:') ? k.slice(2) : '', n: inv.counts[k], sys: a ? stockOf(a) : 0}; });
+}
+function invScan(raw, qRaw){
+  const code = normCode(raw), q = Math.max(1, Math.min(9999, parseInt(qRaw, 10) || 1)); if (!code || !inv) return;
+  let id = codeMap[code];
+  if (!id && listMap[code]) {   // articolo del listino mai caricato: lo creo a giacenza 0, il conteggio dirà quanti sono
+    const L = listMap[code]; id = newId('a');
+    const a = {id, codici: [code], codice: L.c, descrizione: L.d, marca: L.m, categoria: L.f === 'ricambi' ? 'Ricambi' : '', giacenza: 0, daAbbinare: false, creato: new Date().toISOString()};
+    articoli.push(a); buildCodeMap(); fb.setDoc(fb.doc(fb.db, 'articoli', id), a).catch(() => {});
+  }
+  const k = id || 'c:' + code; inv.counts[k] = (inv.counts[k] || 0) + q; invSave();
+  const a = id ? artById(id) : null; beep(!!a);
+  const f = $('#invFlash'); if (f) { f.className = 'scanflash k-' + (a ? 'ok' : 'new'); f.textContent = a ? `${artNome(a)}: contati ${inv.counts[k]} (a sistema ${stockOf(a)})` : `Codice ${code} sconosciuto: contati ${inv.counts[k]}. Diventerà un codice da abbinare.`; }
+  const il = $('#invList'); if (il) il.innerHTML = invListHtml();
+}
+function invListHtml(){
+  const r = invRows(); if (!r.length) return '<p class="muted" style="margin:0">Ancora nessun pezzo contato.</p>';
+  const diff = r.filter(x => x.n !== x.sys).length;
+  return `<div class="tbl-wrap"><table class="tbl"><tr><th>Articolo</th><th style="text-align:right">A sistema</th><th style="text-align:right">Contati</th><th style="text-align:right">Differenza</th><th></th></tr>
+    ${r.map(x => { const d = x.n - x.sys; return `<tr><td><strong>${esc(x.a ? artNome(x.a) : 'Codice ' + x.code)}</strong>${x.a ? '' : ' <span class="tag late">Nuovo</span>'}</td>
+      <td style="text-align:right">${x.sys}</td><td style="text-align:right"><b>${x.n}</b></td>
+      <td style="text-align:right" class="${d ? (d < 0 ? 'neg' : 'pos') : ''}">${d > 0 ? '+' : ''}${d}</td>
+      <td style="white-space:nowrap"><button class="btn small ghost" data-act="inv-d" data-k="${esc(x.k)}" data-d="-1" aria-label="Uno in meno">−</button><button class="btn small ghost" data-act="inv-d" data-k="${esc(x.k)}" data-d="1" aria-label="Uno in più">+</button></td></tr>`; }).join('')}</table></div>
+    <p class="muted" style="margin:8px 0 0">${plural(r.length, 'articolo contato', 'articoli contati')}, ${plural(diff, 'con differenza', 'con differenza')}. Gli articoli che non conti restano come sono.</p>`;
+}
+function invPanelHtml(){
+  const owner = role === 'titolare';
+  return `<section class="panel invpanel"><div class="split"><h2 class="panel-title" style="margin:0">Conteggio inventario</h2><small class="muted">iniziato ${esc(whenTxt(inv.start))}</small></div>
+    <p class="muted" style="margin:6px 0 10px">Spara ogni pezzo che trovi sullo scaffale. Alla fine il gestionale confronta i pezzi contati con quelli a sistema.</p>
+    <form id="invForm" autocomplete="off"><div class="scanrow">
+      <label class="field scanfield"><span>Spara il codice a barre</span><input id="invIn" inputmode="none" autocomplete="off" spellcheck="false" placeholder="In attesa della pistola…"></label>
+      <label class="field qtyfield"><span>Pezzi</span><input id="invQta" type="number" min="1" max="9999" value="1" inputmode="numeric"></label>
+      <button class="btn primary" type="submit">Conta</button></div></form>
+    <div class="scanflash k-idle" id="invFlash" role="status" aria-live="polite">Per una confezione da 10, scrivi 10 in "Pezzi" prima di sparare.</div>
+    <div id="invList" style="margin-top:12px">${invListHtml()}</div>
+    <div class="form-actions">${owner ? `<button class="btn primary" data-act="inv-apply">${ic('check', 16)}Applica le correzioni</button>` : '<small class="muted">Le correzioni le conferma il titolare: il conteggio resta salvato su questo computer.</small>'}
+      <button class="btn" data-act="inv-cancel">Annulla conteggio</button></div></section>`;
+}
+function invApply(){
+  if (!inv || role !== 'titolare') return;
+  const r = invRows(), when = new Date(), nota = 'Inventario del ' + when.toLocaleDateString('it-IT');
+  let n = 0;
+  r.forEach(x => {
+    let a = x.a;
+    if (!a) { const id = newId('a'); a = {id, codici: [x.code], codice: '', descrizione: '', marca: '', categoria: '', giacenza: 0, daAbbinare: true, creato: when.toISOString()};
+      articoli.push(a); fb.setDoc(fb.doc(fb.db, 'articoli', id), a).catch(() => {}); }
+    const prima = stockOf(a), d = x.n - prima, pend = qtaOf(a) - stockOf(a); if (!d) return;
+    a.giacenza = x.n + pend; n++;
+    fb.updateDoc(fb.doc(fb.db, 'articoli', a.id), {giacenza: x.n + pend}).catch(() => {});
+    const mid = newId('m');
+    fb.setDoc(fb.doc(fb.db, 'movimenti', mid), {id: mid, articoloId: a.id, tipo: 'rettifica', qta: d, prima, dopo: x.n, motivo: 'conteggio', nota, chi: chiSono(), quando: when.toISOString()}).catch(() => {});
+  });
+  buildCodeMap(); inv = null; invSave();
+  toast(n ? 'Inventario applicato: ' + plural(n, 'giacenza corretta', 'giacenze corrette') + '.' : 'Inventario chiuso: tutto corrispondeva.');
+  mounted = null; render();
 }
 
 /* ---------- Magazzino fase 2: listini Somfy/BFT ---------- */
@@ -2701,7 +2780,6 @@ async function doImport(){
   try {
     for (let i = 0; i < parts; i++) await fb.setDoc(fb.doc(fb.db, 'listino', f + '-' + (i + 1)), {id: f + '-' + (i + 1), fonte: f, parte: i + 1, items: P.items.slice(i * CH, (i + 1) * CH).map(x => ({c: x[0], d: x[1], p: x[2], m: x[3]}))});
     for (const d of old) if (Number(d.parte) > parts) await fb.deleteDoc(fb.doc(fb.db, 'listino', d.id));
-    await writeCatalogo(f, P.items.map(x => ({c: x[0], d: x[1], m: x[3]})));
     await fb.setDoc(fb.doc(fb.db, 'listino', 'info-' + f), {id: 'info-' + f, fonte: f, info: true, n: P.items.length, versione: P.versione, file: P.file, importato: new Date().toISOString(), chi: chiSono()});
   } catch(e) { toast('Import non riuscito: ' + ((e && e.code) || 'errore') + '. Riprova.'); return; }
   impPrev = null; toast(FONTI[f] + ' importato: ' + P.items.length + ' articoli.');
@@ -2748,7 +2826,7 @@ function catInfoHtml(){
   return h;
 }
 function catResHtml(){
-  if (!listArr.length) return `<p class="muted">${role === 'titolare' ? 'Importa i listini Somfy/BFT qui sopra per avere il catalogo completo.' : 'Il titolare non ha ancora importato i listini.'}</p>`;
+  if (!listArr.length) return `<p class="muted">${role === 'titolare' ? 'Importa i listini Somfy/BFT da Inventario → Listini per avere il catalogo.' : 'Il titolare non ha ancora importato i listini.'}</p>`;
   const l = catSearch(catQ, 60);
   if (!catQ.trim()) return `<p class="muted">${listArr.length} articoli nei listini. Cerca per codice o descrizione (es. «deimos 600», «2609184», «sonesse»).</p>`;
   if (!l.length) return '<p class="muted">Nessun articolo trovato.</p>';
@@ -2921,8 +2999,9 @@ function matPanelHtml(j){
       <label class="field" style="margin:0"><span>Numero di serie (motori e centraline, facoltativo)</span><input data-matser="${esc(j.id)}" maxlength="60" value="${esc(st.ser || '')}" autocomplete="off"></label>
       <div class="job-actions"><button class="btn primary" data-act="mat-ok" data-id="${esc(j.id)}">${ic('check', 16)}Registra</button><button class="btn" data-act="mat-back" data-id="${esc(j.id)}">Cambia articolo</button><button class="btn ghost" data-act="mat-close" data-id="${esc(j.id)}">Annulla</button></div></div>`;
   }
-  return `<div class="matadd"><div class="matsearch"><label class="field" style="margin:0;flex:1"><span>Cerca il materiale (nome o codice)</span><input type="search" data-matq="${esc(j.id)}" value="${esc(st.q || '')}" placeholder="es. fotocellula, deimos, 2609184" autocomplete="off"></label>
-      <button class="btn" data-act="mat-cam" data-id="${esc(j.id)}">${ic('scan', 16)}Inquadra codice</button></div>
+  return `<div class="matadd"><div class="matsearch"><label class="field" style="margin:0;flex:1"><span>Cerca il materiale (nome o codice)</span><input type="search" data-matq="${esc(j.id)}" value="${esc(st.q || '')}" placeholder="Nome, codice o sparo della pistola" autocomplete="off"></label>
+      ${'BarcodeDetector' in window ? `<button class="btn" data-act="mat-cam" data-id="${esc(j.id)}">${ic('scan', 16)}Inquadra codice</button>` : ''}</div>
+    <small class="muted">Puoi anche sparare il codice con la pistola: ogni sparo aggiunge un pezzo.</small>
     <div class="matres" data-matres="${esc(j.id)}">${matResHtml(j.id, res, st.q)}</div>
     <div class="job-actions"><button class="btn ghost" data-act="mat-close" data-id="${esc(j.id)}">Chiudi</button></div></div>`;
 }
@@ -2938,14 +3017,25 @@ function matStripWorker(j){
     ${wMat[j.id] ? matPanelHtml(j) : `<button class="btn ph-add" data-act="mat-open" data-id="${esc(j.id)}">${ic('plus', 16)}Aggiungi materiale</button>`}</div>`;
 }
 function matStripOffice(j){
-  const l = matOf(j.id).filter(m => !m.annullato);
+  const l = matOf(j.id).filter(m => !m.annullato), st = stOf(j);
   const locked = l.some(m => m.preFatturaId) || !!j.preFatturaId;
-  const toVer = l.filter(m => !m.verificato).length;
-  return `<div class="fotobox matbox"><div class="split"><span class="fl">Materiale usato${l.length ? ' (' + l.length + ')' : ''}</span>
-      ${!locked && toVer ? `<button class="btn small primary" data-act="mat-ver" data-id="${esc(j.id)}">${ic('check', 14)}Verifica materiale</button>` : (l.length && !toVer ? '<span class="tag type">Verificato</span>' : '')}</div>
-    ${l.length ? l.map(m => matRowHtml(m, {prezzi: true, tag: true, editQ: !locked, del: !locked})).join('') : '<p class="muted" style="margin:0">Nessun materiale registrato.</p>'}
-    ${locked ? '<small class="muted">Già in pre-fattura: non modificabile.</small>' : (wMat[j.id] ? matPanelHtml(j) : `<button class="btn small ph-add" data-act="mat-open" data-id="${esc(j.id)}">${ic('plus', 14)}Aggiungi materiale</button>`)}
-    ${stOf(j) === 'non_fatto' && l.length ? '<small class="muted">Intervento non fatto: il materiale è scaricato dal magazzino ma non va in pre-fattura.</small>' : ''}</div>`;
+  const canAdd = st === 'fatto' && !locked;
+  return `<div class="fotobox matbox" id="matBox"><span class="fl">Materiale usato${l.length ? ' (' + l.length + ')' : ''}</span>
+    ${l.map(m => matRowHtml(m, {prezzi: true, editQ: !locked, del: !locked})).join('')}
+    ${locked ? '<small class="muted">Già in pre-fattura: non modificabile.</small>'
+      : canAdd ? (wMat[j.id] ? matPanelHtml(j) : `<button class="btn small ph-add" data-act="mat-open" data-id="${esc(j.id)}">${ic('plus', 14)}Aggiungi materiale usato</button>`)
+      : `<small class="muted">${st === 'non_fatto' ? 'Intervento non fatto: niente materiale da pre-fatturare.' : 'Il materiale usato si aggiunge quando l’intervento è segnato «Fatto».'}</small>`}</div>`;
+}
+function matQuick(jid, raw){
+  const j = jobs.find(x => x.id === jid), st = wMat[jid]; if (!j || !st) return;
+  let v = matDaCodice(raw);
+  if (!v) { const r = matCerca(raw, 2); if (r.length === 1) v = r[0]; }
+  if (!v) { toast('Codice ' + String(raw).trim() + ' non trovato: cercalo per nome.'); return; }
+  const same = matOf(jid).find(m => !m.annullato && !m.seriale && normCode(m.codice) === normCode(v.codice));
+  if (same) { matSetQta(same, (Number(same.qta) || 0) + 1); toast('+1 ' + (same.descrizione || same.codice) + ' (ora ' + same.qta + ')'); }
+  else matAdd(j, v, 1, '');
+  st.q = ''; st.pick = null; renderDetail();
+  setTimeout(() => { const i = document.querySelector('input[data-matq="' + jid + '"]'); if (i) { i.value = ''; i.focus(); } }, 0);
 }
 /* lettura del codice a barre con la fotocamera del telefono */
 let camStream = null, camTimer = null;
@@ -3062,7 +3152,8 @@ function notifyCheck(){
 setInterval(() => { if (authState === 'ready') notifyCheck(); }, 60000);
 document.addEventListener('focusin', scanStateUpd); document.addEventListener('focusout', () => setTimeout(scanStateUpd, 0));
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && artId) { artId = null; renderArt(); }
-  if (e.key === 'Enter' && e.target && e.target.id === 'catQta') { e.preventDefault(); catCarica(catLoad, e.target.value); } });
+  if (e.key === 'Enter' && e.target && e.target.id === 'catQta') { e.preventDefault(); catCarica(catLoad, e.target.value); }
+  if (e.key === 'Enter' && e.target && e.target.dataset && e.target.dataset.matq) { e.preventDefault(); matQuick(e.target.dataset.matq, e.target.value); } });
 document.addEventListener('click', e => { if (notifOpen && !e.target.closest('#npanel') && !e.target.closest('#bellBtn')) notifToggle(false); }, true);
 
 /* ---------- eventi ---------- */
@@ -3147,7 +3238,13 @@ document.addEventListener('click', e => {
     case 'mat-q': { const st = wMat[id]; if (st) { st.qta = Math.max(1, Math.min(999, st.qta + Number(t.dataset.d))); render(); renderDetail(); } break; }
     case 'mat-ok': { const st = wMat[id], j = jobs.find(x => x.id === id); if (st && st.pick && j) { matAdd(j, st.pick, st.qta, st.ser); delete wMat[id]; render(); renderDetail(); } break; }
     case 'mat-del': { const m = matOf(t.dataset.job).find(x => x.id === t.dataset.mid); if (m) toast('Togliere «' + (m.descrizione || m.codice) + '»?', 'Togli', () => { matRemove(m); renderDetail(); }); break; }
-    case 'mat-ver': matVerifica(id); renderDetail(); break;
+    case 'pf-mat': detailId = id; wMat[id] = wMat[id] || {q: '', pick: null, qta: 1, ser: ''}; renderDetail();
+      setTimeout(() => { const b = $('#matBox'); if (b) b.scrollIntoView({block: 'center'}); const i = document.querySelector('input[data-matq="' + id + '"]'); if (i) i.focus(); }, 60); break;
+    case 'mag-flt': magFlt = t.dataset.f; mounted = null; render(); break;
+    case 'inv-start': inv = {start: new Date().toISOString(), counts: {}}; invSave(); mounted = null; render(); break;
+    case 'inv-cancel': if (t.dataset.armed !== '1') { t.dataset.armed = '1'; t.textContent = 'Tocca ancora per annullare'; break; } inv = null; invSave(); mounted = null; render(); break;
+    case 'inv-apply': if (t.dataset.armed !== '1') { t.dataset.armed = '1'; t.textContent = 'Tocca ancora per confermare'; break; } invApply(); break;
+    case 'inv-d': if (inv) { const k = t.dataset.k; inv.counts[k] = Math.max(0, (inv.counts[k] || 0) + Number(t.dataset.d)); invSave(); const il = $('#invList'); if (il) il.innerHTML = invListHtml(); } break;
     case 'mat-cam': { const jid = id; camScan(code => { const st = wMat[jid]; if (!st) return; const v = matDaCodice(code);
         if (v) { st.pick = v; st.qta = 1; } else { st.q = code; toast('Codice ' + code + ' non riconosciuto: cercalo per nome.'); } render(); renderDetail(); }); break; }
     case 'cam-x': camStop(); break;
@@ -3291,6 +3388,7 @@ document.addEventListener('submit', e => {
   else if (f.id === 'loginForm') doAuth(f);
   else if (f.id === 'scanForm') { const i = $('#scanIn'), q = $('#scanQta'); const v = i ? i.value : ''; if (i) i.value = ''; scanCode(v, q ? q.value : 1); if (q) q.value = 1; if (i) i.focus(); }
   else if (f.id === 'artForm') saveArt(f);
+  else if (f.id === 'invForm') { const i = $('#invIn'), q = $('#invQta'); const v = i ? i.value : ''; if (i) i.value = ''; invScan(v, q ? q.value : 1); if (q) q.value = 1; if (i) i.focus(); }
   else if (f.id === 'aziendaForm') saveAzienda(f);
 });
 document.addEventListener('keydown', e => {
@@ -3470,16 +3568,13 @@ function startSubs(){
     list('clienti', s => { clienti = s.docs.map(d => d.data()); });
     list('articoli', s => { articoli = s.docs.map(d => d.data()); buildCodeMap(); artLoaded = true; setTimeout(matConsolida, 0); });
     sub(fb.query(col('materiali'), fb.where('aperto', '==', true)), s => { materiali = s.docs.map(d => d.data()); matLoaded = true; setTimeout(matConsolida, 0); render(); });
-    list('listino', s => { listinoDocs = s.docs.map(d => d.data()); buildListino(); lstLoaded = true; setTimeout(ensureCatalogo, 0); });
-    list('catalogo', s => { catDocs = s.docs.map(d => d.data()); buildCatW(); catLoaded = true; setTimeout(ensureCatalogo, 0); });
+    list('listino', s => { listinoDocs = s.docs.map(d => d.data()); buildListino(); lstLoaded = true; });
     list('prefatture', s => { prefatture = s.docs.map(d => d.data()); });
     list('impostazioni', s => { azienda = s.docs.map(d => d.data()).find(x => x.id === 'azienda') || {}; });
     if (role === 'titolare') list('utenti', s => { utenti = s.docs.map(d => Object.assign({uid: d.id}, d.data())); });
   } else {
     sub(fb.query(col('interventi'), fb.where('workerId', '==', myWorkerId)), s => { rawJobs = s.docs.map(d => d.data()); takeSnap(s); setTimeout(notifyCheck, 0); rebuildJobs(); pickInitialDate(); sync(s); render(); });
     sub(fb.doc(fb.db, 'lavoratori', myWorkerId), s => { workers = s.exists() ? [s.data()] : []; render(); });
-    sub(col('articoli'), s => { articoli = s.docs.map(d => d.data()); buildCodeMap(); render(); });
-    sub(col('catalogo'), s => { catDocs = s.docs.map(d => d.data()); buildCatW(); render(); });
   }
 }
 function onAuth(user){
@@ -3686,7 +3781,6 @@ function wCard(j){
       ${href ? `<a class="btn" href="${esc(href)}" target="_blank" rel="noopener">${ic('pin', 16)}Mappa</a>` : ''}</div>
     ${wStatoHtml(j, st)}
     ${usingDb ? fotoStrip(j, {add: true, del: true}) : ''}
-    ${usingDb ? matStripWorker(j) : ''}
     <label class="field" style="margin:0"><span>Nota per l’ufficio</span><textarea data-wnote="1" data-id="${esc(j.id)}" maxlength="500" placeholder="Es. materiale usato, cliente assente…">${esc(j.noteLavoratore || '')}</textarea></label>
   </article>`;
 }
@@ -3708,7 +3802,7 @@ function viewOggi(){
 function renderWorkerApp(){
   $('#menu').innerHTML = `<button role="tab" aria-selected="true" data-act="go" data-view="oggi">${ic('clock', 18)}I miei interventi</button>`;
   $('#overlay').hidden = true;
-  fotoSubWorker(); matSubWorker();
+  fotoSubWorker();
   const a = document.activeElement, kAttr = a && a.dataset ? (a.dataset.wnote ? 'wnote' : a.dataset.causale ? 'causale' : a.dataset.matq ? 'matq' : a.dataset.matser ? 'matser' : '') : '';
   const keep = kAttr ? {id: a.dataset.id, v: a.value, s: a.selectionStart, e: a.selectionEnd} : null;
   const cz = {}; document.querySelectorAll('textarea[data-causale]').forEach(n => { cz[n.dataset.id] = n.value; });
@@ -3777,6 +3871,7 @@ $('#bellIc').innerHTML = ic('bell', 20);
 let savedTheme = null;
 try { savedTheme = localStorage.getItem(THEME_KEY); } catch(e){}
 applyTheme(savedTheme);
+invLoad();
 render();
 bootFirebase();
 /* ---------- app installabile (Android) ---------- */
