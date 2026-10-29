@@ -552,6 +552,11 @@ html,body{overflow-x:hidden}
 .row-open{all:unset;display:grid;gap:2px;flex:1;min-width:0;cursor:pointer;border-radius:8px}
 .row-open:hover strong{text-decoration:underline;text-decoration-color:var(--brand)}
 .row-open:focus-visible{outline:3px solid var(--brand);outline-offset:2px}
+.fsec{display:flex;align-items:center;gap:8px;font-size:15.5px;margin:18px 0 8px;padding-top:12px;border-top:1px solid var(--line);color:var(--ink)}
+.fsec:first-of-type{border-top:0;padding-top:0}
+.imp-row{border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px;background:var(--surface2);display:grid;gap:6px}
+.imp-row .btn{justify-self:start}
+.meta.warnx{color:var(--bad-text);font-weight:600}
 </style>
 </head>
 <body>
@@ -618,6 +623,7 @@ const ICONS = {
   search:'<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
   contact:'<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="11" r="2.5"/><path d="M5.5 17a4 4 0 0 1 7 0M15 9h3M15 13h3"/>',
   filetext:'<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/>',
+  condo:'<path d="M3 21h18M5 21V4h9v17M14 9h5v12M8 7.5h3M8 11h3M8 14.5h3M16.5 12.5h0M16.5 16h0"/>',
   building:'<rect x="4" y="3" width="16" height="18" rx="1"/><path d="M9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2"/>',
   user:'<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>'
 };
@@ -1164,6 +1170,8 @@ function viewPanoramica(){
   if (un.length) al.push(['warn', 'users', `${plural(un.length, 'intervento da assegnare', 'interventi da assegnare')}`, 'Assegna']);
   const urg = day.filter(j => j.priorita === 'urgente' && !isClosed(stOf(j))).length;
   const nfd = day.filter(j => stOf(j) === 'non_fatto').length;
+  if (canWrite) { const mm = clienti.filter(c => c.tipo === 'condominio').map(c => manutStato(c)).filter(m => m && (m.scaduta || m.vicina));
+    if (mm.length) al.push([mm.some(m => m.scaduta) ? 'bad' : 'warn', 'condo', `${plural(mm.length, 'manutenzione condominio', 'manutenzioni condominio')} scadute o entro 30 giorni`, 'Anagrafica', 'anagrafica']); }
   if (nfd) al.push(['bad', 'alert', `${plural(nfd, 'intervento non fatto', 'interventi non fatti')} in questa giornata`, 'Vedi', 'archivio']);
   if (urg) al.push(['bad', 'zap', `${plural(urg, 'intervento urgente aperto', 'interventi urgenti aperti')}`, 'Vedi']);
   workers.filter(isActive).forEach(w => { const m = loadOf(w, day); if (m > capOf(w)) al.push(['warn', 'alert', `${esc(w.nome)}: ${esc(fmtDur(m))} in programma, oltre le 8 ore`, 'Riequilibra']); });
@@ -1743,7 +1751,25 @@ const prezzoOf = nome => {
   return d ? d.prezzo : 0;
 };
 const importoOf = j => (j.importo !== undefined && j.importo !== null && j.importo !== '') ? round2(j.importo) : prezzoOf(j.tipo);
-const nomeCliente = c => !c ? '' : (c.tipo === 'azienda' ? (c.ragione || '') : [c.nome, c.cognome].filter(Boolean).join(' '));
+const isSoc = c => !!c && (c.tipo === 'azienda' || c.tipo === 'condominio');
+const nomeCliente = c => !c ? '' : (isSoc(c) ? (c.ragione || '') : [c.nome, c.cognome].filter(Boolean).join(' '));
+const TIPO_LABEL = {privato: 'Privato', azienda: 'Azienda', condominio: 'Condominio'};
+const tipoLabel = c => TIPO_LABEL[(c && c.tipo) || 'privato'] || 'Privato';
+const intestazioneCondo = c => (c.intestazione || '').trim() || (c.ragione || '') + (c.ammNome ? ' c/o ' + c.ammNome : '');
+/* amministratori già usati negli altri condomini (per non riscriverli) */
+function amministratori(){
+  const m = new Map();
+  clienti.filter(c => c.tipo === 'condominio' && c.ammNome).forEach(c => { const k = norm(c.ammNome); const o = m.get(k) || {nome: c.ammNome, n: 0}; o.n++;
+    ['ammTel', 'ammCell', 'ammEmail', 'ammPec', 'ammIndirizzo'].forEach(f => { if (c[f] && !o[f]) o[f] = c[f]; }); m.set(k, o); });
+  return [...m.values()].sort((a, b) => a.nome.localeCompare(b.nome));
+}
+const oggiISO = () => todayISO();
+function manutStato(c){   // impianto con la manutenzione più vicina
+  const l = (c.impianti || []).filter(i => i.prossima).sort((a, b) => a.prossima < b.prossima ? -1 : 1);
+  if (!l.length) return null;
+  const d = l[0].prossima, oggi = oggiISO(), tra30 = iso(new Date(Date.now() + 30 * 864e5));
+  return {data: d, imp: l[0], scaduta: d < oggi, vicina: d >= oggi && d <= tra30};
+}
 const clienteById = id => clienti.find(c => c.id === id) || null;
 const clienteByName = name => { const k = norm(String(name || '').trim()); return k ? (clienti.find(c => norm(nomeCliente(c)) === k) || null) : null; };
 function indirizzoCliente(c){
@@ -1773,6 +1799,8 @@ function clienteWarnings(o){
   const w = [];
   if (o.piva && !pivaOk(o.piva)) w.push('la partita IVA non risulta valida (11 cifre)');
   if (o.cf && !cfOk(o.cf)) w.push('il codice fiscale non ha il formato atteso');
+  if (o.tipo === 'condominio' && o.cf && /^\d{11}$/.test(o.cf) && !pivaOk(o.cf)) w.push('il codice fiscale del condominio non risulta valido');
+  if (o.ammPec && !mailOk(o.ammPec)) w.push('la PEC dell’amministratore non sembra valida');
   if (o.sdi && !/^[A-Z0-9]{7}$/i.test(o.sdi)) w.push('il codice destinatario ha 7 caratteri');
   if (o.pec && !mailOk(o.pec)) w.push('la PEC non sembra un indirizzo email');
   if (o.email && !mailOk(o.email)) w.push('l’email non sembra valida');
@@ -1786,7 +1814,7 @@ function linkJobsByName(c){
 }
 function clientiOptions(){
   return clienti.slice().sort((a, b) => nomeCliente(a).localeCompare(nomeCliente(b)))
-    .map(c => `<option value="${esc(nomeCliente(c))}" label="${c.tipo === 'azienda' ? 'Azienda' : 'Privato'}"></option>`).join('');
+    .map(c => `<option value="${esc(nomeCliente(c))}" label="${tipoLabel(c)}"></option>`).join('');
 }
 function updateClienteLink(autofill){
   const inp = $('#fCliente'), hint = $('#cliHint'), f = $('#jobForm');
@@ -1794,10 +1822,13 @@ function updateClienteLink(autofill){
   if (!inp.value.trim()) { hint.textContent = ''; return; }
   const c = clienteByName(inp.value);
   if (c) {
-    hint.textContent = (c.tipo === 'azienda' ? 'Azienda' : 'Privato') + ' in anagrafica' + (c.piva ? ' · P.IVA ' + c.piva : (c.cf ? ' · C.F. ' + c.cf : ''));
+    hint.textContent = tipoLabel(c) + ' in anagrafica' + (c.piva ? ' · P.IVA ' + c.piva : (c.cf ? ' · C.F. ' + c.cf : '')) + (c.tipo === 'condominio' && c.ammNome ? ' · Amm. ' + c.ammNome : '');
     if (autofill && f) {
       const tel = f.elements.telefono;
-      if (tel && !tel.value.trim() && c.telefono) tel.value = c.telefono;
+      const tc = c.tipo === 'condominio' ? (c.refTel || c.ammCell || c.ammTel) : c.telefono;
+      if (tel && !tel.value.trim() && tc) tel.value = tc;
+      if (c.tipo === 'condominio') { const de = f.elements.descrizione; const info = [c.refNome ? 'Referente in loco: ' + c.refNome + (c.refTel ? ' ' + c.refTel : '') : '', c.accesso ? 'Accesso: ' + c.accesso : '', c.noteTecnico || ''].filter(Boolean).join('\n');
+        if (de && !de.value.trim() && info) de.value = info; }
       const via = $('#fVia'), ind = indirizzoCliente(c);
       if (via && !via.value.trim() && ind) { via.value = ind; scheduleMaps(true); }
     }
@@ -1948,10 +1979,10 @@ function buildPrefatturaPdf(pf, az){
   doc.line(L, y, R, y, 0.8, [0.8, 0.82, 0.86]);
   y += 16;
   /* destinatario */
-  const nomeD = d.tipo === 'azienda' ? (d.ragione || '') : [d.nome, d.cognome].filter(Boolean).join(' ');
+  const nomeD = d.tipo === 'condominio' ? intestazioneCondo(d) : d.tipo === 'azienda' ? (d.ragione || '') : [d.nome, d.cognome].filter(Boolean).join(' ');
   const indirizzo = [d.via, [d.cap, d.citta].filter(Boolean).join(' ') + (d.prov ? ' (' + d.prov + ')' : '')].filter(x => x && String(x).trim()).join(', ');
   const fisc = [d.piva ? 'P.IVA ' + d.piva : '', d.cf ? 'C.F. ' + d.cf : ''].filter(Boolean).join('  ·  ');
-  const sdi = d.tipo === 'azienda' ? [d.sdi ? 'Codice destinatario: ' + d.sdi : '', d.pec ? 'PEC: ' + d.pec : ''].filter(Boolean).join('  ·  ') : (d.pec ? 'PEC: ' + d.pec : '');
+  const sdi = (d.tipo === 'azienda' || d.tipo === 'condominio') ? [d.sdi ? 'Codice destinatario: ' + d.sdi : '', d.pec ? 'PEC: ' + d.pec : ''].filter(Boolean).join('  ·  ') : (d.pec ? 'PEC: ' + d.pec : '');
   const contatti = [d.telefono, d.email].filter(Boolean).join('  ·  ');
   const dLines = [indirizzo, fisc, sdi, d.tipo === 'azienda' && d.referente ? 'Referente: ' + d.referente : '', contatti].filter(x => x && String(x).trim());
   const nameLines = pdfWrap(nomeD || '—', W - 24, 12, true);
@@ -1986,6 +2017,10 @@ function buildPrefatturaPdf(pf, az){
   doc.text(tx, y, Number(pf.iva) > 0 ? 'IVA ' + pf.iva + '%' : 'IVA (esente / fuori campo)', 10, {color: GREY}); doc.text(tvx, y, eur(pf.ivaImporto), 10, {align: 'right'}); y += 8;
   doc.line(tx, y, R, y, 0.8, [0.7, 0.72, 0.78]); y += 17;
   doc.text(tx, y, 'TOTALE', 12, {bold: true}); doc.text(tvx, y, eur(pf.totale), 13, {align: 'right', bold: true}); y += 26;
+  if (Number(pf.ritenuta) > 0) {
+    doc.text(tx, y - 6, 'Ritenuta d’acconto 4%', 10, {color: GREY}); doc.text(tvx, y - 6, '- ' + eur(pf.ritenuta), 10, {align: 'right'}); y += 12;
+    doc.text(tx, y - 4, 'NETTO A PAGARE', 11, {bold: true}); doc.text(tvx, y - 4, eur(pf.netto), 12, {align: 'right', bold: true}); y += 22;
+  }
   /* note e pagamento */
   const notes = [];
   if (pf.note) notes.push(pf.note);
@@ -2029,7 +2064,7 @@ function buildJobPdf(j, mats, az){
   y = Math.max(y, 104) + 8; doc.line(L, y, R, y, 0.8, [0.82, 0.82, 0.85]); y += 18;
   /* cliente */
   const c = (j.clienteId && clienteById(j.clienteId)) || null;
-  const cLines = [j.via, c ? [c.tipo === 'azienda' && c.piva ? 'P.IVA ' + c.piva : '', c.cf ? 'C.F. ' + c.cf : ''].filter(Boolean).join('  ·  ') : '', [j.telefono || (c && c.telefono), c && c.email].filter(Boolean).join('  ·  ')].filter(x => x && String(x).trim());
+  const cLines = [j.via, c ? [c.tipo === 'azienda' && c.piva ? 'P.IVA ' + c.piva : '', c.cf ? 'C.F. ' + c.cf : ''].filter(Boolean).join('  ·  ') : '', c && c.tipo === 'condominio' && c.ammNome ? 'Amministratore: ' + c.ammNome + (c.ammCell || c.ammTel ? ' · ' + (c.ammCell || c.ammTel) : '') : '', [j.telefono || (c && c.telefono), c && c.email].filter(Boolean).join('  ·  ')].filter(x => x && String(x).trim());
   const boxH = 36 + cLines.length * 12;
   doc.rect(L, y, W, boxH, LIGHT);
   doc.text(L + 12, y + 16, 'CLIENTE', 8, {bold: true, color: GREY});
@@ -2086,8 +2121,57 @@ async function jobPdf(id){
 }
 
 /* ---------- Anagrafica clienti (privati e aziende) ---------- */
+function impRowHtml(i){
+  i = i || {};
+  const f = (k, label, o) => `<label class="field${o && o.span ? ' span2' : ''}"><span>${label}</span><input data-imp="${k}"${o && o.type ? ` type="${o.type}"` : ''} value="${esc(i[k] || '')}"></label>`;
+  const tipi = [['', 'Scegli…'], ['scorrevole', 'Cancello scorrevole'], ['battente', 'Cancello a battente'], ['sbarra', 'Sbarra'], ['basculante', 'Basculante / sezionale'], ['pedonale', 'Cancello pedonale'], ['tapparelle', 'Tapparelle / tende'], ['altro', 'Altro']];
+  const per = [['', 'Nessun contratto'], ['trimestrale', 'Trimestrale'], ['semestrale', 'Semestrale'], ['annuale', 'Annuale']];
+  return `<div class="imp-row" data-iid="${esc(i.id || uid())}"><div class="fgrid">
+    <label class="field"><span>Impianto</span><select data-imp="tipo">${opts(tipi, i.tipo || '')}</select></label>${f('posizione', 'Dove (es. ingresso carrabile)')}
+    ${f('marca', 'Marca e modello motore')}${f('centralina', 'Centralina')}${f('seriale', 'Numero di serie')}${f('installato', 'Installato il', {type: 'date'})}${f('garanzia', 'Garanzia fino al', {type: 'date'})}
+    <label class="field"><span>Manutenzione</span><select data-imp="manut">${opts(per, i.manut || '')}</select></label>${f('ultima', 'Ultima manutenzione', {type: 'date'})}${f('prossima', 'Prossima manutenzione', {type: 'date'})}${f('importo', 'Importo contratto (€)')}
+    </div><button class="btn small danger" type="button" data-act="imp-del">${ic('trash', 14)}Togli impianto</button></div>`;
+}
+function condoFormHtml(v, editing){
+  const inp = (name, label, o) => { o = o || {};
+    return `<label class="field${o.span ? ' span2' : ''}"><span>${label}</span><input name="${name}"${o.type ? ` type="${o.type}"` : ''}${o.req ? ' required' : ''}${o.mode ? ` inputmode="${o.mode}"` : ''}${o.max ? ` maxlength="${o.max}"` : ''}${o.list ? ` list="${o.list}"` : ''}${o.ph ? ` placeholder="${esc(o.ph)}"` : ''} value="${esc(v[name] || '')}"></label>`; };
+  const amm = amministratori();
+  return `<form id="clienteForm" data-id="${editing ? esc(v.id) : ''}" data-tipo="condominio" autocomplete="off">
+    <h2 class="page-title">${editing ? 'Modifica condominio' : 'Nuovo condominio'}</h2>
+    <h3 class="fsec">${ic('condo', 18)}Dati del condominio</h3>
+    <div class="fgrid">${inp('ragione', 'Denominazione', {req: true, span: true, ph: 'Es. Condominio Via Roma 12'})}
+      ${inp('cf', 'Codice fiscale del condominio', {mode: 'numeric', max: 16, ph: '11 cifre, di solito inizia con 9'})}${inp('scale', 'Scale / palazzine', {ph: 'Es. Scala A, B, C'})}
+      ${inp('via', 'Indirizzo dello stabile: via e numero', {span: true})}${inp('cap', 'CAP', {mode: 'numeric', max: 5})}${inp('citta', 'Città')}${inp('prov', 'Provincia (sigla)', {max: 2})}</div>
+    <h3 class="fsec">${ic('user', 18)}Amministratore</h3>
+    <datalist id="ammList">${amm.map(a => `<option value="${esc(a.nome)}" label="${plural(a.n, 'condominio', 'condomini')}"></option>`).join('')}</datalist>
+    <div class="fgrid">${inp('ammNome', 'Nome o studio', {span: true, list: 'ammList', ph: amm.length ? 'Scrivi o scegli un amministratore già inserito' : ''})}
+      ${inp('ammTel', 'Telefono', {type: 'tel', mode: 'tel'})}${inp('ammCell', 'Cellulare', {type: 'tel', mode: 'tel'})}${inp('ammEmail', 'Email', {type: 'email'})}${inp('ammPec', 'PEC', {type: 'email'})}
+      ${inp('ammIndirizzo', 'Indirizzo dello studio (se diverso)', {span: true})}</div>
+    <p class="muted" id="ammHint" style="margin:-4px 0 10px;font-size:14px"></p>
+    <h3 class="fsec">${ic('pin', 18)}Sul posto (per i tecnici)</h3>
+    <div class="fgrid">${inp('refNome', 'Referente in loco (portiere, consigliere)')}${inp('refTel', 'Telefono del referente', {type: 'tel', mode: 'tel'})}
+      ${inp('accesso', 'Accesso: chiavi, telecomandi, codici, orari', {span: true})}
+      <label class="field span2"><span>Note per il tecnico</span><textarea name="noteTecnico" placeholder="Es. cancello carrabile sul retro, quadro elettrico in garage">${esc(v.noteTecnico || '')}</textarea></label></div>
+    <h3 class="fsec">${ic('zap', 18)}Impianti installati</h3>
+    <div id="impList">${(v.impianti || []).map(impRowHtml).join('')}</div>
+    <button class="btn small" type="button" data-act="imp-add">${ic('plus', 14)}Aggiungi impianto</button>
+    <h3 class="fsec">${ic('filetext', 18)}Fatturazione</h3>
+    <div class="fgrid">${inp('intestazione', 'Intestazione in fattura', {span: true, ph: 'Se vuota: «Denominazione c/o Amministratore»'})}
+      ${inp('sdi', 'Codice destinatario (SDI)', {max: 7})}${inp('pec', 'PEC del condominio', {type: 'email'})}
+      <label class="field"><span>Aliquota IVA predefinita</span><select name="ivaDef">${opts([['22', 'IVA 22%'], ['10', 'IVA 10% (manutenzione su edifici residenziali)']], String(v.ivaDef || 22))}</select></label>
+      <label class="check field" style="align-self:end"><input type="checkbox" name="ritenuta"${v.ritenuta ? ' checked' : ''}><span>Applica ritenuta d’acconto 4%</span></label></div>
+    <p class="muted" style="font-size:14px;margin:0 0 10px">Ritenuta e IVA al 10% dipendono dal tipo di lavoro: falle confermare dal commercialista.</p>
+    <label class="field"><span>Note</span><textarea name="note">${esc(v.note || '')}</textarea></label>
+    <p class="wz-warn" id="cliWarn" style="margin:0 0 10px"></p>
+    <div class="form-actions">
+      <button class="btn primary" type="submit">${ic('check', 18)}${editing ? 'Salva modifiche' : 'Salva condominio'}</button>
+      <button class="btn" type="button" data-act="ana-cancel">Annulla</button>
+      ${editing ? `<button class="btn danger" type="button" data-act="ana-del" data-id="${esc(v.id)}">${ic('trash', 16)}Elimina</button>` : ''}
+    </div></form>`;
+}
 function clienteFormHtml(v, tipo, editing){
   v = v || {};
+  if (tipo === 'condominio') return condoFormHtml(v, editing);
   const az = tipo === 'azienda';
   const inp = (name, label, o) => {
     o = o || {};
@@ -2115,6 +2199,16 @@ function clienteFormHtml(v, tipo, editing){
 }
 function clienteFromForm(f){
   const fd = new FormData(f), g = k => String(fd.get(k) || '').trim();
+  if (f.dataset.tipo === 'condominio') {
+    const impianti = [...f.querySelectorAll('.imp-row')].map(r => { const o = {id: r.dataset.iid}; r.querySelectorAll('[data-imp]').forEach(x => { o[x.dataset.imp] = String(x.value || '').trim().slice(0, 120); }); return o; })
+      .filter(o => o.tipo || o.marca || o.seriale || o.prossima || o.posizione);
+    return {id: f.dataset.id || uid(), tipo: 'condominio', ragione: g('ragione'), cf: g('cf').toUpperCase().replace(/\s/g, ''), scale: g('scale'),
+      via: g('via'), cap: g('cap').replace(/\D/g, '').slice(0, 5), citta: g('citta'), prov: g('prov').toUpperCase().slice(0, 2),
+      ammNome: g('ammNome'), ammTel: g('ammTel'), ammCell: g('ammCell'), ammEmail: g('ammEmail'), ammPec: g('ammPec'), ammIndirizzo: g('ammIndirizzo'),
+      refNome: g('refNome'), refTel: g('refTel'), accesso: g('accesso'), noteTecnico: g('noteTecnico'), impianti,
+      intestazione: g('intestazione'), sdi: g('sdi').toUpperCase().replace(/\s/g, ''), pec: g('pec'), ivaDef: Number(g('ivaDef')) === 10 ? 10 : 22, ritenuta: fd.get('ritenuta') === 'on',
+      telefono: g('refTel') || g('ammCell') || g('ammTel'), email: g('ammEmail'), note: g('note')};
+  }
   return {
     id: f.dataset.id || uid(), tipo: f.dataset.tipo === 'azienda' ? 'azienda' : 'privato',
     nome: g('nome'), cognome: g('cognome'), ragione: g('ragione'),
@@ -2134,14 +2228,31 @@ function mountAnagrafica(){
   const tipo = edit ? edit.tipo : anaTab;
   const form = canWrite && cliFormOpen ? `<section class="panel" id="cliFormPanel">${clienteFormHtml(edit || cliPrefill, tipo, !!edit)}</section>` : '';
   const tab = (t, icon, label, id) => `<button role="tab" data-act="ana-tab" data-tab="${t}" aria-selected="${anaTab === t}">${ic(icon, 16)}${label}<span class="pill" id="${id}">0</span></button>`;
-  $('#app').innerHTML = `<div class="pagehead"><div><h2>Anagrafica clienti</h2><p class="sub">Privati e aziende, da usare nei lavori e nelle pre-fatture</p></div>
-      ${canWrite ? `<button class="btn primary" data-act="ana-new">${ic('plus', 18)}${anaTab === 'azienda' ? 'Nuova azienda' : 'Nuovo cliente privato'}</button>` : ''}</div>
-    <div class="subnav" role="tablist" aria-label="Tipo di cliente">${tab('privato', 'user', 'Privati', 'anaCntP')}${tab('azienda', 'building', 'Aziende', 'anaCntA')}</div>
+  $('#app').innerHTML = `<div class="pagehead"><div><h2>Anagrafica clienti</h2><p class="sub">Privati, aziende e condomini, da usare nei lavori e nelle pre-fatture</p></div>
+      ${canWrite ? `<button class="btn primary" data-act="ana-new">${ic('plus', 18)}${anaTab === 'azienda' ? 'Nuova azienda' : anaTab === 'condominio' ? 'Nuovo condominio' : 'Nuovo cliente privato'}</button>` : ''}</div>
+    <div class="subnav" role="tablist" aria-label="Tipo di cliente">${tab('privato', 'user', 'Privati', 'anaCntP')}${tab('azienda', 'building', 'Aziende', 'anaCntA')}${tab('condominio', 'condo', 'Condomini', 'anaCntC')}</div>
     ${form}
-    <section class="panel"><label class="field" style="margin-bottom:12px"><span>Cerca (nome, partita IVA, telefono, città)</span><input type="search" id="anaQ" value="${esc(anaQ)}"></label><div id="anaList"></div></section>`;
+    <section class="panel"><label class="field" style="margin-bottom:12px"><span>Cerca (nome, partita IVA, telefono, città, amministratore)</span><input type="search" id="anaQ" value="${esc(anaQ)}"></label><div id="anaList"></div></section>`;
+}
+function condoCard(c, nj){
+  const ind = indirizzoCliente(c), ms = manutStato(c), sameAmm = c.ammNome ? clienti.filter(x => x.tipo === 'condominio' && norm(x.ammNome || '') === norm(c.ammNome)).length : 0;
+  return `<article class="worker c2">
+    <div class="head"><div class="av" aria-hidden="true">${ic('condo', 18)}</div>
+      <div><h3>${esc(c.ragione || '')}</h3><p class="meta">${c.cf ? 'C.F. ' + esc(c.cf) : 'Codice fiscale non inserito'}${c.scale ? ' · ' + esc(c.scale) : ''}</p></div></div>
+    ${ind ? `<p class="meta">${esc(ind)}</p>` : ''}
+    ${c.ammNome ? `<p class="meta"><b>Amministratore:</b> ${esc(c.ammNome)}${c.ammCell || c.ammTel ? ' · ' + esc(c.ammCell || c.ammTel) : ''}${sameAmm > 1 ? ` · <button class="linkbtn" data-act="amm-filter" data-name="${esc(c.ammNome)}">${sameAmm} condomini</button>` : ''}</p>` : ''}
+    ${c.refNome || c.refTel ? `<p class="meta"><b>Sul posto:</b> ${esc([c.refNome, c.refTel].filter(Boolean).join(' · '))}</p>` : ''}
+    <p class="meta">${plural((c.impianti || []).length, 'impianto', 'impianti')} · ${plural(nj.length, 'intervento', 'interventi')}${c.ritenuta ? ' · ritenuta 4%' : ''}${Number(c.ivaDef) === 10 ? ' · IVA 10%' : ''}</p>
+    ${ms ? `<p class="meta ${ms.scaduta ? 'warnx' : ''}">${ms.scaduta ? 'Manutenzione scaduta il ' : 'Prossima manutenzione: '}${esc(dmy(ms.data))}${ms.imp.posizione ? ' (' + esc(ms.imp.posizione) + ')' : ''}</p>` : ''}
+    <div class="acts">
+      ${c.ammCell || c.ammTel ? `<a class="btn small" href="tel:${esc(digits(c.ammCell || c.ammTel))}">${ic('phone', 16)}Amministratore</a>` : ''}
+      ${c.refTel ? `<a class="btn small ghost" href="tel:${esc(digits(c.refTel))}">${ic('phone', 16)}Referente</a>` : ''}
+      ${canWrite ? `<button class="btn small ghost" data-act="ana-edit" data-id="${esc(c.id)}">${ic('edit', 16)}Modifica</button>` : ''}
+      ${canWrite && usingDb ? `<button class="btn small ghost" data-act="sto-open" data-id="${esc(c.id)}">${ic('box', 16)}Materiale installato</button>` : ''}</div></article>`;
 }
 function cliCard(c){
   const nj = jobs.filter(j => j.clienteId === c.id);
+  if (c.tipo === 'condominio') return condoCard(c, nj);
   const da = nj.filter(j => stOf(j) === 'fatto' && !j.preFatturaId && j.prefat === true);
   const sum = da.reduce((s, j) => s + importoOf(j), 0);
   const ind = indirizzoCliente(c);
@@ -2157,17 +2268,19 @@ function cliCard(c){
       ${canWrite && usingDb ? `<button class="btn small ghost" data-act="sto-open" data-id="${esc(c.id)}">${ic('box', 16)}Materiale installato</button>` : ''}</div></article>`;
 }
 function refreshAnagrafica(){
-  const p = $('#anaCntP'), a = $('#anaCntA');
-  if (p) p.textContent = clienti.filter(c => c.tipo !== 'azienda').length;
+  const p = $('#anaCntP'), a = $('#anaCntA'), cc = $('#anaCntC');
+  const tipoOf = c => c.tipo === 'azienda' || c.tipo === 'condominio' ? c.tipo : 'privato';
+  if (p) p.textContent = clienti.filter(c => tipoOf(c) === 'privato').length;
   if (a) a.textContent = clienti.filter(c => c.tipo === 'azienda').length;
+  if (cc) cc.textContent = clienti.filter(c => c.tipo === 'condominio').length;
   const q = norm(anaQ.trim());
-  const list = clienti.filter(c => (anaTab === 'azienda' ? c.tipo === 'azienda' : c.tipo !== 'azienda') &&
-    (!q || norm([nomeCliente(c), c.piva, c.cf, c.telefono, c.email, c.citta, c.via].join(' ')).includes(q)))
+  const list = clienti.filter(c => tipoOf(c) === (anaTab || 'privato') &&
+    (!q || norm([nomeCliente(c), c.piva, c.cf, c.telefono, c.email, c.citta, c.via, c.ammNome, c.refNome].join(' ')).includes(q)))
     .sort((x, y) => nomeCliente(x).localeCompare(nomeCliente(y)));
   const el = $('#anaList'); if (!el) return;
   el.innerHTML = list.length
     ? `<div class="workers">${list.map(cliCard).join('')}</div>`
-    : `<div class="empty"><h3>${clienti.length && q ? 'Nessun risultato' : (anaTab === 'azienda' ? 'Nessuna azienda inserita' : 'Nessun cliente privato inserito')}</h3>
+    : `<div class="empty"><h3>${clienti.length && q ? 'Nessun risultato' : (anaTab === 'azienda' ? 'Nessuna azienda inserita' : anaTab === 'condominio' ? 'Nessun condominio inserito' : 'Nessun cliente privato inserito')}</h3>
         <p>${canWrite ? 'Usa il pulsante in alto per aggiungerne uno. Potrai sceglierlo quando carichi un lavoro, e comparirà nelle pre-fatture.' : 'Non ci sono ancora clienti.'}</p></div>`;
 }
 function saveCliente(f){
@@ -2182,7 +2295,12 @@ function saveCliente(f){
   jobs.forEach(j => { if (j.clienteId === c.id && j.cliente !== nome) { j.cliente = nome; persist('interventi', j); } });
   const w = clienteWarnings(c);
   cliFormOpen = false; editingClienteId = null; cliPrefill = null; mounted = null; anaTab = c.tipo; render();
-  toast((i >= 0 ? 'Cliente aggiornato.' : 'Cliente salvato.') + (n ? ` Collegati ${plural(n, 'lavoro', 'lavori')}.` : '') + (w.length ? ' Controlla: ' + w.join('; ') + '.' : ''));
+  const AF = ['ammTel', 'ammCell', 'ammEmail', 'ammPec', 'ammIndirizzo'];
+  const altri = c.tipo === 'condominio' && c.ammNome ? clienti.filter(x => x.id !== c.id && x.tipo === 'condominio' && norm(x.ammNome || '') === norm(c.ammNome) && AF.some(k => (x[k] || '') !== (c[k] || ''))) : [];
+  const msg = (i >= 0 ? 'Cliente aggiornato.' : 'Cliente salvato.') + (n ? ` Collegati ${plural(n, 'lavoro', 'lavori')}.` : '') + (w.length ? ' Controlla: ' + w.join('; ') + '.' : '');
+  if (altri.length) toast(msg + ` Aggiornare i contatti dell’amministratore anche in ${plural(altri.length, 'altro condominio', 'altri condomini')}?`, 'Aggiorna', () => {
+    altri.forEach(x => { AF.forEach(k => { x[k] = c[k] || ''; }); x.email = x.ammEmail; if (!x.refTel) x.telefono = x.ammCell || x.ammTel; persist('clienti', x); }); render(); toast('Contatti aggiornati.'); });
+  else toast(msg);
 }
 function deleteCliente(id){
   const c = clienteById(id); if (!c) return;
@@ -2213,18 +2331,21 @@ function pfGroups(){
     .sort((a, b) => a.nome.localeCompare(b.nome));
 }
 const jobTot = j => importoOf(j) + matBillable(j.id).reduce((s, m) => s + (Number(m.qta) || 0) * (matPrezzo(m) || 0), 0);
-function pfTotals(sel, iva){
+function pfTotals(sel, iva, rit){
   const imponibile = round2(sel.reduce((s, j) => s + jobTot(j), 0));
+  if (rit) { const ivaImporto = round2(imponibile * iva / 100), ritenuta = round2(imponibile * 0.04), totale = round2(imponibile + ivaImporto);
+    return {imponibile, ivaImporto, totale, ritenuta, netto: round2(totale - ritenuta)}; }
   const ivaImporto = round2(imponibile * iva / 100);
   return {imponibile, ivaImporto, totale: round2(imponibile + ivaImporto)};
 }
 function pfGroupHtml(g){
   const sel = g.jobs.filter(j => !pfOff.has(j.id));
-  const iva = pfIva[g.key] !== undefined ? pfIva[g.key] : 22;
-  const t = pfTotals(sel, iva);
+  const iva = pfIva[g.key] !== undefined ? pfIva[g.key] : (g.cliente && Number(g.cliente.ivaDef) === 10 ? 10 : 22);
+  const rit = !!(g.cliente && g.cliente.tipo === 'condominio' && g.cliente.ritenuta);
+  const t = pfTotals(sel, iva, rit);
   const c = g.cliente;
   return `<section class="panel pfgroup">
-    <div class="split"><div><h3>${esc(g.nome)}</h3><div class="tags">${c ? `<span class="tag type">${c.tipo === 'azienda' ? 'Azienda' : 'Privato'}</span><span class="muted">${esc(c.piva ? 'P.IVA ' + c.piva : (c.cf ? 'C.F. ' + c.cf : ''))}</span>` : '<span class="tag urgent">Non in anagrafica</span>'}</div></div>
+    <div class="split"><div><h3>${esc(g.nome)}</h3><div class="tags">${c ? `<span class="tag type">${tipoLabel(c)}</span><span class="muted">${esc(c.piva ? 'P.IVA ' + c.piva : (c.cf ? 'C.F. ' + c.cf : ''))}</span>` : '<span class="tag urgent">Non in anagrafica</span>'}</div></div>
       <div class="pf-total">${esc(fmtEur(t.imponibile))}<small>imponibile</small></div></div>
     ${c ? '' : `<div class="notice"><span>Per creare la pre-fattura servono i dati del cliente.</span><div class="zone-actions">
       <button class="btn small primary" data-act="pf-newcli" data-tipo="privato" data-name="${esc(g.nome)}">Crea come privato</button>
@@ -2237,7 +2358,7 @@ function pfGroupHtml(g){
         <button class="btn small ghost" data-act="pf-unsend" data-id="${esc(j.id)}">Togli dalla pre-fatturazione</button></div></div>`).join('')}</div>
     <div class="pf-foot">
       <label class="field" style="margin:0"><span>Aliquota IVA</span><select data-act="pf-iva" data-key="${esc(g.key)}">${IVA_OPTS.map(([v, l]) => `<option value="${v}"${v === iva ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
-      <div class="pf-sum"><span>Imponibile ${esc(fmtEur(t.imponibile))}</span><span>IVA ${esc(fmtEur(t.ivaImporto))}</span><strong>Totale ${esc(fmtEur(t.totale))}</strong></div>
+      <div class="pf-sum"><span>Imponibile ${esc(fmtEur(t.imponibile))}</span><span>IVA ${esc(fmtEur(t.ivaImporto))}</span><strong>Totale ${esc(fmtEur(t.totale))}</strong>${rit ? `<span>Ritenuta 4% −${esc(fmtEur(t.ritenuta))}</span><strong>Netto a pagare ${esc(fmtEur(t.netto))}</strong>` : ''}</div>
       <button class="btn primary" data-act="pf-create" data-key="${esc(g.key)}"${sel.length && c ? '' : ' disabled'}>${ic('download', 18)}Crea pre-fattura (PDF)</button>
     </div></section>`;
 }
@@ -2301,16 +2422,18 @@ function pfCreate(key){
   if (!sel.length) return;
   const anno = new Date().getFullYear();
   const prog = prefatture.filter(p => p.anno === anno).reduce((m, p) => Math.max(m, p.prog || 0), 0) + 1;
-  const iva = pfIva[key] !== undefined ? pfIva[key] : 22;
-  const t = pfTotals(sel, iva);
   const c = g.cliente;
+  const iva = pfIva[key] !== undefined ? pfIva[key] : (Number(c.ivaDef) === 10 ? 10 : 22);
+  const rit = c.tipo === 'condominio' && !!c.ritenuta;
+  const t = pfTotals(sel, iva, rit);
   const pf = {
     id: uid(), numero: 'PF-' + anno + '-' + String(prog).padStart(3, '0'), anno, prog, data: todayISO(), clienteId: c.id,
     destinatario: Object.assign({}, c),
     righe: sel.flatMap(j => [{jobId: j.id, data: j.data, descrizione: j.tipo || 'Intervento', dettaglio: [j.via, j.noteFatt].filter(Boolean).join(' – '), qta: 1, prezzo: importoOf(j), importo: importoOf(j)}]
       .concat(matBillable(j.id).map(m => { const pr = matPrezzo(m) || 0, q = Number(m.qta) || 0;
         return {jobId: j.id, data: j.data, descrizione: m.descrizione || m.codice, dettaglio: ['Cod. ' + m.codice, m.seriale ? 'S/N ' + m.seriale : ''].filter(Boolean).join(' – '), qta: q, prezzo: round2(pr), importo: round2(pr * q), materialeId: m.id}; }))),
-    iva, imponibile: t.imponibile, ivaImporto: t.ivaImporto, totale: t.totale, stato: 'pre', note: ''
+    iva, imponibile: t.imponibile, ivaImporto: t.ivaImporto, totale: t.totale, stato: 'pre', note: '',
+    ritenuta: rit ? t.ritenuta : 0, netto: rit ? t.netto : t.totale
   };
   prefatture.push(pf); persist('prefatture', pf);
   sel.forEach(j => { j.preFatturaId = pf.id; j.clienteId = c.id; persist('interventi', j);
@@ -2416,9 +2539,15 @@ function cleanTipo(o){
 function cleanCliente(o){
   if (!o || typeof o !== 'object') return null;
   const id = str(o.id, 60).replace(/[^\w-]/g, '');
-  const c = {id, tipo: o.tipo === 'azienda' ? 'azienda' : 'privato', nome: str(o.nome, 80), cognome: str(o.cognome, 80), ragione: str(o.ragione, 120),
+  const c = {id, tipo: o.tipo === 'azienda' || o.tipo === 'condominio' ? o.tipo : 'privato', nome: str(o.nome, 80), cognome: str(o.cognome, 80), ragione: str(o.ragione, 120),
     piva: str(o.piva, 11), cf: str(o.cf, 16), sdi: str(o.sdi, 7), pec: str(o.pec, 120), referente: str(o.referente, 80), telefono: str(o.telefono, 40),
     email: str(o.email, 120), via: str(o.via, 200), cap: str(o.cap, 5), citta: str(o.citta, 80), prov: str(o.prov, 2), note: str(o.note, 500)};
+  if (c.tipo === 'condominio') {
+    ['scale', 'ammNome', 'ammTel', 'ammCell', 'ammEmail', 'ammPec', 'ammIndirizzo', 'refNome', 'refTel', 'accesso', 'noteTecnico', 'intestazione'].forEach(k => { c[k] = str(o[k], 200); });
+    c.ivaDef = Number(o.ivaDef) === 10 ? 10 : 22; c.ritenuta = !!o.ritenuta;
+    c.impianti = Array.isArray(o.impianti) ? o.impianti.slice(0, 50).map(i => { const r = {id: str(i && i.id, 40).replace(/[^\w-]/g, '') || uid()};
+      ['tipo', 'posizione', 'marca', 'centralina', 'seriale', 'installato', 'garanzia', 'manut', 'ultima', 'prossima', 'importo'].forEach(k => { r[k] = str(i && i[k], 120); }); return r; }) : [];
+  }
   return id && nomeCliente(c) ? c : null;
 }
 function cleanAzienda(o){
@@ -3278,6 +3407,9 @@ document.addEventListener('click', e => {
     case 'set-fascia': { const j = jobs.find(x => x.id === id); if (j && canWrite) { j.fascia = t.dataset.f; j.ora = ''; persist('interventi', j); render(); } break; }
     case 'tipo-add': tipoAdd(); break;
     case 'ana-tab': anaTab = t.dataset.tab; cliFormOpen = false; editingClienteId = null; cliPrefill = null; mounted = null; render(); break;
+    case 'imp-add': { const l = $('#impList'); if (l) { l.insertAdjacentHTML('beforeend', impRowHtml({})); const r = l.lastElementChild; const s0 = r && r.querySelector('select'); if (s0) s0.focus(); } break; }
+    case 'imp-del': { const r = t.closest('.imp-row'); if (r) r.remove(); break; }
+    case 'amm-filter': anaQ = t.dataset.name || ''; mounted = null; render(); break;
     case 'ana-new': cliFormOpen = true; editingClienteId = null; cliPrefill = null; mounted = null; render(); break;
     case 'ana-edit': cliFormOpen = true; editingClienteId = id; cliPrefill = null; mounted = null; render(); window.scrollTo(0, 0); break;
     case 'ana-cancel': cliFormOpen = false; editingClienteId = null; cliPrefill = null; mounted = null; render(); break;
@@ -3442,6 +3574,12 @@ document.addEventListener('change', e => {
   else if (t.id === 'magFlt') { magFlt = t.value; refreshMagazzino(); }
   else if (t.dataset && t.dataset.matqta) { const m = matOf(detailId).find(x => x.id === t.dataset.matqta); if (m) { matSetQta(m, t.value); renderDetail(); } }
   else if (t.id === 'dNoteL') { const j = jobs.find(x => x.id === t.dataset.id); if (j && canWrite) { j.noteLavoratore = t.value.trim().slice(0, 500); persist('interventi', j); toast('Nota aggiornata.'); } }
+  else if (t.form && t.form.id === 'clienteForm' && t.name === 'ammNome') {
+    const a = amministratori().find(x => norm(x.nome) === norm(t.value)), h = $('#ammHint');
+    if (a) { ['ammTel', 'ammCell', 'ammEmail', 'ammPec', 'ammIndirizzo'].forEach(k => { const e = t.form.elements[k]; if (e && !e.value.trim() && a[k]) e.value = a[k]; });
+      if (h) h.textContent = 'Amministratore già presente in ' + plural(a.n, 'altro condominio', 'altri condomini') + ': contatti compilati.'; }
+    else if (h) h.textContent = '';
+  }
   else if (t.id === 'impFile') { const f = t.files && t.files[0]; t.value = ''; if (f) prepImport(f); }
   else if (t.id === 'wzWorker') { wzWorker = t.value; render(); }
   else if (t.id === 'wzDate') { if (t.value) { wzDate = t.value; render(); } }
