@@ -542,6 +542,16 @@ html,body{overflow-x:hidden}
 .invpanel{border:2px solid var(--brand)}
 .tbl td.neg{color:var(--bad-text);font-weight:700}.tbl td.pos{color:var(--ok-text);font-weight:700}
 .pf-addmat{justify-self:start;margin-top:2px}
+.sheet-tools{display:flex;gap:8px;margin:2px 0 12px;flex-wrap:wrap}
+.tool-btn{display:inline-flex;align-items:center;gap:8px;min-height:42px;padding:0 14px;border-radius:10px;border:1.5px solid;font:inherit;font-weight:600;font-size:14.5px;cursor:pointer;background:var(--surface)}
+.tool-btn.green{border-color:var(--ok);color:var(--ok-text)}.tool-btn.green.on,.tool-btn.green:not(:disabled):hover{background:var(--ok);color:#fff}
+.tool-btn.red{border-color:var(--brand);color:var(--brand-text)}.tool-btn.red:hover{background:var(--brand);color:#fff}
+.tool-btn:disabled{opacity:.45;cursor:not-allowed}.tool-btn.green.on:disabled{opacity:.8}
+.wnote-sent{background:var(--surface2);border-radius:10px;padding:10px 12px;display:grid;gap:4px}.wnote-sent p{margin:0;white-space:pre-wrap}
+.pf-acts{display:flex;gap:6px;flex-wrap:wrap}
+.row-open{all:unset;display:grid;gap:2px;flex:1;min-width:0;cursor:pointer;border-radius:8px}
+.row-open:hover strong{text-decoration:underline;text-decoration-color:var(--brand)}
+.row-open:focus-visible{outline:3px solid var(--brand);outline-offset:2px}
 </style>
 </head>
 <body>
@@ -1056,9 +1066,9 @@ function jobRow(j, ctx, withDate){
   const stato = stOf(j);
   return `<div class="row ${cls(w)} st-${stato}">
     <div class="row-time">${esc(fasciaLabel(j))}</div>
-    <div class="row-main"><strong>${esc(j.cliente)}</strong> ${tagsOf(j)}
+    <button class="row-main row-open" data-act="open-job" data-id="${esc(j.id)}" aria-label="Apri ${esc(j.cliente)}"><strong>${esc(j.cliente)}</strong> ${tagsOf(j)}
       <small>${subline(j)}</small>
-      <small>${withDate ? esc(fmtShort(j.data)) + ' · ' : ''}<i class="dotw"></i>${w ? esc(w.nome) : 'Da assegnare'} · ${STATI[stato]}</small></div>
+      <small>${withDate ? esc(fmtShort(j.data)) + ' · ' : ''}<i class="dotw"></i>${w ? esc(w.nome) : 'Da assegnare'} · ${STATI[stato]}</small></button>
     ${canWrite ? `<div class="acts">
       <button class="btn small" data-act="edit-job" data-id="${esc(j.id)}">${ic('edit', 16)}Modifica</button>
       <button class="btn small ghost" data-act="dup-job" data-id="${esc(j.id)}">${ic('copy', 16)}Duplica</button></div>` : ''}
@@ -1115,7 +1125,7 @@ function setStato(id, st, causale){
   let msg = '';
   if (st === 'fatto' && canWrite && (j.importo === undefined || j.importo === null || j.importo === '')) {
     j.importo = prezzoOf(j.tipo);
-    msg = j.importo > 0 ? `Intervento chiuso: ${fmtEur(j.importo)} da pre-fatturare.` : 'Intervento chiuso: inserisci l’importo nella scheda per la pre-fattura.';
+    msg = 'Intervento chiuso. Quando è pronto, mandalo in pre-fatturazione con l’icona verde nella scheda.';
   }
   persist('interventi', j); render();
   if (msg) toast(msg);
@@ -1157,6 +1167,7 @@ function viewPanoramica(){
   if (nfd) al.push(['bad', 'alert', `${plural(nfd, 'intervento non fatto', 'interventi non fatti')} in questa giornata`, 'Vedi', 'archivio']);
   if (urg) al.push(['bad', 'zap', `${plural(urg, 'intervento urgente aperto', 'interventi urgenti aperti')}`, 'Vedi']);
   workers.filter(isActive).forEach(w => { const m = loadOf(w, day); if (m > capOf(w)) al.push(['warn', 'alert', `${esc(w.nome)}: ${esc(fmtDur(m))} in programma, oltre le 8 ore`, 'Riequilibra']); });
+  if (canWrite) { const fm = fattiDaMandare(); if (fm.length) al.push(['warn', 'check', `${plural(fm.length, 'intervento fatto non ancora mandato', 'interventi fatti non ancora mandati')} in pre-fatturazione`, 'Finder', 'archivio']); }
   if (canWrite) { const nb = billable(); if (nb.length) al.push(['warn', 'check', `${plural(nb.length, 'intervento fatto da pre-fatturare', 'interventi fatti da pre-fatturare')} (${fmtEur(nb.reduce((a, j) => a + importoOf(j), 0))})`, 'Pre-fatturazione', 'prefat']); }
   if (role === 'titolare' && pendingUsers() > 0) al.push(['warn', 'users', `${plural(pendingUsers(), 'persona in attesa', 'persone in attesa')} di abilitazione`, 'Utenti', 'utenti']);
   const alertsHtml = al.length
@@ -1408,12 +1419,19 @@ function renderDetail(){
     <div class="closebox"><h4>Chiusura intervento</h4>
       <label class="field"><span>Importo per la pre-fattura (€, IVA esclusa)</span><input type="number" id="dImporto" data-id="${esc(j.id)}" step="0.01" min="0" inputmode="decimal" value="${esc(String(importoOf(j)))}"${locked ? ' disabled' : ''}></label>
       <label class="field"><span>Nota sulla riga della pre-fattura (facoltativa)</span><input id="dNoteF" data-id="${esc(j.id)}" maxlength="160" value="${esc(j.noteFatt || '')}"${locked ? ' disabled' : ''}></label>
-      <p class="muted" style="font-size:14px">${locked ? 'Già inserito nella pre-fattura ' + esc(pfn) + '.' : 'Da pre-fatturare: lo trovi nella pagina Pre-fatturazione.'}</p></div>` : '';
+      <p class="muted" style="font-size:14px">${locked ? 'Già inserito nella pre-fattura ' + esc(pfn) + '.' : j.prefat ? 'In pre-fatturazione: lo trovi nella pagina Pre-fatturazione.' : 'Non ancora mandato in pre-fatturazione: usa l’icona verde in alto.'}</p></div>` : '';
   const wasHidden = ov.hidden;
   const fa0 = document.activeElement, fk = fa0 && sh.contains(fa0) && fa0.dataset ? ['matq', 'matser', 'matqta'].find(k => fa0.dataset[k] !== undefined) : '';
   const fkeep = fk ? {k: fk, v: fa0.dataset[fk], val: fa0.value, s: fa0.selectionStart} : null;
+  const nkeep = fa0 && fa0.id === 'dNoteL' && sh.contains(fa0) ? {val: fa0.value, s: fa0.selectionStart} : null;
+  const pfState = locked ? 'done' : j.prefat ? 'in' : st === 'fatto' ? 'ok' : 'no';
+  const pfTitle = {done: 'Già in pre-fattura ' + pfn, in: 'In pre-fatturazione: tocca per toglierlo', ok: 'Manda in pre-fatturazione', no: 'Solo gli interventi «Fatto» vanno in pre-fatturazione'}[pfState];
+  const heads = canWrite ? `<div class="sheet-tools">
+        <button class="tool-btn green${pfState === 'in' || pfState === 'done' ? ' on' : ''}" data-act="job-prefat" data-id="${esc(j.id)}" title="${esc(pfTitle)}" aria-label="${esc(pfTitle)}"${pfState === 'no' || pfState === 'done' ? ' disabled' : ''}>${ic(pfState === 'in' || pfState === 'done' ? 'check' : 'filetext', 18)}<span>${pfState === 'done' ? 'Pre-fatturato' : pfState === 'in' ? 'In pre-fatture' : 'Pre-fatture'}</span></button>
+        <button class="tool-btn red" data-act="job-pdf" data-id="${esc(j.id)}" title="Genera PDF del lavoro" aria-label="Genera PDF del lavoro">${ic('download', 18)}<span>Genera PDF</span></button></div>` : '';
   sh.innerHTML = `<div class="sheet-head"><div><p class="eyebrow">${esc(fmtShort(j.data))} · ${esc(fasciaLabel(j))}</p><h2>${esc(j.cliente)}</h2></div>
       <button class="icon-btn" id="sheetClose" data-act="close-detail" aria-label="Chiudi">${ic('x', 20)}</button></div>
+    ${heads}
     <div class="tags">${tagsOf(j)}<span class="stat st-${st}">${STATI[st]}</span></div>
     <dl class="info">
       <div><dt>Intervento</dt><dd>${esc(tipoText(j) || 'Non indicato')}</dd></div>
@@ -1422,9 +1440,10 @@ function renderDetail(){
       ${j.descrizione ? `<div><dt>Lavoro</dt><dd>${esc(j.descrizione)}</dd></div>` : ''}
       ${isClosed(st) && j.esitoIl ? `<div><dt>Esito</dt><dd>${STATI[st]} · ${esc(whenTxt(j.esitoIl))}${j.esitoDa === 'lavoratore' ? ' (dal lavoratore)' : ''}</dd></div>` : ''}
       ${st === 'non_fatto' && j.causale ? `<div><dt>Motivo (non fatto)</dt><dd>${esc(j.causale)}</dd></div>` : ''}
-      ${j.noteLavoratore ? `<div><dt>Nota del lavoratore</dt><dd>${esc(j.noteLavoratore)}</dd></div>` : ''}
+      ${j.noteLavoratore && !canWrite ? `<div><dt>Nota del lavoratore</dt><dd>${esc(j.noteLavoratore)}</dd></div>` : ''}
       <div><dt>Lavoratore</dt><dd>${w ? esc(w.nome) : 'Da assegnare'}</dd></div>
     </dl>
+    ${canWrite ? `<label class="field"><span>Nota del lavoratore${j.noteLavoratore ? '' : ' (non ancora inviata)'} · modificabile da ufficio e titolare</span><textarea id="dNoteL" data-id="${esc(j.id)}" maxlength="500">${esc(j.noteLavoratore || '')}</textarea></label>` : ''}
     ${usingDb ? fotoStrip(j, {add: false, del: canWrite}) : ''}
     ${usingDb && canWrite ? matStripOffice(j) : ''}
     <div class="job-actions">
@@ -1442,7 +1461,8 @@ function renderDetail(){
       ${sortedWorkers().filter(x => isActive(x) || x.id === j.workerId).map(x => `<option value="${esc(x.id)}"${x.id === j.workerId ? ' selected' : ''}>${esc(x.nome)} (${esc(fmtDur(loadOf(x, day)) || 'libero')})</option>`).join('')}</select></label>
     <div class="form-actions"><button class="btn" data-act="edit-job" data-id="${esc(j.id)}">${ic('edit', 16)}Modifica intervento</button></div>` : ''}`;
   ov.hidden = false;
-  if (fkeep) { const n = sh.querySelector('[data-' + fkeep.k + '="' + fkeep.v + '"]'); if (n) { n.value = fkeep.val; n.focus({preventScroll: true}); try { n.setSelectionRange(fkeep.s, fkeep.s); } catch(e){} } }
+  if (nkeep) { const n = $('#dNoteL'); if (n) { n.value = nkeep.val; n.focus({preventScroll: true}); try { n.setSelectionRange(nkeep.s, nkeep.s); } catch(e){} } }
+  else if (fkeep) { const n = sh.querySelector('[data-' + fkeep.k + '="' + fkeep.v + '"]'); if (n) { n.value = fkeep.val; n.focus({preventScroll: true}); try { n.setSelectionRange(fkeep.s, fkeep.s); } catch(e){} } }
   else if (wasHidden) { const c = $('#sheetClose'); if (c) c.focus({preventScroll:true}); }
 }
 
@@ -1730,7 +1750,15 @@ function indirizzoCliente(c){
   const loc = [c.cap, c.citta].filter(Boolean).join(' ') + (c.prov ? ' (' + c.prov + ')' : '');
   return [c.via, loc].filter(x => x && String(x).trim()).join(', ');
 }
-const billable = () => jobs.filter(j => stOf(j) === 'fatto' && !j.preFatturaId);
+const billable = () => jobs.filter(j => stOf(j) === 'fatto' && !j.preFatturaId && j.prefat === true);
+const fattiDaMandare = () => jobs.filter(j => stOf(j) === 'fatto' && !j.preFatturaId && j.prefat !== true);
+function setPrefat(id, on){
+  const j = jobs.find(x => x.id === id); if (!j || !canWrite) return;
+  if (on && stOf(j) !== 'fatto') { toast('Si possono mandare in pre-fatturazione solo gli interventi «Fatto».'); return; }
+  if (j.preFatturaId) { toast('È già in una pre-fattura.'); return; }
+  j.prefat = !!on; persist('interventi', j); render();
+  toast(on ? 'Mandato in Pre-fatturazione.' : 'Tolto dalla Pre-fatturazione.', on ? 'Apri' : '', on ? () => go('prefat') : null);
+}
 const slug = s => norm(String(s || '')).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'cliente';
 /* controlli "morbidi" sui dati fiscali: avvisano, non bloccano */
 function pivaOk(v){
@@ -1979,6 +2007,84 @@ function buildPrefatturaPdf(pf, az){
   return doc.build('Pre-fattura ' + pf.numero);
 }
 
+function buildJobPdf(j, mats, az){
+  az = az || {};
+  const L = 48, R = PDF_W - 48, W = R - L, GREY = [0.42, 0.42, 0.45], DARK = [0.08, 0.08, 0.09], LIGHT = [0.96, 0.96, 0.97], RED = [0.85, 0.05, 0.08];
+  const doc = pdfBuilder(); doc.page();
+  const eur = n => fmtNum(n) + ' €';
+  const dmy = s => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || ''); return m ? m[3] + '/' + m[2] + '/' + m[1] : (s || ''); };
+  const abs = t => { const d = new Date(t); return isNaN(d) ? '' : d.toLocaleDateString('it-IT') + ' ore ' + hhmm(t); };
+  const bottom = PDF_H - 70;
+  let y = 54;
+  const need = h => { if (y + h > bottom) { doc.page(); y = 54; doc.text(L, y, 'Rapporto di intervento (continua)', 10, {bold: true, color: GREY}); y += 18; } };
+  /* intestazione */
+  doc.rect(L, 36, W, 4, RED);
+  const aziendaNome = (az.ragione || '').trim();
+  doc.text(L, y + 8, aziendaNome || 'Effebi', 15, {bold: true, color: DARK}); y += 24;
+  [az.indirizzo, [az.piva ? 'P.IVA ' + az.piva : '', az.cf ? 'C.F. ' + az.cf : ''].filter(Boolean).join('  ·  '), [az.telefono, az.email].filter(Boolean).join('  ·  ')]
+    .filter(x => x && String(x).trim()).forEach(t => { doc.text(L, y, t, 9, {color: GREY}); y += 12; });
+  doc.text(R, 62, 'RAPPORTO DI INTERVENTO', 16, {bold: true, align: 'right', color: DARK});
+  doc.text(R, 80, 'Data intervento: ' + dmy(j.data), 10, {align: 'right', color: GREY});
+  doc.text(R, 94, 'Stampato il ' + new Date().toLocaleDateString('it-IT'), 8.5, {align: 'right', color: GREY});
+  y = Math.max(y, 104) + 8; doc.line(L, y, R, y, 0.8, [0.82, 0.82, 0.85]); y += 18;
+  /* cliente */
+  const c = (j.clienteId && clienteById(j.clienteId)) || null;
+  const cLines = [j.via, c ? [c.tipo === 'azienda' && c.piva ? 'P.IVA ' + c.piva : '', c.cf ? 'C.F. ' + c.cf : ''].filter(Boolean).join('  ·  ') : '', [j.telefono || (c && c.telefono), c && c.email].filter(Boolean).join('  ·  ')].filter(x => x && String(x).trim());
+  const boxH = 36 + cLines.length * 12;
+  doc.rect(L, y, W, boxH, LIGHT);
+  doc.text(L + 12, y + 16, 'CLIENTE', 8, {bold: true, color: GREY});
+  doc.text(L + 12, y + 31, (c ? nomeCliente(c) : j.cliente) || '—', 12, {bold: true});
+  cLines.forEach((t, i) => doc.text(L + 12, y + 45 + i * 12, t, 9, {color: [0.2, 0.2, 0.24]}));
+  y += boxH + 18;
+  /* dati del lavoro */
+  const w = workers.find(x => x.id === j.workerId), st = stOf(j);
+  const rows = [['Intervento', tipoText(j) || j.tipo || '—'], ['Fascia oraria', fasciaLabel(j)], ['Lavoratore', w ? w.nome : 'Non assegnato'],
+    ['Esito', STATI[st] + (j.esitoIl ? ' · ' + abs(j.esitoIl) : '')]];
+  if (j.inizioIl) rows.push(['Iniziato', abs(j.inizioIl)]);
+  if (st === 'non_fatto' && j.causale) rows.push(['Motivo (non fatto)', j.causale]);
+  if (j.descrizione) rows.push(['Lavoro richiesto', j.descrizione]);
+  if (j.noteLavoratore) rows.push(['Nota del lavoratore', j.noteLavoratore]);
+  doc.text(L, y, 'DATI DEL LAVORO', 8, {bold: true, color: GREY}); y += 8;
+  rows.forEach(([k, v]) => { const lines = pdfWrap(String(v), W - 150, 10, false); need(lines.length * 13 + 10);
+    doc.text(L, y + 13, k, 9, {bold: true, color: GREY}); lines.forEach((t, i) => doc.text(L + 140, y + 13 + i * 13, t, 10)); y += lines.length * 13 + 8;
+    doc.line(L, y, R, y, 0.3, [0.9, 0.9, 0.92]); });
+  y += 18;
+  /* manodopera e materiale con prezzi */
+  const colDesc = L + 6, colQ = R - 150, colP = R - 76, colI = R - 6, descW = colQ - colDesc - 40;
+  const righe = [{d: j.tipo || 'Intervento', det: 'Manodopera', q: 1, p: importoOf(j)}]
+    .concat(mats.map(m => ({d: m.descrizione || m.codice, det: ['Cod. ' + m.codice, m.seriale ? 'S/N ' + m.seriale : ''].filter(Boolean).join(' – '), q: Number(m.qta) || 0, p: matPrezzo(m)})));
+  need(60);
+  doc.text(L, y, 'MANODOPERA E MATERIALE', 8, {bold: true, color: GREY}); y += 6;
+  doc.rect(L, y, W, 20, LIGHT);
+  doc.text(colDesc, y + 13.5, 'Descrizione', 8.5, {bold: true, color: GREY}); doc.text(colQ, y + 13.5, 'Q.tà', 8.5, {bold: true, color: GREY, align: 'right'});
+  doc.text(colP, y + 13.5, 'Prezzo', 8.5, {bold: true, color: GREY, align: 'right'}); doc.text(colI, y + 13.5, 'Importo', 8.5, {bold: true, color: GREY, align: 'right'}); y += 20;
+  let tot = 0;
+  righe.forEach(r => { const l1 = pdfWrap(r.d, descW, 10, true), h = 12 + l1.length * 12 + (r.det ? 11 : 0); need(h);
+    const imp = r.p === null ? null : round2(r.p * r.q); if (imp !== null) tot += imp;
+    l1.forEach((t, i) => doc.text(colDesc, y + 14 + i * 12, t, 10, {bold: true}));
+    if (r.det) doc.text(colDesc, y + 14 + l1.length * 12, r.det, 8.5, {color: GREY});
+    doc.text(colQ, y + 14, String(r.q), 9.5, {align: 'right'}); doc.text(colP, y + 14, r.p === null ? '—' : eur(r.p), 9.5, {align: 'right'});
+    doc.text(colI, y + 14, imp === null ? '—' : eur(imp), 9.5, {align: 'right', bold: true}); y += h; doc.line(L, y, R, y, 0.4, [0.88, 0.88, 0.9]); });
+  need(40); y += 20;
+  doc.text(R - 210, y, 'TOTALE (IVA esclusa)', 11, {bold: true}); doc.text(R - 6, y, eur(round2(tot)), 13, {bold: true, align: 'right'}); y += 30;
+  /* firme */
+  need(70);
+  doc.line(L, y + 40, L + 200, y + 40, 0.5, [0.6, 0.6, 0.64]); doc.text(L, y + 54, 'Firma del tecnico', 8.5, {color: GREY});
+  doc.line(R - 200, y + 40, R, y + 40, 0.5, [0.6, 0.6, 0.64]); doc.text(R - 200, y + 54, 'Firma del cliente', 8.5, {color: GREY});
+  const total = doc.count;
+  for (let i = 1; i <= total; i++) { doc.__goto(i); doc.line(L, PDF_H - 52, R, PDF_H - 52, 0.4, [0.82, 0.82, 0.85]);
+    doc.text(L, PDF_H - 38, 'Rapporto di intervento – documento non fiscale.', 7.5, {color: GREY}); doc.text(R, PDF_H - 38, 'Pagina ' + i + ' di ' + total, 7.5, {align: 'right', color: GREY}); }
+  return doc.build('Rapporto di intervento ' + (j.cliente || ''));
+}
+async function jobPdf(id){
+  const j = jobs.find(x => x.id === id); if (!j) return;
+  let mats = matOf(id).filter(m => !m.annullato);
+  if (!mats.length && usingDb && fb) { try { const sn = await fb.getDocs(fb.query(fb.collection(fb.db, 'materiali'), fb.where('jobId', '==', id))); mats = sn.docs.map(d => d.data()).filter(m => !m.annullato); } catch(e){} }
+  const bytes = buildJobPdf(j, mats, azienda);
+  await saveFile('Intervento_' + j.data + '_' + slug(j.cliente || 'cliente') + '.pdf', bytes, 'application/pdf');
+  toast('PDF del lavoro generato.');
+}
+
 /* ---------- Anagrafica clienti (privati e aziende) ---------- */
 function clienteFormHtml(v, tipo, editing){
   v = v || {};
@@ -2036,7 +2142,7 @@ function mountAnagrafica(){
 }
 function cliCard(c){
   const nj = jobs.filter(j => j.clienteId === c.id);
-  const da = nj.filter(j => stOf(j) === 'fatto' && !j.preFatturaId);
+  const da = nj.filter(j => stOf(j) === 'fatto' && !j.preFatturaId && j.prefat === true);
   const sum = da.reduce((s, j) => s + importoOf(j), 0);
   const ind = indirizzoCliente(c);
   return `<article class="worker ${c.tipo === 'azienda' ? 'c3' : 'c0'}">
@@ -2127,7 +2233,8 @@ function pfGroupHtml(g){
       <div class="pf-main"><strong>${esc(j.tipo || 'Intervento')}</strong><small>${esc(dmy(j.data))} · ${esc(j.via)}${j.noteFatt ? ' · ' + esc(j.noteFatt) : ''}</small></div>
       <div class="pf-imp">${importoOf(j) === 0 ? '<span class="tag late">Importo mancante</span>' : ''}${esc(fmtEur(importoOf(j)))}</div></label>
       <div class="pf-mats">${matBillable(j.id).map(m => { const pr = matPrezzo(m); return `<div class="pf-mat"><span>${esc(m.qta)} × ${esc(m.descrizione || m.codice)} <small class="muted">${esc(m.codice)}</small>${pr === null ? ' <span class="tag late">Prezzo mancante</span>' : ''}</span><span>${esc(fmtEur((Number(m.qta) || 0) * (pr || 0)))}</span></div>`; }).join('')}
-        <button class="btn small ghost pf-addmat" data-act="pf-mat" data-id="${esc(j.id)}">${ic('plus', 14)}${matBillable(j.id).length ? 'Modifica materiale' : 'Materiale usato'}</button></div>`).join('')}</div>
+        <div class="pf-acts"><button class="btn small ghost pf-addmat" data-act="pf-mat" data-id="${esc(j.id)}">${ic('plus', 14)}${matBillable(j.id).length ? 'Modifica materiale' : 'Materiale usato'}</button>
+        <button class="btn small ghost" data-act="pf-unsend" data-id="${esc(j.id)}">Togli dalla pre-fatturazione</button></div></div>`).join('')}</div>
     <div class="pf-foot">
       <label class="field" style="margin:0"><span>Aliquota IVA</span><select data-act="pf-iva" data-key="${esc(g.key)}">${IVA_OPTS.map(([v, l]) => `<option value="${v}"${v === iva ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
       <div class="pf-sum"><span>Imponibile ${esc(fmtEur(t.imponibile))}</span><span>IVA ${esc(fmtEur(t.ivaImporto))}</span><strong>Totale ${esc(fmtEur(t.totale))}</strong></div>
@@ -2155,7 +2262,7 @@ function pfMainHtml(){
     h += `<div class="notice"><span>Compila i dati della tua azienda: compaiono nell’intestazione del PDF.</span><button class="btn small" data-act="pf-az-open">Compila ora</button></div>`;
   }
   h += groups.length ? groups.map(pfGroupHtml).join('')
-    : `<div class="empty"><h3>Nessun intervento da pre-fatturare</h3><p>Quando segni un intervento come «Fatto» compare qui, con l’importo del suo tipo di intervento.</p></div>`;
+    : `<div class="empty"><h3>Nessun intervento da pre-fatturare</h3><p>Apri un intervento «Fatto» dalla Panoramica o dal Finder e premi l’icona verde: arriva qui con l’importo del suo tipo di intervento.</p></div>`;
   return h + `<h2 class="page-title" style="margin:8px 0 12px">Pre-fatture emesse</h2><div class="panel">${pfEmesseHtml()}</div>`;
 }
 function aziendaPanelInner(){
@@ -3157,13 +3264,6 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && artId) { a
 document.addEventListener('click', e => { if (notifOpen && !e.target.closest('#npanel') && !e.target.closest('#bellBtn')) notifToggle(false); }, true);
 
 /* ---------- eventi ---------- */
-const wNoteT = {};
-document.addEventListener('input', e => {
-  const t = e.target;
-  if (!(t.dataset && t.dataset.wnote)) return;
-  clearTimeout(wNoteT[t.dataset.id]);
-  wNoteT[t.dataset.id] = setTimeout(() => { const j = jobs.find(x => x.id === t.dataset.id); if (j && (j.noteLavoratore || '') !== t.value.slice(0, 500)) { j.noteLavoratore = t.value.slice(0, 500); persist('interventi', j); } }, 900);
-});
 document.addEventListener('click', e => {
   if (e.target.id === 'overlay') { detailId = null; renderDetail(); return; }
   const t = e.target.closest('[data-act]'); if (!t) return;
@@ -3195,6 +3295,13 @@ document.addEventListener('click', e => {
     case 'login-mode': loginMode = t.dataset.mode; render(); break;
     case 'fb-retry': location.reload(); break;
     case 'w-stato': setStato(id, t.dataset.st); break;
+    case 'w-note': {
+      const j = jobs.find(x => x.id === id), n = document.querySelector('textarea[data-wnote][data-id="' + id + '"]'), v = n ? n.value.trim().slice(0, 500) : '';
+      if (!j || j.noteLavoratore) break;
+      if (!v) { toast('Scrivi prima la nota.'); if (n) n.focus(); break; }
+      if (t.dataset.armed !== '1') { t.dataset.armed = '1'; t.textContent = 'Tocca ancora per inviare (non si potrà modificare)'; break; }
+      j.noteLavoratore = v; persist('interventi', j); render(); toast('Nota inviata all’ufficio.'); break;
+    }
     case 'w-fatto':
       if (t.dataset.armed !== '1') { t.dataset.armed = '1'; t.textContent = 'Tocca ancora per confermare'; break; }
       setStato(id, 'fatto');
@@ -3240,6 +3347,9 @@ document.addEventListener('click', e => {
     case 'mat-del': { const m = matOf(t.dataset.job).find(x => x.id === t.dataset.mid); if (m) toast('Togliere «' + (m.descrizione || m.codice) + '»?', 'Togli', () => { matRemove(m); renderDetail(); }); break; }
     case 'pf-mat': detailId = id; wMat[id] = wMat[id] || {q: '', pick: null, qta: 1, ser: ''}; renderDetail();
       setTimeout(() => { const b = $('#matBox'); if (b) b.scrollIntoView({block: 'center'}); const i = document.querySelector('input[data-matq="' + id + '"]'); if (i) i.focus(); }, 60); break;
+    case 'job-prefat': { const j = jobs.find(x => x.id === id); if (j) setPrefat(id, !j.prefat); break; }
+    case 'pf-unsend': setPrefat(id, false); break;
+    case 'job-pdf': jobPdf(id); break;
     case 'mag-flt': magFlt = t.dataset.f; mounted = null; render(); break;
     case 'inv-start': inv = {start: new Date().toISOString(), counts: {}}; invSave(); mounted = null; render(); break;
     case 'inv-cancel': if (t.dataset.armed !== '1') { t.dataset.armed = '1'; t.textContent = 'Tocca ancora per annullare'; break; } inv = null; invSave(); mounted = null; render(); break;
@@ -3331,6 +3441,7 @@ document.addEventListener('change', e => {
   if (t.id === 'dateInput') setDate(t.value);
   else if (t.id === 'magFlt') { magFlt = t.value; refreshMagazzino(); }
   else if (t.dataset && t.dataset.matqta) { const m = matOf(detailId).find(x => x.id === t.dataset.matqta); if (m) { matSetQta(m, t.value); renderDetail(); } }
+  else if (t.id === 'dNoteL') { const j = jobs.find(x => x.id === t.dataset.id); if (j && canWrite) { j.noteLavoratore = t.value.trim().slice(0, 500); persist('interventi', j); toast('Nota aggiornata.'); } }
   else if (t.id === 'impFile') { const f = t.files && t.files[0]; t.value = ''; if (f) prepImport(f); }
   else if (t.id === 'wzWorker') { wzWorker = t.value; render(); }
   else if (t.id === 'wzDate') { if (t.value) { wzDate = t.value; render(); } }
@@ -3338,7 +3449,6 @@ document.addEventListener('change', e => {
   else if (t.matches && t.matches('select[data-act="u-ruolo"]')) setUserRole(t.dataset.uid, t.value);
   else if (t.matches && t.matches('select[data-act="u-worker"]')) setUserWorker(t.dataset.uid, t.value);
   else if (t.dataset && t.dataset.fotoin) { const fl = Array.from(t.files || []); const jid = t.dataset.fotoin; t.value = ''; addFoto(jid, fl); }
-  else if (t.dataset && t.dataset.wnote) { const j = jobs.find(x => x.id === t.dataset.id); if (j) { j.noteLavoratore = t.value.slice(0, 500); persist('interventi', j); } }
   else if (t.id === 'fTipo') updateTipoDur();
   else if (t.id === 'fCliente') updateClienteLink(true);
   else if (t.id === 'dImporto') {
@@ -3494,7 +3604,7 @@ const FIREBASE_CONFIG = {
 };
 const FB_BASE = 'https://www.gstatic.com/firebasejs/12.7.0/';
 const ROLE_LABEL = {titolare: 'Titolare', ufficio: 'Ufficio', lavoratore: 'Lavoratore', disattivato: 'Disattivato', '': 'In attesa'};
-const FATT_KEYS = ['importo', 'noteFatt', 'preFatturaId'];
+const FATT_KEYS = ['importo', 'noteFatt', 'preFatturaId', 'prefat'];
 const W_KEYS = ['stato', 'noteLavoratore', 'causale', 'inizioIl', 'esitoIl', 'esitoDa'];
 let srvSnap = {};   // ultima versione dall'archivio dei campi che contano (per confronti e notifiche)
 function takeSnap(s){ srvSnap = {}; s.docs.forEach(d => { const x = d.data(), o = {workerId: x.workerId || ''}; W_KEYS.forEach(k => { o[k] = x[k]; }); srvSnap[d.id] = o; }); }
@@ -3781,7 +3891,10 @@ function wCard(j){
       ${href ? `<a class="btn" href="${esc(href)}" target="_blank" rel="noopener">${ic('pin', 16)}Mappa</a>` : ''}</div>
     ${wStatoHtml(j, st)}
     ${usingDb ? fotoStrip(j, {add: true, del: true}) : ''}
-    <label class="field" style="margin:0"><span>Nota per l’ufficio</span><textarea data-wnote="1" data-id="${esc(j.id)}" maxlength="500" placeholder="Es. materiale usato, cliente assente…">${esc(j.noteLavoratore || '')}</textarea></label>
+    ${j.noteLavoratore ? `<div class="wnote-sent"><span class="fl">Nota per l’ufficio · inviata</span><p>${esc(j.noteLavoratore)}</p></div>`
+      : `<label class="field" style="margin:0"><span>Nota per l’ufficio</span><textarea data-wnote="1" data-id="${esc(j.id)}" maxlength="500" placeholder="Es. materiale usato, cliente assente…"></textarea></label>
+      <div class="job-actions"><button class="btn" data-act="w-note" data-id="${esc(j.id)}">${ic('chat', 16)}Invia nota</button></div>
+      <small class="muted">Una volta inviata la nota non si può più modificare.</small>`}
   </article>`;
 }
 function viewOggi(){
