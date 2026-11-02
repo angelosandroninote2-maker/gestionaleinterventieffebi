@@ -557,6 +557,11 @@ html,body{overflow-x:hidden}
 .imp-row{border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px;background:var(--surface2);display:grid;gap:6px}
 .imp-row .btn{justify-self:start}
 .meta.warnx{color:var(--bad-text);font-weight:600}
+.closesheet{max-width:620px}
+.sigbox{display:grid;gap:8px;margin:6px 0 12px}
+#sigPad{width:100%;height:auto;aspect-ratio:600/220;background:#fff;border:2px dashed var(--line);border-radius:12px;touch-action:none;cursor:crosshair}
+.sigimg{max-width:260px;width:100%;background:#fff;border:1px solid var(--line);border-radius:8px;margin-top:6px}
+.closeacts .btn{flex:1 1 auto}
 </style>
 </head>
 <body>
@@ -1414,6 +1419,7 @@ function renderDetail(){
   const ov = $('#overlay'), sh = $('#sheet');
   const j = detailId ? jobs.find(x => x.id === detailId) : null;
   fotoSubDetail(j ? j.id : ''); matSubDetail(j ? j.id : '');
+  if (j && j.firmaIl && firmaCache[j.id] === undefined) firmaGet(j.id).then(() => { if (detailId === j.id) renderDetail(); });
   if (!j) { detailId = null; ov.hidden = true; sh.innerHTML = ''; return; }
   const wById = workerMap();
   const w = wById[j.workerId];
@@ -1448,6 +1454,7 @@ function renderDetail(){
       ${j.descrizione ? `<div><dt>Lavoro</dt><dd>${esc(j.descrizione)}</dd></div>` : ''}
       ${isClosed(st) && j.esitoIl ? `<div><dt>Esito</dt><dd>${STATI[st]} · ${esc(whenTxt(j.esitoIl))}${j.esitoDa === 'lavoratore' ? ' (dal lavoratore)' : ''}</dd></div>` : ''}
       ${st === 'non_fatto' && j.causale ? `<div><dt>Motivo (non fatto)</dt><dd>${esc(j.causale)}</dd></div>` : ''}
+      ${j.firmaIl ? `<div><dt>Firma del cliente</dt><dd>${esc([j.firmaNome, j.firmaRuolo].filter(Boolean).join(' – ') || 'Firmato')} · ${esc(whenTxt(j.firmaIl))}${firmaCache[j.id] && firmaCache[j.id].data ? `<br><img class="sigimg" alt="Firma del cliente" src="${firmaCache[j.id].data}">` : ''}</dd></div>` : ''}
       ${j.noteLavoratore && !canWrite ? `<div><dt>Nota del lavoratore</dt><dd>${esc(j.noteLavoratore)}</dd></div>` : ''}
       <div><dt>Lavoratore</dt><dd>${w ? esc(w.nome) : 'Da assegnare'}</dd></div>
     </dl>
@@ -1897,7 +1904,7 @@ function pdfWrap(str, maxW, size, bold){
   return out.length ? out : [''];
 }
 function pdfBuilder(){
-  const pages = [];
+  const pages = [], images = [];
   let cur = null;
   const f2 = n => (Math.round(n * 100) / 100).toFixed(2);
   const esc = s => s.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
@@ -1913,6 +1920,10 @@ function pdfBuilder(){
       cur.push(`BT /${o.bold ? 'F2' : 'F1'} ${f2(size)} Tf ${col(o.color)} rg ${f2(xx)} ${f2(PDF_H - y)} Td (${esc(pdfEnc(str))}) Tj ET`);
     },
     line(x1, y1, x2, y2, w, color){ cur.push(`${col(color)} RG ${f2(w || 0.5)} w ${f2(x1)} ${f2(PDF_H - y1)} m ${f2(x2)} ${f2(PDF_H - y2)} l S`); },
+    image(x, y, w, h, bin, pw, ph){   // bin: byte JPEG come stringa (1 carattere per byte)
+      const n = images.push({bin, pw, ph});
+      cur.push(`q ${f2(w)} 0 0 ${f2(h)} ${f2(x)} ${f2(PDF_H - y - h)} cm /Im${n} Do Q`);
+    },
     rect(x, y, w, h, fill, stroke){
       cur.push(`${fill ? col(fill) + ' rg ' : ''}${stroke ? col(stroke) + ' RG 0.6 w ' : ''}${f2(x)} ${f2(PDF_H - y - h)} ${f2(w)} ${f2(h)} re ${fill && stroke ? 'B' : fill ? 'f' : 'S'}`);
     },
@@ -1923,10 +1934,13 @@ function pdfBuilder(){
       objs[2] = `<< /Type /Pages /Kids [${kids}] /Count ${pages.length} >>`;
       objs[3] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>';
       objs[4] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>';
+      const imgBase = 5 + pages.length * 2;
+      const xobj = images.length ? ` /XObject << ${images.map((_, k) => `/Im${k + 1} ${imgBase + k} 0 R`).join(' ')} >>` : '';
+      images.forEach((im, k) => { objs[imgBase + k] = `<< /Type /XObject /Subtype /Image /Width ${im.pw} /Height ${im.ph} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${im.bin.length} >>\nstream\n${im.bin}\nendstream`; });
       pages.forEach((ops, i) => {
         const pn = 5 + i * 2, cn = pn + 1;
         const stream = ops.join('\n');
-        objs[pn] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${f2(PDF_W)} ${f2(PDF_H)}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${cn} 0 R >>`;
+        objs[pn] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${f2(PDF_W)} ${f2(PDF_H)}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >>${xobj} >> /Contents ${cn} 0 R >>`;
         objs[cn] = `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`;
       });
       const infoN = objs.length;
@@ -2042,7 +2056,7 @@ function buildPrefatturaPdf(pf, az){
   return doc.build('Pre-fattura ' + pf.numero);
 }
 
-function buildJobPdf(j, mats, az){
+function buildJobPdf(j, mats, az, firma){
   az = az || {};
   const L = 48, R = PDF_W - 48, W = R - L, GREY = [0.42, 0.42, 0.45], DARK = [0.08, 0.08, 0.09], LIGHT = [0.96, 0.96, 0.97], RED = [0.85, 0.05, 0.08];
   const doc = pdfBuilder(); doc.page();
@@ -2105,7 +2119,9 @@ function buildJobPdf(j, mats, az){
   /* firme */
   need(70);
   doc.line(L, y + 40, L + 200, y + 40, 0.5, [0.6, 0.6, 0.64]); doc.text(L, y + 54, 'Firma del tecnico', 8.5, {color: GREY});
+  if (firma && firma.bin) { const fw = 180, fh = Math.min(60, fw * firma.ph / firma.pw); doc.image(R - 190, y + 38 - fh, fw, fh, firma.bin, firma.pw, firma.ph); }
   doc.line(R - 200, y + 40, R, y + 40, 0.5, [0.6, 0.6, 0.64]); doc.text(R - 200, y + 54, 'Firma del cliente', 8.5, {color: GREY});
+  if (firma && (firma.nome || firma.quando)) doc.text(R - 200, y + 66, [firma.nome, firma.ruolo].filter(Boolean).join(' – ') + (firma.quando ? '  ·  ' + new Date(firma.quando).toLocaleDateString('it-IT') : ''), 8.5, {color: DARK});
   const total = doc.count;
   for (let i = 1; i <= total; i++) { doc.__goto(i); doc.line(L, PDF_H - 52, R, PDF_H - 52, 0.4, [0.82, 0.82, 0.85]);
     doc.text(L, PDF_H - 38, 'Rapporto di intervento – documento non fiscale.', 7.5, {color: GREY}); doc.text(R, PDF_H - 38, 'Pagina ' + i + ' di ' + total, 7.5, {align: 'right', color: GREY}); }
@@ -2115,7 +2131,10 @@ async function jobPdf(id){
   const j = jobs.find(x => x.id === id); if (!j) return;
   let mats = matOf(id).filter(m => !m.annullato);
   if (!mats.length && usingDb && fb) { try { const sn = await fb.getDocs(fb.query(fb.collection(fb.db, 'materiali'), fb.where('jobId', '==', id))); mats = sn.docs.map(d => d.data()).filter(m => !m.annullato); } catch(e){} }
-  const bytes = buildJobPdf(j, mats, azienda);
+  const fd = j.firmaIl ? await firmaGet(id) : null;
+  let firma = null;
+  if (fd && fd.data) { try { firma = {bin: atob(String(fd.data).split(',')[1] || ''), pw: fd.w || 600, ph: fd.h || 200, nome: fd.nome, ruolo: fd.ruolo, quando: fd.quando}; } catch(e){} }
+  const bytes = buildJobPdf(j, mats, azienda, firma);
   await saveFile('Intervento_' + j.data + '_' + slug(j.cliente || 'cliente') + '.pdf', bytes, 'application/pdf');
   toast('PDF del lavoro generato.');
 }
@@ -3434,11 +3453,12 @@ document.addEventListener('click', e => {
       if (t.dataset.armed !== '1') { t.dataset.armed = '1'; t.textContent = 'Tocca ancora per inviare (non si potrà modificare)'; break; }
       j.noteLavoratore = v; persist('interventi', j); render(); toast('Nota inviata all’ufficio.'); break;
     }
-    case 'w-fatto':
-      if (t.dataset.armed !== '1') { t.dataset.armed = '1'; t.textContent = 'Tocca ancora per confermare'; break; }
-      setStato(id, 'fatto');
-      if (usingDb && !fotoOf(id).length) toast('Intervento chiuso. Vuoi aggiungere foto del lavoro?', 'Aggiungi foto', () => { const i = document.querySelector('input[data-fotoin="' + id + '"]'); if (i) i.click(); });
-      break;
+    case 'w-fatto': openClose(id); break;
+    case 'close-ok': confirmClose(true); break;
+    case 'close-skip': confirmClose(false); break;
+    case 'close-x': closeHide(); break;
+    case 'sig-clear': { const c = $('#sigPad'); if (c) { const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); } sigInk = false; const h = $('#sigHint'); if (h) h.textContent = 'Fai firmare il cliente qui sopra con il dito.'; break; }
+    case 'close-foto': { const i = document.querySelector('input[data-fotoin="' + closeId + '"]'); if (i) i.click(); break; }
     case 'w-nf-open': wNF[id] = true; render(); { const n = document.querySelector('textarea[data-causale][data-id="' + id + '"]'); if (n) n.focus(); } break;
     case 'w-nf-cancel': delete wNF[id]; render(); break;
     case 'w-nf-ok': {
@@ -3525,8 +3545,8 @@ document.addEventListener('click', e => {
     case 'wz-create': wzCreate(); break;
     case 'open-job': detailId = id; renderDetail(); break;
     case 'close-detail': detailId = null; renderDetail(); break;
-    case 'stato': { const j = jobs.find(x => x.id === id); if (j) setStato(id, NEXT[stOf(j)]); break; }
-    case 'set-stato': setStato(id, t.dataset.st); break;
+    case 'stato': { const j = jobs.find(x => x.id === id); if (j) { const nx = NEXT[stOf(j)]; if (nx === 'fatto') openClose(id); else setStato(id, nx); } break; }
+    case 'set-stato': if (t.dataset.st === 'fatto') { const j = jobs.find(x => x.id === id); if (j && stOf(j) !== 'fatto') { openClose(id); break; } } setStato(id, t.dataset.st); break;
     case 'auto': autoAssign(); break;
     case 'apply-suggest': assign(id, t.dataset.w); break;
     case 'smart-fill': smartFill(); break;
@@ -3743,7 +3763,7 @@ const FIREBASE_CONFIG = {
 const FB_BASE = 'https://www.gstatic.com/firebasejs/12.7.0/';
 const ROLE_LABEL = {titolare: 'Titolare', ufficio: 'Ufficio', lavoratore: 'Lavoratore', disattivato: 'Disattivato', '': 'In attesa'};
 const FATT_KEYS = ['importo', 'noteFatt', 'preFatturaId', 'prefat'];
-const W_KEYS = ['stato', 'noteLavoratore', 'causale', 'inizioIl', 'esitoIl', 'esitoDa'];
+const W_KEYS = ['stato', 'noteLavoratore', 'causale', 'inizioIl', 'esitoIl', 'esitoDa', 'firmaIl', 'firmaNome', 'firmaRuolo'];
 let srvSnap = {};   // ultima versione dall'archivio dei campi che contano (per confronti e notifiche)
 function takeSnap(s){ srvSnap = {}; s.docs.forEach(d => { const x = d.data(), o = {workerId: x.workerId || ''}; W_KEYS.forEach(k => { o[k] = x[k]; }); srvSnap[d.id] = o; }); }
 let fb = null, authState = 'loading', role = '', myWorkerId = '', me = null, fbErr = '', loginMode = 'login', migHidden = false;
@@ -4003,13 +4023,77 @@ function showLightbox(src){
   lb.firstChild.src = src; lb.hidden = false;
 }
 
+/* ---- finestra "Chiudi intervento" (Fatto): nota, firma del cliente facoltativa, promemoria foto ---- */
+let closeId = null, sigInk = false, firmaCache = {};
+function firmaGet(jobId){
+  if (firmaCache[jobId] !== undefined) return Promise.resolve(firmaCache[jobId]);
+  if (!usingDb || !fb || !canWrite) return Promise.resolve(null);
+  return fb.getDoc(fb.doc(fb.db, 'firme', jobId)).then(d => { firmaCache[jobId] = d.exists() ? d.data() : null; return firmaCache[jobId]; }).catch(() => null);
+}
+function openClose(id){
+  const j = jobs.find(x => x.id === id); if (!j) return;
+  if (isClosed(stOf(j)) && role !== 'titolare') { toast('Intervento già chiuso: solo il titolare può modificarlo.'); return; }
+  closeId = id; sigInk = false;
+  let o = $('#closeOverlay'); if (!o) { o = document.createElement('div'); o.id = 'closeOverlay'; o.className = 'overlay'; document.body.appendChild(o); }
+  const worker = role === 'lavoratore', noteLocked = worker && !!j.noteLavoratore, nf = usingDb && !fotoOf(id).length && worker;
+  o.innerHTML = `<div class="sheet closesheet" role="dialog" aria-modal="true" aria-label="Chiudi intervento">
+    <div class="sheet-head"><div><p class="eyebrow">Chiudi intervento</p><h2>${esc(j.cliente)}</h2><p class="muted" style="margin:2px 0 0">${esc(j.tipo || 'Intervento')}</p></div>
+      <button class="icon-btn" data-act="close-x" aria-label="Annulla">${ic('x', 20)}</button></div>
+    ${noteLocked ? `<div class="wnote-sent"><span class="fl">Nota per l’ufficio · già inviata</span><p>${esc(j.noteLavoratore)}</p></div>`
+      : `<label class="field"><span>Nota per l’ufficio (facoltativa${worker ? ', dopo non si potrà modificare' : ''})</span><textarea id="closeNote" maxlength="500" placeholder="Es. materiale usato, lavoro eseguito…">${esc(worker ? '' : (j.noteLavoratore || ''))}</textarea></label>`}
+    <div class="sigbox"><div class="split"><span class="fl">Firma del cliente (facoltativa)</span><button class="btn small ghost" type="button" data-act="sig-clear">Cancella e rifai</button></div>
+      <canvas id="sigPad" width="600" height="220" aria-label="Riquadro per la firma"></canvas>
+      <p class="muted" id="sigHint" style="margin:0;font-size:13.5px">Fai firmare il cliente qui sopra con il dito.</p>
+      <div class="fgrid"><label class="field" style="margin:0"><span>Nome e cognome di chi firma</span><input id="sigNome" maxlength="80" autocomplete="off"></label>
+        <label class="field" style="margin:0"><span>Ruolo (facoltativo)</span><input id="sigRuolo" maxlength="60" placeholder="Es. proprietario, amministratore, portiere" autocomplete="off"></label></div></div>
+    ${nf ? `<div class="notice"><span>Nessuna foto del lavoro.</span><button class="btn small" type="button" data-act="close-foto">${ic('plus', 14)}Aggiungi foto</button></div>` : ''}
+    <div class="form-actions closeacts"><button class="btn primary" data-act="close-ok" id="closeOk">${ic('check', 16)}Conferma e chiudi</button>
+      <button class="btn" data-act="close-skip" id="closeSkip">Salta firma e chiudi</button>
+      <button class="btn ghost" data-act="close-x">Annulla</button></div>
+    <small class="muted">Dopo la conferma l’intervento risulta «Fatto»${worker ? ' e non potrai più cambiarlo' : ''}.</small></div>`;
+  o.hidden = false;
+  sigSetup($('#sigPad'));
+}
+function sigSetup(c){
+  if (!c) return;
+  const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height);
+  x.strokeStyle = '#111'; x.lineWidth = 3.2; x.lineCap = 'round'; x.lineJoin = 'round';
+  let draw = false, last = null;
+  const pos = e => { const r = c.getBoundingClientRect(); return [(e.clientX - r.left) * c.width / r.width, (e.clientY - r.top) * c.height / r.height]; };
+  c.addEventListener('pointerdown', e => { draw = true; last = pos(e); try { c.setPointerCapture(e.pointerId); } catch(_){} x.beginPath(); x.arc(last[0], last[1], 1.4, 0, 6.3); x.fillStyle = '#111'; x.fill(); sigInk = true; e.preventDefault(); });
+  c.addEventListener('pointermove', e => { if (!draw) return; const p2 = pos(e); x.beginPath(); x.moveTo(last[0], last[1]); x.lineTo(p2[0], p2[1]); x.stroke(); last = p2; sigInk = true; e.preventDefault(); });
+  const end = () => { draw = false; last = null; const h = $('#sigHint'); if (h && sigInk) h.textContent = 'Firma acquisita. Scrivi sotto il nome di chi ha firmato.'; };
+  c.addEventListener('pointerup', end); c.addEventListener('pointercancel', end); c.addEventListener('pointerleave', end);
+}
+function closeHide(){ const o = $('#closeOverlay'); if (o) { o.hidden = true; o.innerHTML = ''; } closeId = null; sigInk = false; }
+async function confirmClose(withSig){
+  const j = jobs.find(x => x.id === closeId); if (!j) { closeHide(); return; }
+  const id = j.id, worker = role === 'lavoratore';
+  const ne = $('#closeNote'), note = ne ? ne.value.trim().slice(0, 500) : null;
+  const nome = String(($('#sigNome') || {}).value || '').trim().slice(0, 80), ruolo = String(($('#sigRuolo') || {}).value || '').trim().slice(0, 60);
+  const c = $('#sigPad');
+  if (withSig && !sigInk) { toast('Il riquadro della firma è vuoto: fai firmare il cliente oppure premi «Salta firma».'); return; }
+  const wasFatto = stOf(j) === 'fatto';
+  if (note !== null) { if (worker) { if (note && !j.noteLavoratore) j.noteLavoratore = note; } else j.noteLavoratore = note; }
+  if (withSig && c && usingDb) {
+    const now = new Date().toISOString(), dataUrl = c.toDataURL('image/jpeg', 0.85);
+    const fdoc = {id, jobId: id, workerId: j.workerId || '', giorno: j.data, nome, ruolo, quando: now, da: worker ? 'lavoratore' : 'ufficio', w: c.width, h: c.height, data: dataUrl};
+    firmaCache[id] = fdoc;
+    fb.setDoc(fb.doc(fb.db, 'firme', id), fdoc).catch(e => toast(e && e.code === 'permission-denied' ? 'Firma non salvata: permesso negato.' : 'Firma non salvata. Riprova.'));
+    j.firmaIl = now; j.firmaNome = nome; j.firmaRuolo = ruolo;
+  }
+  closeHide();
+  if (wasFatto) { persist('interventi', j); render(); } else setStato(id, 'fatto');
+  toast(withSig ? 'Intervento chiuso con la firma del cliente.' : 'Intervento chiuso.');
+}
+
 /* ---- vista del lavoratore ---- */
 let wNF = {};   // interventi con il riquadro "Non fatto" aperto
 function wStatoHtml(j, st){
   const id = esc(j.id);
   if (isClosed(st)) {
     return `<div class="esito esito-${st}"><strong>${ic(st === 'fatto' ? 'check' : 'x', 18)}${st === 'fatto' ? 'Fatto' : 'Non fatto'}</strong>${j.esitoIl ? `<span>${esc(whenTxt(j.esitoIl))}</span>` : ''}
-      ${st === 'non_fatto' && j.causale ? `<p>Motivo: ${esc(j.causale)}</p>` : ''}<small>Intervento chiuso. Per modifiche contatta l’ufficio.</small></div>`;
+      ${st === 'non_fatto' && j.causale ? `<p>Motivo: ${esc(j.causale)}</p>` : ''}${j.firmaIl ? `<p>Firmato dal cliente${j.firmaNome ? ': ' + esc(j.firmaNome) : ''}</p>` : ''}<small>Intervento chiuso. Per modifiche contatta l’ufficio.</small></div>`;
   }
   const seg = `<div class="seg wide" role="group" aria-label="Stato">${['da_fare', 'in_corso'].map(k => `<button data-act="w-stato" data-id="${id}" data-st="${k}" aria-pressed="${k === st}">${STATI[k]}</button>`).join('')}</div>`;
   if (wNF[j.id]) return seg + `<div class="nfbox"><label class="field" style="margin:0"><span>Perché non è stato fatto? (obbligatorio)</span>
