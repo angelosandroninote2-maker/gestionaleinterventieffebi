@@ -1,35 +1,20 @@
 <!DOCTYPE html>
-<!--
-  EFFEBI GESTIONALE - versione online con accesso e ruoli (Firebase)
+<!-- saved from url=(0071)https://angelosandroninote2-maker.github.io/gestionaleinterventieffebi/ -->
+<html lang="it" data-theme="light"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
-  Questo file si usa così com'è: la configurazione del progetto Firebase è già inserita.
-  Va caricato come index.html sul sito (GitHub Pages) e richiede:
-   1. Firebase > Authentication: metodo "Email/password" attivo.
-   2. Firebase > Authentication > Settings > Authorized domains: l'indirizzo del sito
-      (es. nomeutente.github.io).
-   3. Firebase > Firestore Database > Rules: incollare il contenuto del file firestore.rules e pubblicare.
-   4. Primo accesso: registrarsi dalla pagina, poi in Firestore > raccolta "utenti" aprire il documento
-      con la propria email e impostare il campo ruolo = titolare (una sola volta).
-  Gli altri utenti si registrano dalla pagina e il titolare assegna il ruolo dal menu "Utenti".
-
-  Facoltativo: suggerimenti di indirizzo Geoapify (chiave nella costante GEOAPIFY_API_KEY).
--->
-<html lang="it">
-<head>
-<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Effebi Gestionale</title>
-<link rel="manifest" href="manifest.webmanifest">
+<link rel="manifest" href="https://angelosandroninote2-maker.github.io/gestionaleinterventieffebi/manifest.webmanifest">
 <meta name="theme-color" content="#D80C14">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Effebi">
-<link rel="icon" type="image/png" sizes="48x48" href="favicon-48.png">
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
-<link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link rel="icon" type="image/png" sizes="48x48" href="https://angelosandroninote2-maker.github.io/gestionaleinterventieffebi/favicon-48.png">
+<link rel="icon" type="image/png" sizes="192x192" href="https://angelosandroninote2-maker.github.io/gestionaleinterventieffebi/icon-192.png">
+<link rel="apple-touch-icon" href="https://angelosandroninote2-maker.github.io/gestionaleinterventieffebi/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com/">
+<link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin="">
+<link href="./Effebi Gestionale_files/css2" rel="stylesheet">
 <style>
 :root{
   --bg:#F4F4F5; --surface:#FFFFFF; --surface2:#F7F7F8; --ink:#161616; --muted:#5E5E66; --line:#E3E3E6;
@@ -569,24 +554,62 @@ html,body{overflow-x:hidden}
 <header class="top">
   <div class="wrap">
     <div class="bar">
-      <div class="mark" id="mark" aria-hidden="true"></div>
+      <div class="mark" id="mark" aria-hidden="true"><img alt="" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAMAAADVRocKAAAASFBMVEX///////7+///+/v79/f38+/v15eby0dLEr7DBcnTdOT7aERc3LzAZFhfbDhXaDhXZDxXZDhXZDhTZDhPaChDXCRDXAQRsCQzJMz6DAAAEz0lEQVR42u1Y26KrKAylA3ipLVGo/f9PnVxAUaHtmbHzMs3utgQCy8QsglXqJz/5yU/+P2Lb86Qx1hijdwD9tf9Mkt31ehUtNa78IWmVMlrvfTjRha5tlNmHSLfP53N+niLzc2j3CBej+uewCDg37IW65PNeHkOzC5HWxl4fA4zj6FEQALANAN5jB/aOpGIHDgQYgEZ5HKQJIxuJ7eSHZ68OAKpFF3BdmGgZRxAk8YshnQxsRl30l1qwTEEXtgCYVhSk+Sx5hHYHoNEJ25wodh8ipVXbnyi7EGl1sap9nijt3gN6yo/hLBmHPYAx5MHgOUnpEgInKf4DBE9tyh0Zx34HbIUNB6nPpz6cXQPApE4mwQX+9hBkLsiihEqAaTFZmWDA+SqAWQFkIs0Iflpm0DqoEdfw45mDdDNk5yC3qgBgkqp2HhKBiJ8wyY1OGeFcHKKGy4ylI02EsQJQINrzoDw/o+MRQP/1J1WneWdgD0w2XyWakd3ue0Tjze5Eog3lNJ0HzmkgQtEX8Qgk9WDNwpUFvHtDRjefUrbAAy1MpqyW6TInTlg5ui6D+YjVJzjhYCDkkAwLTNaRaJz5E28NRCS8YIUa0RnkxTSm2ibZThZc1sZpIrpQWaMC56faVgHBuUD3EhYBanvsDfQP/MG2oy4ubSET2WFQHgUAyqKRN6EQZvygcJPaIfZTc+bRqKQrWnk2DWI3F57B5fLdikZpev1mRdP2PyDaXKlOJxBNGzkYRfrQVg+JM0u94rEQLWiA92s+paVyUK0HeNCLABmxgL/4yOWFFUJzFwlMt4B0h7XgQCqfRwCpB3JyHJk4Pq1HhWQal2K6lGCuMGQ4ciefG+FNTQZOYwwAcYUTWnj0CCUhlhE/PI3HQh4Z86jVZB6WwAdhzexj7Wefpok707nAS5+fucluT3wtlcxvHx2FaNcka+tPJJv17Yp2KPrmUiWasG38txUtqwcgeS8ntXSAzOjmXF5/QuKAY17I7GOaXmJF82m9jD1ryYx5w/xdAEKsrI5IVwWIJztZbDzcXaZT9kI2tgwuJ9MRTYbi8X2WEOH71ggxNCDFEPjdDbN8nJILfBVDPrAuB0mk9OiPPOC96LR3tHkqEE01J77tH4+Oxx8XThV8BJorP+5J1pi1Yek7b9nYL6qJwzZv858uANCWpxmFdiYG0RGM+3XsoVfSOCyGizEtI336AFCNkF4uVe9XC20PvxRlAFriIK4vAWOvtYwZjgCN2TU2StkkOhbH4w9STLT+tkqvuo+1JtM6BGFdFfai230VXCTTbi+19p6rhvUiQH8GwL19DXCLB7OOF0lav9H2Y+2iUQy6MgA+NgZYGd7db/d+o3UVbV1Q+ksAOgF0KSEE4CONF+TmKwC99cBuPLCbe95q5jMPlmcQs03ncd5pRrRoqT57Brss6lSeKf1rrbnfD3o1RP8EYJOmvX0NsAvKNmCV8H0SopMecssulXmgi2mqLb8eLhrv0JY9KKVpHYBfofZEI2OuPjr5Y3nzF4AS0Zr3AF2UNgHoGkC/WPKC8rv7e4DtZnfwgMuWfbnZvXkGOcCtBGDeAdR2U1PxgGuuPfhTAyBmN2UmG912q7Sq4Wus+aw1EcDoZmNpM8Vixlnu/clPfvKTn5wofwPWLf22poJ/3QAAAABJRU5ErkJggg=="></div>
       <h1><span class="b1">EFFEBI</span><span class="b2">Gestionale</span></h1>
-      <span id="sync" data-s="pending">Collegamento…</span>
-      <button class="btn small" id="installBtn" hidden>Installa app</button>
-      <button class="btn small ghost" id="logoutBtn" data-act="logout" hidden>Esci</button>
-      <button class="icon-btn bell" id="bellBtn" data-act="notif" aria-label="Notifiche" hidden><span id="bellIc"></span><span class="badge" id="bellN" hidden></span></button>
-      <button class="icon-btn" id="themeBtn" data-act="theme" aria-label="Cambia tema chiaro o scuro"></button>
+      <span id="sync" data-s="online" title="angelosandroninote2@gmail.com">Online · Titolare</span>
+      <button class="btn small" id="installBtn" hidden="">Installa app</button>
+      <button class="btn small ghost" id="logoutBtn" data-act="logout">Esci</button>
+      <button class="icon-btn bell" id="bellBtn" data-act="notif" aria-label="Notifiche"><span id="bellIc"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg></span><span class="badge" id="bellN" hidden="">0</span></button>
+      <button class="icon-btn" id="themeBtn" data-act="theme" aria-label="Cambia tema chiaro o scuro"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg></button>
     </div>
-    <nav class="menu" id="menu" role="tablist" aria-label="Menu principale"></nav>
+    <nav class="menu" id="menu" role="tablist" aria-label="Menu principale"><button role="tab" data-act="go" data-view="panoramica" aria-selected="true"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect></svg>Panoramica</button><button role="tab" data-act="go" data-view="carica" aria-selected="false"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Carica lavori<span class="pill">1</span></button><button role="tab" data-act="go" data-view="assegna" aria-selected="false"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h10M7 12h14M3 18h8"></path></svg>Assegna</button><button role="tab" data-act="go" data-view="lavoratori" aria-selected="false"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"></path></svg>Lavoratori<span class="pill">7</span></button><button role="tab" data-act="go" data-view="anagrafica" aria-selected="false"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><circle cx="9" cy="11" r="2.5"></circle><path d="M5.5 17a4 4 0 0 1 7 0M15 9h3M15 13h3"></path></svg>Anagrafica<span class="pill">4530</span></button><button role="tab" data-act="go" data-view="magazzino" aria-selected="false"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8 12 3 3 8v8l9 5 9-5z"></path><path d="M3 8l9 5 9-5M12 13v8"></path></svg>Magazzino</button><button role="tab" data-act="go" data-view="prefat" aria-selected="false"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path><path d="M14 3v5h5M9 13h6M9 17h6"></path></svg>Pre-fatturazione</button><button role="tab" data-act="go" data-view="utenti" aria-selected="false"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"></path></svg>Utenti</button><button role="tab" data-act="go" data-view="archivio" aria-selected="false"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>Finder</button></nav>
   </div>
 </header>
 
-<main class="wrap" id="app"></main>
+<main class="wrap" id="app"><div class="pagehead"><div><h2>Panoramica</h2><p class="sub">Mercoledì 4 novembre 2026</p></div><div class="datebar">
+    <button class="btn" data-act="prev" aria-label="Giorno precedente"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg></button>
+    <input type="date" id="dateInput" value="2026-11-04" aria-label="Data">
+    <button class="btn" data-act="next" aria-label="Giorno successivo"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></button>
+    <button class="btn" data-act="oggi">Oggi</button></div></div><div class="kpis"><div class="kpi"><div class="l">Interventi del giorno</div><div class="n">1</div></div><div class="kpi"><div class="l">Da assegnare</div><div class="n">0</div><div class="s">Tutti assegnati</div></div><div class="kpi"><div class="l">In corso</div><div class="n">0</div></div><div class="kpi"><div class="l">Completati</div><div class="n">1</div><div class="s">100% della giornata</div></div></div><div class="dash">
+    <section class="panel"><div class="split"><h2 class="panel-title" style="margin:0">Programma della giornata</h2>
+      <button class="btn small" data-act="go" data-view="carica"><svg class="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Carica lavori</button></div>
+      <div style="margin-bottom:14px"><div class="split" style="margin-bottom:6px"><span class="muted">Avanzamento</span><span class="muted">1 di 1 completati</span></div><div class="progress" role="img" aria-label="1 completati, 0 in corso, su 1"><i class="d" style="width:100%"></i><i class="p" style="width:0%"></i></div></div>
+      <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Fascia</th><th>Cliente</th><th>Intervento</th><th>Indirizzo</th><th>Lavoratore</th><th>Stato</th></tr></thead><tbody><tr class="st-fatto"><td class="nowrap">Senza fascia</td>
+        <td><button class="linkbtn" data-act="open-job" data-id="mw0ybbze0zfz1">IPSA S.P.A.</button> </td>
+        <td>Installazione sbarra · 4 h</td>
+        <td>C.DA RUFIANO, 29, 63072 CASTIGNANO (AP)</td>
+        <td><span class="wtag c3"><i class="dotw"></i>Paolo Gasparretti</span></td>
+        <td><span class="stat st-fatto">Fatto</span></td></tr></tbody></table></div></section>
+    <div class="stack">
+      <section class="panel"><h2 class="panel-title">Avvisi</h2><div class="alerts"><div class="alert warn"><div class="ico"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></div><div class="msg">3 interventi fatti non ancora mandati in pre-fatturazione</div><button class="btn small" data-act="go" data-view="archivio">Finder</button></div></div></section>
+      <section class="panel"><h2 class="panel-title">Carico dei lavoratori</h2><div class="lines"><div class="wl c2"><div class="av">DB</div>
+          <div><strong>davide bizzarri</strong> <span class="muted">· 0 interventi</span></div>
+          <div><div class="loadline"><span>0 h / 8 h</span><em>0%</em></div>
+    <div class="meter c2" role="img" aria-label="Carico 0%"><i style="width:0%"></i></div></div></div><div class="wl c1"><div class="av">FB</div>
+          <div><strong>Fabio Borraccini</strong> <span class="muted">· 0 interventi</span></div>
+          <div><div class="loadline"><span>0 h / 8 h</span><em>0%</em></div>
+    <div class="meter c1" role="img" aria-label="Carico 0%"><i style="width:0%"></i></div></div></div><div class="wl c3"><div class="av">GB</div>
+          <div><strong>Gianluca Borraccini</strong> <span class="muted">· 0 interventi</span></div>
+          <div><div class="loadline"><span>0 h / 8 h</span><em>0%</em></div>
+    <div class="meter c3" role="img" aria-label="Carico 0%"><i style="width:0%"></i></div></div></div><div class="wl c2"><div class="av">GS</div>
+          <div><strong>Giovanni Satulli</strong> <span class="muted">· 0 interventi</span></div>
+          <div><div class="loadline"><span>0 h / 8 h</span><em>0%</em></div>
+    <div class="meter c2" role="img" aria-label="Carico 0%"><i style="width:0%"></i></div></div></div><div class="wl c7"><div class="av">IB</div>
+          <div><strong>Ioselito Bruni</strong> <span class="muted">· 0 interventi</span></div>
+          <div><div class="loadline"><span>0 h / 8 h</span><em>0%</em></div>
+    <div class="meter c7" role="img" aria-label="Carico 0%"><i style="width:0%"></i></div></div></div><div class="wl c4"><div class="av">LB</div>
+          <div><strong>Luciano Borraccini</strong> <span class="muted">· 0 interventi</span></div>
+          <div><div class="loadline"><span>0 h / 8 h</span><em>0%</em></div>
+    <div class="meter c4" role="img" aria-label="Carico 0%"><i style="width:0%"></i></div></div></div><div class="wl c3"><div class="av">PG</div>
+          <div><strong>Paolo Gasparretti</strong> <span class="muted">· 1 intervento</span></div>
+          <div><div class="loadline"><span>4 h / 8 h</span><em>50%</em></div>
+    <div class="meter c3" role="img" aria-label="Carico 50%"><i style="width:50%"></i></div></div></div></div></section>
+    </div></div></main>
 
-<div class="overlay" id="overlay" hidden>
+<div class="overlay" id="overlay" hidden="">
   <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Dettaglio intervento"></div>
 </div>
-<div class="toast" id="toast" role="status" hidden></div>
+<div class="toast" id="toast" role="status" hidden=""></div>
 
 <script>
 (function(){
@@ -1460,6 +1483,7 @@ function renderDetail(){
     </dl>
     ${canWrite ? `<label class="field"><span>Nota del lavoratore${j.noteLavoratore ? '' : ' (non ancora inviata)'} · modificabile da ufficio e titolare</span><textarea id="dNoteL" data-id="${esc(j.id)}" maxlength="500">${esc(j.noteLavoratore || '')}</textarea></label>` : ''}
     ${usingDb ? fotoStrip(j, {add: false, del: canWrite}) : ''}
+    ${usingDb ? docStrip(j, {add: canWrite, del: canWrite}) : ''}
     ${usingDb && canWrite ? matStripOffice(j) : ''}
     <div class="job-actions">
       ${j.telefono ? `<a class="btn" href="tel:${esc(digits(j.telefono))}">${ic('phone', 16)}Chiama</a>` : ''}
@@ -3311,20 +3335,66 @@ async function camScan(onCode){
   };
   loop();
 }
-/* storico per cliente */
-let storicoUnsub = null;
+/* storico per cliente (materiale installato) */
+let storicoUnsub = null, stoAdd = null, stoCid = null, stoRows = [];
+const stoNewState = () => ({q: '', pick: null, free: false, desc: '', cod: '', qta: 1, ser: '', nota: '', data: ''});
+function stoResHtml(){
+  const st = stoAdd; if (!st) return '';
+  if (!String(st.q || '').trim()) return '<p class="muted" style="margin:0">Scrivi almeno una parola del nome o del codice.</p>';
+  const res = matCerca(st.q, 8);
+  return res.length ? res.map(v => `<button class="abbrow" data-act="sto-pick" data-key="${esc(v.key)}"><span><strong>${esc(v.d)}</strong><small>${esc(v.codice)}${v.m ? ' · ' + esc(v.m) : ''}</small></span><span class="btn small">Scegli</span></button>`).join('')
+    : '<p class="muted" style="margin:0">Nessun articolo trovato nel catalogo: puoi scriverlo a mano.</p>';
+}
+function stoPanelHtml(){
+  const st = stoAdd;
+  if (st.pick || st.free) {
+    const head = st.pick ? `<div class="matsel"><strong>${esc(st.pick.d)}</strong><small>${esc(st.pick.codice)}${st.pick.m ? ' · ' + esc(st.pick.m) : ''}</small></div>`
+      : `<label class="field" style="margin:0"><span>Descrizione del materiale</span><input id="stoDesc" maxlength="160" value="${esc(st.desc)}" placeholder="Es. motore FAAC 740, fotocellule, lampeggiante" autocomplete="off"></label>
+         <label class="field" style="margin:0"><span>Codice (facoltativo)</span><input id="stoCod" maxlength="40" value="${esc(st.cod)}" autocomplete="off"></label>`;
+    return `<div class="matadd">${head}
+      <div class="matqrow"><button class="btn" data-act="sto-q" data-d="-1" aria-label="Meno">−</button><b class="matqv">${st.qta}</b><button class="btn" data-act="sto-q" data-d="1" aria-label="Più">+</button><span class="muted">pezzi</span></div>
+      <label class="field" style="margin:0"><span>Numero di serie (facoltativo)</span><input id="stoSer" maxlength="60" value="${esc(st.ser)}" autocomplete="off"></label>
+      <label class="field" style="margin:0"><span>Dove è installato / note (facoltativo)</span><input id="stoNote" maxlength="160" value="${esc(st.nota)}" placeholder="Es. cancello principale" autocomplete="off"></label>
+      <label class="field" style="margin:0"><span>Installato il (facoltativo)</span><input id="stoData" type="date" value="${esc(st.data)}"></label>
+      <div class="job-actions"><button class="btn primary" data-act="sto-ok">${ic('check', 16)}Salva</button><button class="btn" data-act="sto-back">${st.pick ? 'Cambia articolo' : 'Cerca nel catalogo'}</button><button class="btn ghost" data-act="sto-cancel">Annulla</button></div></div>`;
+  }
+  return `<div class="matadd"><label class="field" style="margin:0"><span>Cerca il materiale (nome o codice)</span><input id="stoQ" type="search" value="${esc(st.q)}" placeholder="Nome o codice" autocomplete="off"></label>
+    <div class="matres" id="stoRes">${stoResHtml()}</div>
+    <div class="job-actions"><button class="btn" data-act="sto-free">Non lo trovo: lo scrivo a mano</button><button class="btn ghost" data-act="sto-cancel">Annulla</button></div></div>`;
+}
+function stoRender(){
+  const c = clienteById(stoCid), o = $('#stoOverlay'); if (!c || !o) return;
+  const a = document.activeElement, fid = a && a.id && o.contains(a) ? a.id : '', fs = fid ? a.selectionStart : null;
+  const rows = stoRows.filter(m => !m.annullato).sort((x, y) => String(x.giorno) < String(y.giorno) ? 1 : -1);
+  o.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="Materiale installato"><div class="sheet-head"><div><p class="eyebrow">Materiale installato</p><h2>${esc(nomeCliente(c))}</h2></div>
+      <button class="icon-btn" data-act="sto-x" aria-label="Chiudi">${ic('x', 20)}</button></div>
+    ${canWrite ? (stoAdd ? stoPanelHtml() : `<button class="btn small ph-add" data-act="sto-add">${ic('plus', 14)}Aggiungi materiale già installato</button>`) : ''}
+    ${rows.length ? `<div class="rows">${rows.map(m => { const j = jobs.find(x => x.id === m.jobId);
+      return `<div class="row"><div class="row-main"><strong>${esc(m.qta)} × ${esc(m.descrizione || m.codice)}</strong><small>${[m.giorno ? dmy(m.giorno) : 'data non indicata', m.codice, m.seriale ? 'S/N ' + m.seriale : '', m.nota, j ? (j.tipo || 'Intervento') : (m.manuale ? 'inserito a mano' : '')].filter(Boolean).map(esc).join(' · ')}</small></div>
+        ${m.manuale && canWrite ? `<button class="icon-btn small" data-act="sto-del" data-mid="${esc(m.id)}" aria-label="Togli">${ic('x', 16)}</button>` : ''}</div>`; }).join('')}</div>`
+      : '<p class="muted">Nessun materiale registrato per questo cliente.</p>'}</div>`;
+  o.hidden = false;
+  if (fid) { const n = document.getElementById(fid); if (n) { n.focus(); try { if (fs !== null && fs !== undefined) n.setSelectionRange(fs, fs); } catch(e){} } }
+}
+function stoSave(){
+  const st = stoAdd, c = clienteById(stoCid); if (!st || !c || !usingDb) return;
+  const v = st.pick || null, desc = String(v ? v.d : st.desc).trim();
+  if (!desc) { toast('Scrivi che materiale è.'); return; }
+  const id = newId('u'), data = /^\d{4}-\d{2}-\d{2}$/.test(st.data) ? st.data : '';
+  /* materiale già presente dal cliente: non scarica il magazzino e non va in pre-fattura (aperto:false, pend:false) */
+  const doc = {id, jobId: '', workerId: '', clienteId: c.id, giorno: data, codice: normCode(v ? v.codice : st.cod), articoloId: '', descrizione: desc.slice(0, 160), marca: v ? (v.m || '') : '',
+    qta: Math.max(1, Math.min(999, st.qta)), seriale: String(st.ser || '').trim().slice(0, 60), nota: String(st.nota || '').trim().slice(0, 160), creato: new Date().toISOString(), da: 'ufficio', manuale: true,
+    applicato: 0, rev: 0, pend: false, aperto: false, verificato: true, annullato: false, preFatturaId: '', prezzo: null};
+  fb.setDoc(fb.doc(fb.db, 'materiali', id), doc).then(() => toast('Aggiunto: ' + doc.qta + ' × ' + doc.descrizione))
+    .catch(e => toast(e && e.code === 'permission-denied' ? 'Non posso salvare il materiale: permesso negato.' : 'Materiale non salvato. Riprova.'));
+  stoAdd = null; stoRender();
+}
 function openStorico(cid){
   const c = clienteById(cid); if (!c) return;
   if (storicoUnsub) { try { storicoUnsub(); } catch(e){} }
   let o = $('#stoOverlay'); if (!o) { o = document.createElement('div'); o.id = 'stoOverlay'; o.className = 'overlay'; document.body.appendChild(o); }
-  const draw = l => { const rows = l.filter(m => !m.annullato).sort((a, b) => a.giorno < b.giorno ? 1 : -1);
-    o.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="Materiale installato"><div class="sheet-head"><div><p class="eyebrow">Materiale installato</p><h2>${esc(nomeCliente(c))}</h2></div>
-      <button class="icon-btn" data-act="sto-x" aria-label="Chiudi">${ic('x', 20)}</button></div>
-      ${rows.length ? `<div class="rows">${rows.map(m => { const j = jobs.find(x => x.id === m.jobId);
-        return `<div class="row"><div class="row-main"><strong>${esc(m.qta)} × ${esc(m.descrizione || m.codice)}</strong><small>${esc(dmy(m.giorno))} · ${esc(m.codice)}${m.seriale ? ' · S/N ' + esc(m.seriale) : ''}${j ? ' · ' + esc(j.tipo || 'Intervento') : ''}</small></div></div>`; }).join('')}</div>`
-        : '<p class="muted">Nessun materiale registrato per questo cliente.</p>'}</div>`; o.hidden = false; };
-  draw([]);
-  storicoUnsub = fb.onSnapshot(fb.query(fb.collection(fb.db, 'materiali'), fb.where('clienteId', '==', cid)), s => draw(s.docs.map(d => d.data())), fbSnapErr);
+  stoCid = cid; stoAdd = null; stoRows = []; stoRender();
+  storicoUnsub = fb.onSnapshot(fb.query(fb.collection(fb.db, 'materiali'), fb.where('clienteId', '==', cid)), s => { stoRows = s.docs.map(d => d.data()); stoRender(); }, fbSnapErr);
 }
 
 /* ---------- centro notifiche ---------- */
@@ -3511,7 +3581,15 @@ document.addEventListener('click', e => {
         if (v) { st.pick = v; st.qta = 1; } else { st.q = code; toast('Codice ' + code + ' non riconosciuto: cercalo per nome.'); } render(); renderDetail(); }); break; }
     case 'cam-x': camStop(); break;
     case 'sto-open': openStorico(id); break;
-    case 'sto-x': { if (storicoUnsub) { try { storicoUnsub(); } catch(e){} storicoUnsub = null; } const o = $('#stoOverlay'); if (o) o.hidden = true; break; }
+    case 'sto-add': stoAdd = stoNewState(); stoRender(); { const i = $('#stoQ'); if (i) i.focus(); } break;
+    case 'sto-cancel': stoAdd = null; stoRender(); break;
+    case 'sto-pick': { if (!stoAdd) break; const v = matCerca(stoAdd.q, 40).find(x => x.key === t.dataset.key); if (v) { stoAdd.pick = v; stoAdd.free = false; stoAdd.qta = 1; stoRender(); } break; }
+    case 'sto-free': if (stoAdd) { stoAdd.free = true; stoAdd.pick = null; stoRender(); { const i = $('#stoDesc'); if (i) i.focus(); } } break;
+    case 'sto-back': if (stoAdd) { stoAdd.pick = null; stoAdd.free = false; stoRender(); } break;
+    case 'sto-q': if (stoAdd) { stoAdd.qta = Math.max(1, Math.min(999, stoAdd.qta + Number(t.dataset.d))); stoRender(); } break;
+    case 'sto-ok': stoSave(); break;
+    case 'sto-del': { const m = stoRows.find(x => x.id === t.dataset.mid); if (m) toast('Togliere «' + (m.descrizione || m.codice) + '»?', 'Togli', () => { fb.updateDoc(fb.doc(fb.db, 'materiali', m.id), {annullato: true, rev: (Number(m.rev) || 0) + 1}).catch(() => toast('Non sono riuscito a togliere il materiale.')); }); break; }
+    case 'sto-x': { stoAdd = null; if (storicoUnsub) { try { storicoUnsub(); } catch(e){} storicoUnsub = null; } const o = $('#stoOverlay'); if (o) o.hidden = true; break; }
     case 'notif': notifToggle(); break;
     case 'notif-close': notifToggle(false); break;
     case 'notif-perm': notifAskPerm(); break;
@@ -3522,6 +3600,8 @@ document.addEventListener('click', e => {
       else { detailId = id; renderDetail(); }
       break;
     }
+    case 'doc-open': openDoc(t.dataset.job, t.dataset.fid); break;
+    case 'doc-del': { const fid = t.dataset.fid; toast('Eliminare questo documento?', 'Elimina', () => fb.deleteDoc(fb.doc(fb.db, 'foto', fid)).catch(() => toast('Non sono riuscito a eliminare il documento.'))); break; }
     case 'foto-open': { const im = t.querySelector('img'); if (im) showLightbox(im.src); break; }
     case 'foto-del': { const fid = t.dataset.fid; toast('Eliminare questa foto?', 'Elimina', () => delFoto(fid)); break; }
     case 'wa-sent': waSentSet(date + '|' + t.dataset.w, t.dataset.sig); setTimeout(render, 500); break;
@@ -3606,6 +3686,7 @@ document.addEventListener('change', e => {
   else if (t.id === 'fVia') scheduleMaps(true);
   else if (t.matches && t.matches('select[data-act="u-ruolo"]')) setUserRole(t.dataset.uid, t.value);
   else if (t.matches && t.matches('select[data-act="u-worker"]')) setUserWorker(t.dataset.uid, t.value);
+  else if (t.dataset && t.dataset.docin) { const fl = Array.from(t.files || []); const jid = t.dataset.docin; t.value = ''; addDocs(jid, fl); }
   else if (t.dataset && t.dataset.fotoin) { const fl = Array.from(t.files || []); const jid = t.dataset.fotoin; t.value = ''; addFoto(jid, fl); }
   else if (t.id === 'fTipo') updateTipoDur();
   else if (t.id === 'fCliente') updateClienteLink(true);
@@ -3633,6 +3714,7 @@ document.addEventListener('input', e => {
   if (t.id === 'magQ') { magQ = t.value; refreshMagazzino(); return; }
   if (t.dataset && t.dataset.matq) { const st = wMat[t.dataset.matq]; if (st) { st.q = t.value; const r = document.querySelector('[data-matres="' + t.dataset.matq + '"]'); if (r) r.innerHTML = matResHtml(t.dataset.matq, matCerca(st.q, 8), st.q); } return; }
   if (t.dataset && t.dataset.matser) { const st = wMat[t.dataset.matser]; if (st) st.ser = t.value; return; }
+  if (stoAdd && t.id && /^sto(Q|Desc|Cod|Ser|Note|Data)$/.test(t.id)) { stoAdd[{stoQ: 'q', stoDesc: 'desc', stoCod: 'cod', stoSer: 'ser', stoNote: 'nota', stoData: 'data'}[t.id]] = t.value; if (t.id === 'stoQ') { const r = $('#stoRes'); if (r) r.innerHTML = stoResHtml(); } return; }
   if (t.id === 'catQ') { catQ = t.value; catLoad = ''; const r = $('#catRes'); if (r) r.innerHTML = catResHtml(); return; }
   if (t.id === 'abbQ') { abbQ = t.value; const a = artById(artId); const r = $('#abbRes'); if (a && r) { const tmp = document.createElement('div'); tmp.innerHTML = artListinoHtml(a); const nr = tmp.querySelector('#abbRes'); r.innerHTML = nr ? nr.innerHTML : ''; } return; }
   if (t.form && t.form.id === 'clienteForm') { cliWarnLive(t.form); return; }
@@ -3830,7 +3912,7 @@ function startSubs(){
   const list = (n, fn) => sub(col(n), s => { fn(s); render(); });
   if (canWrite) {
     list('lavoratori', s => { workers = s.docs.map(d => d.data()); sync(s); });
-    list('interventi', s => { rawJobs = s.docs.map(d => d.data()); takeSnap(s); setTimeout(notifyCheck, 0); rebuildJobs(); pickInitialDate(); sync(s); });
+    list('interventi', s => { rawJobs = s.docs.map(d => d.data()); rawJobs.forEach(x => { docSig[x.id] = (x.workerId || '') + '|' + x.data; }); takeSnap(s); setTimeout(notifyCheck, 0); rebuildJobs(); pickInitialDate(); sync(s); });
     list('fatturazione', s => { fattMap = {}; s.docs.forEach(d => { fattMap[d.id] = d.data(); }); rebuildJobs(); });
     list('tipi', s => { tipi = s.docs.map(d => d.data()); });
     list('clienti', s => { clienti = s.docs.map(d => d.data()); });
@@ -3972,7 +4054,7 @@ function fotoSubDetail(id){
   }, fbSnapErr);
 }
 function fotoStrip(j, opt){
-  const l = fotoOf(j.id);
+  const l = fotoOf(j.id).filter(f => !f.doc);
   if (!l.length && !opt.add) return '';
   const thumbs = l.map(f => `<div class="ph"><button class="ph-img" data-act="foto-open" aria-label="Apri la foto"><img src="${f.data}" alt="Foto del lavoro"></button>${opt.del ? `<button class="ph-x" data-act="foto-del" data-fid="${esc(f.id)}" aria-label="Elimina la foto">${ic('x', 14)}</button>` : ''}</div>`).join('');
   const add = opt.add && l.length < MAX_FOTO ? `<label class="btn ph-add">${ic('plus', 16)}Aggiungi foto<input type="file" accept="image/*" multiple hidden data-fotoin="${esc(j.id)}"></label>` : '';
@@ -3999,7 +4081,7 @@ async function compressImage(file){
 async function addFoto(jobId, files){
   const j = jobs.find(x => x.id === jobId);
   if (!j || !usingDb || !files.length) return;
-  const room = Math.max(0, MAX_FOTO - fotoOf(jobId).length);
+  const room = Math.max(0, MAX_FOTO - fotoOf(jobId).filter(f => !f.doc).length);
   const list = files.filter(f => !f.type || /^image\//.test(f.type)).slice(0, room);
   if (!list.length) { toast('Hai raggiunto il massimo di ' + MAX_FOTO + ' foto per questo intervento.'); return; }
   toast(list.length === 1 ? 'Carico la foto…' : 'Carico ' + list.length + ' foto…');
@@ -4016,6 +4098,64 @@ async function addFoto(jobId, files){
   if (!denied) toast(ok === list.length ? (ok === 1 ? 'Foto salvata.' : ok + ' foto salvate.') : 'Alcune foto non si sono potute leggere. Riprova.');
 }
 function delFoto(fid){ fb.deleteDoc(fb.doc(fb.db, 'foto', fid)).catch(() => toast('Non sono riuscito a eliminare la foto.')); }
+/* ---- documenti allegati ai lavori (preventivi, PDF...): salvati come le foto, max ~700 KB l'uno ---- */
+const MAX_DOC = 700000, MAX_DOCS = 10;
+const DOC_EXT = {pdf: 'application/pdf', doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', odt: 'application/vnd.oasis.opendocument.text', txt: 'text/plain'};
+const docsOf = jobId => fotoOf(jobId).filter(f => f.doc);
+const docSize = n => { n = Number(n) || 0; return n >= 1048576 ? (n / 1048576).toFixed(1).replace('.', ',') + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB'; };
+function docStrip(j, opt){
+  const l = docsOf(j.id);
+  if (!l.length && !opt.add) return '';
+  const rows = l.map(f => `<div class="matrow"><span class="mat-main"><strong>${esc(f.nome || 'Documento')}</strong><small>${esc(docSize(f.size))}</small></span>
+    <span style="display:flex;gap:6px;align-items:center"><button class="btn small" data-act="doc-open" data-fid="${esc(f.id)}" data-job="${esc(j.id)}">Apri</button>${opt.del ? `<button class="icon-btn small" data-act="doc-del" data-fid="${esc(f.id)}" aria-label="Elimina il documento">${ic('x', 16)}</button>` : ''}</span></div>`).join('');
+  const add = opt.add && l.length < MAX_DOCS ? `<label class="btn small ph-add">${ic('plus', 14)}Allega documento<input type="file" accept="application/pdf,image/*,.pdf,.doc,.docx,.xls,.xlsx,.odt,.txt" multiple hidden data-docin="${esc(j.id)}"></label>` : '';
+  return `<div class="fotobox"><span class="fl">Documenti${l.length ? ' (' + l.length + ')' : ''}</span>${rows}${add}</div>`;
+}
+const readDataUrl = f => new Promise((ok, ko) => { const r = new FileReader(); r.onload = () => ok(String(r.result)); r.onerror = ko; r.readAsDataURL(f); });
+async function addDocs(jobId, files){
+  const j = jobs.find(x => x.id === jobId);
+  if (!j || !usingDb || !canWrite || !files.length) return;
+  const room = Math.max(0, MAX_DOCS - docsOf(jobId).length);
+  if (!room) { toast('Hai raggiunto il massimo di ' + MAX_DOCS + ' documenti per questo intervento.'); return; }
+  let ok = 0;
+  for (const f of files.slice(0, room)) {
+    try {
+      const ext = (String(f.name).split('.').pop() || '').toLowerCase();
+      let nome = String(f.name || 'Documento'), mime = '', data = '', size = f.size;
+      if (/^image\//.test(f.type || '')) {
+        const img = await compressImage(f); data = img.data; mime = 'image/jpeg'; nome = nome.replace(/\.[^.]+$/, '') + '.jpg'; size = Math.round(data.length * 0.75);
+      } else if (DOC_EXT[ext]) {
+        if (f.size > MAX_DOC) { toast('«' + nome + '» pesa troppo: massimo 700 KB. Riducilo o dividilo in più file.'); continue; }
+        mime = DOC_EXT[ext]; data = (await readDataUrl(f)).replace(/^data:[^;,]*/, 'data:' + mime);
+      } else { toast('«' + nome + '»: formato non ammesso (PDF, immagini, Word, Excel, testo).'); continue; }
+      if (data.length > 1000000) { toast('«' + nome + '» pesa troppo: massimo 700 KB.'); continue; }
+      const id = 'f' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      fb.setDoc(fb.doc(fb.db, 'foto', id), {id, jobId, workerId: j.workerId || '', giorno: j.data, creato: new Date().toISOString(), doc: true, nome: nome.slice(0, 120), mime, size, data})
+        .catch(e => toast(e && e.code === 'permission-denied' ? 'Non posso salvare il documento: permesso negato.' : 'Un documento non è stato salvato. Riprova.'));
+      ok++;
+    } catch(e) { toast('Non sono riuscito a leggere «' + f.name + '».'); }
+  }
+  if (ok) toast(ok === 1 ? 'Documento allegato.' : ok + ' documenti allegati.');
+}
+function openDoc(jobId, fid){
+  const f = docsOf(jobId).find(x => x.id === fid); if (!f || !f.data) return;
+  try {
+    const i = f.data.indexOf(','), mime = (/^data:([^;,]+)/.exec(f.data) || [])[1] || f.mime || 'application/octet-stream', bin = atob(f.data.slice(i + 1)), u8 = new Uint8Array(bin.length);
+    for (let k = 0; k < bin.length; k++) u8[k] = bin.charCodeAt(k);
+    const url = URL.createObjectURL(new Blob([u8], {type: mime}));
+    if (mime === 'application/pdf' || /^image\//.test(mime) || mime === 'text/plain') { const w = window.open(url, '_blank'); if (!w) location.href = url; }
+    else { const a = document.createElement('a'); a.href = url; a.download = f.nome || 'documento'; document.body.appendChild(a); a.click(); a.remove(); }
+    setTimeout(() => URL.revokeObjectURL(url), 120000);
+  } catch(e) { toast('Non riesco ad aprire il documento.'); }
+}
+/* se l'intervento cambia giorno o lavoratore, i suoi documenti lo seguono (il lavoratore li vede nel giorno giusto) */
+let docSig = {};
+function docsFollow(j){
+  if (!usingDb || !canWrite || !fb || !j || !j.id) return;
+  const s = (j.workerId || '') + '|' + j.data; if (docSig[j.id] === undefined || docSig[j.id] === s) return; docSig[j.id] = s;
+  fb.getDocs(fb.query(fb.collection(fb.db, 'foto'), fb.where('jobId', '==', j.id))).then(sn => sn.docs.forEach(d => { const x = d.data();
+    if (x.doc && ((x.workerId || '') !== (j.workerId || '') || x.giorno !== j.data)) fb.updateDoc(fb.doc(fb.db, 'foto', x.id), {workerId: j.workerId || '', giorno: j.data}).catch(() => {}); })).catch(() => {});
+}
 function showLightbox(src){
   let lb = document.getElementById('lightbox');
   if (!lb) { lb = document.createElement('div'); lb.id = 'lightbox'; lb.className = 'lightbox'; lb.addEventListener('click', () => { lb.hidden = true; lb.innerHTML = ''; }); document.body.appendChild(lb); }
@@ -4035,7 +4175,7 @@ function openClose(id){
   if (isClosed(stOf(j)) && role !== 'titolare') { toast('Intervento già chiuso: solo il titolare può modificarlo.'); return; }
   closeId = id; sigInk = false;
   let o = $('#closeOverlay'); if (!o) { o = document.createElement('div'); o.id = 'closeOverlay'; o.className = 'overlay'; document.body.appendChild(o); }
-  const worker = role === 'lavoratore', noteLocked = worker && !!j.noteLavoratore, nf = usingDb && !fotoOf(id).length && worker;
+  const worker = role === 'lavoratore', noteLocked = worker && !!j.noteLavoratore, nf = usingDb && !fotoOf(id).filter(f => !f.doc).length && worker;
   o.innerHTML = `<div class="sheet closesheet" role="dialog" aria-modal="true" aria-label="Chiudi intervento">
     <div class="sheet-head"><div><p class="eyebrow">Chiudi intervento</p><h2>${esc(j.cliente)}</h2><p class="muted" style="margin:2px 0 0">${esc(j.tipo || 'Intervento')}</p></div>
       <button class="icon-btn" data-act="close-x" aria-label="Annulla">${ic('x', 20)}</button></div>
@@ -4113,6 +4253,7 @@ function wCard(j){
       ${href ? `<a class="btn" href="${esc(href)}" target="_blank" rel="noopener">${ic('pin', 16)}Mappa</a>` : ''}</div>
     ${wStatoHtml(j, st)}
     ${usingDb ? fotoStrip(j, {add: true, del: true}) : ''}
+    ${usingDb ? docStrip(j, {add: false, del: false}) : ''}
     ${j.noteLavoratore ? `<div class="wnote-sent"><span class="fl">Nota per l’ufficio · inviata</span><p>${esc(j.noteLavoratore)}</p></div>`
       : `<label class="field" style="margin:0"><span>Nota per l’ufficio</span><textarea data-wnote="1" data-id="${esc(j.id)}" maxlength="500" placeholder="Es. materiale usato, cliente assente…"></textarea></label>
       <div class="job-actions"><button class="btn" data-act="w-note" data-id="${esc(j.id)}">${ic('chat', 16)}Invia nota</button></div>
@@ -4197,7 +4338,7 @@ function setSync(s){
   el.textContent = s === 'online' ? 'Online' + r : s === 'local' ? 'Senza rete: salvo appena torna' + r : (me ? 'Collegamento…' : 'Accesso');
   el.title = me && me.email ? me.email : '';
 }
-function persist(coll, item){ if (usingDb) enqueue(coll + '/' + item.id, () => fbWrite(coll, item)); }
+function persist(coll, item){ if (usingDb && coll === 'interventi') docsFollow(item); if (usingDb) enqueue(coll + '/' + item.id, () => fbWrite(coll, item)); }
 function unpersist(coll, id){ if (usingDb) enqueue(coll + '/' + id, () => fbRemove(coll, id)); }
 
 /* ---------- avvio ---------- */
@@ -4229,5 +4370,6 @@ setInterval(() => {
 }, 60000);
 })();
 </script>
-</body>
-</html>
+
+
+</body></html>
