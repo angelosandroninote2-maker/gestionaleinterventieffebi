@@ -547,6 +547,15 @@ html,body{overflow-x:hidden}
 #sigPad{width:100%;height:auto;aspect-ratio:600/220;background:#fff;border:2px dashed var(--line);border-radius:12px;touch-action:none;cursor:crosshair}
 .sigimg{max-width:260px;width:100%;background:#fff;border:1px solid var(--line);border-radius:8px;margin-top:6px}
 .closeacts .btn{flex:1 1 auto}
+
+/* lavoratori: elenco semplice (cliente + città) e finestra dell'intervento */
+.w-row{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-left:5px solid var(--line);border-radius:14px;padding:14px 16px;min-height:66px;margin:0 0 10px;font:inherit;color:inherit;cursor:pointer}
+.w-row:active{background:var(--surface2)}
+.w-row strong{display:block;font-size:18px;line-height:1.25}.w-row small{display:block;color:var(--muted);font-size:15px;margin-top:2px}
+.w-row .w-go{color:var(--muted);flex:none;font-size:22px;line-height:1}
+.w-row.st-in_corso{border-left-color:var(--brand)}.w-row.st-fatto{border-left-color:var(--ok);opacity:.8}.w-row.st-non_fatto{border-left-color:var(--bad);opacity:.8}
+.w-sheet-re .sheet{animation:none}
+a.w-row{text-decoration:none}
 </style>
 </head>
 <body>
@@ -1124,6 +1133,7 @@ function renderMenu(){
     ['magazzino', 'Magazzino', 'box', daAbbinare().length ? `<span class="pill warn" title="Codici da abbinare">${daAbbinare().length}</span>` : '', true],
     ['prefat', 'Pre-fatturazione', 'filetext', nb ? `<span class="pill warn" title="Interventi da pre-fatturare">${nb}</span>` : '', true],
     ['utenti', 'Utenti', 'users', (role === 'titolare' && pendingUsers()) ? `<span class="pill warn" title="In attesa di abilitazione">${pendingUsers()}</span>` : '', true],
+    ['manuali', 'Manuali', 'filetext', manList().length ? `<span class="pill">${manList().length}</span>` : '', true],
     ['archivio', 'Finder', 'search', '']
   ];
   $('#menu').innerHTML = items.filter(i => (canWrite || !i[4]) && (i[0] !== 'utenti' || role === 'titolare')).map(i =>
@@ -1131,7 +1141,7 @@ function renderMenu(){
 }
 function render(){
   if (gateRender()) return;
-  if (!canWrite && (view === 'carica' || view === 'anagrafica' || view === 'prefat' || view === 'magazzino')) view = 'panoramica';
+  if (!canWrite && (view === 'carica' || view === 'anagrafica' || view === 'prefat' || view === 'magazzino' || view === 'manuali')) view = 'panoramica';
   if (view === 'utenti' && role !== 'titolare') view = 'panoramica';
   renderMenu();
   if (view === 'carica') { if (mounted !== 'carica') { mountCarica(); mounted = 'carica'; } refreshCarica(); }
@@ -1140,6 +1150,7 @@ function render(){
   else if (view === 'magazzino') { if (mounted !== 'magazzino') { mountMagazzino(); mounted = 'magazzino'; } refreshMagazzino(); }
   else if (view === 'prefat') { if (mounted !== 'prefat') { mountPrefat(); mounted = 'prefat'; } refreshPrefat(); }
   else if (view === 'utenti') { mounted = null; $('#app').innerHTML = viewUtenti(); }
+  else if (view === 'manuali') { mounted = null; const a = document.activeElement, fid = a && a.id && /^man[TUCB]$/.test(a.id) ? a.id : '', fs = fid ? a.selectionStart : 0; $('#app').innerHTML = viewManuali(); if (fid) { const n = document.getElementById(fid); if (n) { n.focus({preventScroll: true}); try { n.setSelectionRange(fs, fs); } catch(e){} } } }
   else if (view === 'archivio') { if (mounted !== 'archivio') { mountArchivio(); mounted = 'archivio'; } refreshArchivio(); }
   else { mounted = null; $('#app').innerHTML = view === 'assegna' ? viewAssegna() : viewPanoramica(); }
   renderDetail();
@@ -1758,6 +1769,7 @@ function saveWorker(f){
   const w = {id: f.dataset.id || uid(), nome: String(fd.get('nome')).trim(), telefono: String(fd.get('telefono')).trim(),
     attivo: fd.get('attivo') === 'on', colore: Number.isInteger(col) ? col : 0};
   const i = workers.findIndex(x => x.id === w.id);
+  w.manuali = i >= 0 && workers[i].manuali ? workers[i].manuali : manList();
   if (i >= 0) workers[i] = w; else workers.push(w);
   persist('lavoratori', w);
   editingWorkerId = null; mounted = null; render();
@@ -2328,6 +2340,7 @@ function refreshAnagrafica(){
 }
 function saveCliente(f){
   const c = clienteFromForm(f);
+  { const pv = clienti.find(x => x.id === c.id); if (pv && pv.matInst) c.matInst = pv.matInst; }
   const nome = nomeCliente(c);
   if (!nome) { toast('Inserisci il nome del cliente.'); return; }
   if (clienti.some(x => x.id !== c.id && norm(nomeCliente(x)) === norm(nome))) { toast('Esiste già un cliente con questo nome.'); return; }
@@ -2591,6 +2604,7 @@ function cleanCliente(o){
     c.impianti = Array.isArray(o.impianti) ? o.impianti.slice(0, 50).map(i => { const r = {id: str(i && i.id, 40).replace(/[^\w-]/g, '') || uid()};
       ['tipo', 'posizione', 'marca', 'centralina', 'seriale', 'installato', 'garanzia', 'manut', 'ultima', 'prossima', 'importo'].forEach(k => { r[k] = str(i && i[k], 120); }); return r; }) : [];
   }
+  if (Array.isArray(o.matInst)) c.matInst = o.matInst.slice(0, 300).map(x => ({id: str(x && x.id, 40).replace(/[^\w-]/g, '') || uid(), descrizione: str(x && x.descrizione, 160), codice: str(x && x.codice, 40), marca: str(x && x.marca, 60), qta: Math.max(1, Math.min(999, parseInt(x && x.qta, 10) || 1)), seriale: str(x && x.seriale, 60), nota: str(x && x.nota, 160), giorno: str(x && x.giorno, 10), creato: str(x && x.creato, 30)}));
   return id && nomeCliente(c) ? c : null;
 }
 function cleanAzienda(o){
@@ -2637,7 +2651,7 @@ function importData(data){
   const ws = arr('lavoratori'), js = arr('interventi'), ts = arr('tipi'), cs = arr('clienti'), ps = arr('prefatture');
   if (!data || data.app !== 'gestionale-interventi' || (!ws.length && !js.length && !cs.length)) { toast('Questo file non è una copia dati del gestionale.'); return; }
   let nw = 0, nj = 0, nc = 0;
-  ws.forEach(o => { const w = cleanWorker(o); if (!w) return; const i = workers.findIndex(x => x.id === w.id); if (i >= 0) workers[i] = w; else workers.push(w); persist('lavoratori', w); nw++; });
+  ws.forEach(o => { const w = cleanWorker(o); if (!w) return; { const ow = workers.find(x => x.id === w.id); w.manuali = (Array.isArray(o.manuali) ? o.manuali.map(manClean).filter(Boolean) : (ow && ow.manuali)) || manList(); } const i = workers.findIndex(x => x.id === w.id); if (i >= 0) workers[i] = w; else workers.push(w); persist('lavoratori', w); nw++; });
   js.forEach(o => { const j = cleanJob(o); if (!j) return; const i = jobs.findIndex(x => x.id === j.id); if (i >= 0) jobs[i] = j; else jobs.push(j); persist('interventi', j); nj++; });
   cs.forEach(o => { const c = cleanCliente(o); if (!c) return; const i = clienti.findIndex(x => x.id === c.id); if (i >= 0) clienti[i] = c; else clienti.push(c); persist('clienti', c); nc++; });
   ps.forEach(o => { const p = cleanPre(o); if (!p) return; const i = prefatture.findIndex(x => x.id === p.id); if (i >= 0) prefatture[i] = p; else prefatture.push(p); persist('prefatture', p); });
@@ -3365,7 +3379,8 @@ function stoPanelHtml(){
 function stoRender(){
   const c = clienteById(stoCid), o = $('#stoOverlay'); if (!c || !o) return;
   const a = document.activeElement, fid = a && a.id && o.contains(a) ? a.id : '', fs = fid ? a.selectionStart : null;
-  const rows = stoRows.filter(m => !m.annullato).sort((x, y) => String(x.giorno) < String(y.giorno) ? 1 : -1);
+  const man = (c.matInst || []).map(x => Object.assign({manuale: true}, x));
+  const rows = stoRows.filter(m => !m.annullato).concat(man).sort((x, y) => String(x.giorno) < String(y.giorno) ? 1 : -1);
   o.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="Materiale installato"><div class="sheet-head"><div><p class="eyebrow">Materiale installato</p><h2>${esc(nomeCliente(c))}</h2></div>
       <button class="icon-btn" data-act="sto-x" aria-label="Chiudi">${ic('x', 20)}</button></div>
     ${canWrite ? (stoAdd ? stoPanelHtml() : `<button class="btn small ph-add" data-act="sto-add">${ic('plus', 14)}Aggiungi materiale già installato</button>`) : ''}
@@ -3380,13 +3395,13 @@ function stoSave(){
   const st = stoAdd, c = clienteById(stoCid); if (!st || !c || !usingDb) return;
   const v = st.pick || null, desc = String(v ? v.d : st.desc).trim();
   if (!desc) { toast('Scrivi che materiale è.'); return; }
-  const id = newId('u'), data = /^\d{4}-\d{2}-\d{2}$/.test(st.data) ? st.data : '';
-  /* materiale già presente dal cliente: non scarica il magazzino e non va in pre-fattura (aperto:false, pend:false) */
-  const doc = {id, jobId: '', workerId: '', clienteId: c.id, giorno: data, codice: normCode(v ? v.codice : st.cod), articoloId: '', descrizione: desc.slice(0, 160), marca: v ? (v.m || '') : '',
-    qta: Math.max(1, Math.min(999, st.qta)), seriale: String(st.ser || '').trim().slice(0, 60), nota: String(st.nota || '').trim().slice(0, 160), creato: new Date().toISOString(), da: 'ufficio', manuale: true,
-    applicato: 0, rev: 0, pend: false, aperto: false, verificato: true, annullato: false, preFatturaId: '', prezzo: null};
-  fb.setDoc(fb.doc(fb.db, 'materiali', id), doc).then(() => toast('Aggiunto: ' + doc.qta + ' × ' + doc.descrizione))
-    .catch(e => toast(e && e.code === 'permission-denied' ? 'Non posso salvare il materiale: permesso negato.' : 'Materiale non salvato. Riprova.'));
+  /* il materiale già presente dal cliente sta nella scheda del cliente: non tocca magazzino né pre-fatture */
+  const e = {id: newId('u'), descrizione: desc.slice(0, 160), codice: normCode(v ? v.codice : st.cod).slice(0, 40), marca: String(v ? (v.m || '') : '').slice(0, 60), qta: Math.max(1, Math.min(999, st.qta)),
+    seriale: String(st.ser || '').trim().slice(0, 60), nota: String(st.nota || '').trim().slice(0, 160), giorno: /^\d{4}-\d{2}-\d{2}$/.test(st.data) ? st.data : '', creato: new Date().toISOString()};
+  if ((c.matInst || []).length >= 300) { toast('Ci sono già troppi materiali inseriti a mano per questo cliente.'); return; }
+  const prev = c.matInst; c.matInst = (prev || []).concat([e]);
+  fbWrite('clienti', c).then(() => toast('Aggiunto: ' + e.qta + ' × ' + e.descrizione))
+    .catch(err => { c.matInst = prev; stoRender(); toast(err && err.code === 'permission-denied' ? 'Non posso salvare il materiale: permesso negato.' : 'Materiale non salvato. Riprova.'); });
   stoAdd = null; stoRender();
 }
 function openStorico(cid){
@@ -3515,6 +3530,29 @@ document.addEventListener('click', e => {
     case 'logout': if (fb) fb.signOut(fb.auth); break;
     case 'login-mode': loginMode = t.dataset.mode; render(); break;
     case 'fb-retry': location.reload(); break;
+    case 'man-open': manOpen = true; manQ = ''; manRender(); break;
+    case 'man-close': manOpen = false; manRender(); break;
+    case 'man-add': {
+      const ti = manDraft.t.trim(), u = manDraft.u.trim();
+      if (!ti) { toast('Scrivi il titolo.'); break; }
+      if (!manUrlOk(u)) { toast('Il link deve iniziare con https://'); break; }
+      if (!workers.length) { toast('Prima inserisci i lavoratori.'); break; }
+      const l = manList();
+      if (l.some(x => x.u === u)) { toast('Questo link è già nell’elenco.'); break; }
+      if (l.length >= MAN_MAX) { toast('Hai raggiunto il massimo di ' + MAN_MAX + ' manuali.'); break; }
+      const c = manDraft.c.trim().slice(0, 40); manDraft.t = manDraft.u = manDraft.c = '';
+      manSave(l.concat([{id: uid(), t: ti.slice(0, 120), u, c}])); toast('Manuale aggiunto.'); break;
+    }
+    case 'man-bulk': {
+      if (!workers.length) { toast('Prima inserisci i lavoratori.'); break; }
+      const l = manList(), seen = new Set(l.map(x => x.u)); let n = 0, bad = 0;
+      String(manDraft.b).split(/\r?\n/).forEach(r => { r = r.trim(); if (!r) return; const m = /^(https?:\/\/\S+)\s+(.+)$/i.exec(r); if (!m || !manUrlOk(m[1])) { bad++; return; } if (seen.has(m[1]) || l.length >= MAN_MAX) return; seen.add(m[1]); l.push({id: uid(), t: m[2].trim().slice(0, 120), u: m[1], c: ''}); n++; });
+      if (!n) { toast(bad ? 'Nessuna riga valida: scrivi il link, uno spazio e il titolo.' : 'Nessun manuale nuovo.'); break; }
+      manDraft.b = ''; manSave(l); toast(n + (n === 1 ? ' manuale aggiunto' : ' manuali aggiunti') + (bad ? ' (' + bad + ' righe non valide saltate)' : '') + '.'); break;
+    }
+    case 'man-del': { const m = manList().find(x => x.id === t.dataset.id); if (m) toast('Togliere «' + m.t + '»?', 'Togli', () => manSave(manList().filter(x => x.id !== m.id))); break; }
+    case 'w-open': wOpenId = id; render(); break;
+    case 'w-close': wOpenId = null; render(); break;
     case 'w-stato': setStato(id, t.dataset.st); break;
     case 'w-note': {
       const j = jobs.find(x => x.id === id), n = document.querySelector('textarea[data-wnote][data-id="' + id + '"]'), v = n ? n.value.trim().slice(0, 500) : '';
@@ -3534,7 +3572,7 @@ document.addEventListener('click', e => {
     case 'w-nf-ok': {
       const n = document.querySelector('textarea[data-causale][data-id="' + id + '"]'), why = n ? n.value.trim() : '';
       if (why.length < 3) { toast('Scrivi il motivo per cui non è stato fatto.'); if (n) n.focus(); break; }
-      delete wNF[id]; setStato(id, 'non_fatto', why); toast('Segnato come non fatto. L’ufficio riceve l’avviso.');
+      delete wNF[id]; setStato(id, 'non_fatto', why); wOpenId = null; render(); toast('Segnato come non fatto. L’ufficio riceve l’avviso.');
       break;
     }
     case 'mag-tab': magTab = t.dataset.tab; mounted = null; render(); break;
@@ -3588,7 +3626,7 @@ document.addEventListener('click', e => {
     case 'sto-back': if (stoAdd) { stoAdd.pick = null; stoAdd.free = false; stoRender(); } break;
     case 'sto-q': if (stoAdd) { stoAdd.qta = Math.max(1, Math.min(999, stoAdd.qta + Number(t.dataset.d))); stoRender(); } break;
     case 'sto-ok': stoSave(); break;
-    case 'sto-del': { const m = stoRows.find(x => x.id === t.dataset.mid); if (m) toast('Togliere «' + (m.descrizione || m.codice) + '»?', 'Togli', () => { fb.updateDoc(fb.doc(fb.db, 'materiali', m.id), {annullato: true, rev: (Number(m.rev) || 0) + 1}).catch(() => toast('Non sono riuscito a togliere il materiale.')); }); break; }
+    case 'sto-del': { const c = clienteById(stoCid), m = c && (c.matInst || []).find(x => x.id === t.dataset.mid); if (m) toast('Togliere «' + (m.descrizione || m.codice) + '»?', 'Togli', () => { const prev = c.matInst; c.matInst = prev.filter(x => x.id !== m.id); stoRender(); fbWrite('clienti', c).catch(() => { c.matInst = prev; stoRender(); toast('Non sono riuscito a togliere il materiale.'); }); }); break; }
     case 'sto-x': { stoAdd = null; if (storicoUnsub) { try { storicoUnsub(); } catch(e){} storicoUnsub = null; } const o = $('#stoOverlay'); if (o) o.hidden = true; break; }
     case 'notif': notifToggle(); break;
     case 'notif-close': notifToggle(false); break;
@@ -3714,6 +3752,8 @@ document.addEventListener('input', e => {
   if (t.id === 'magQ') { magQ = t.value; refreshMagazzino(); return; }
   if (t.dataset && t.dataset.matq) { const st = wMat[t.dataset.matq]; if (st) { st.q = t.value; const r = document.querySelector('[data-matres="' + t.dataset.matq + '"]'); if (r) r.innerHTML = matResHtml(t.dataset.matq, matCerca(st.q, 8), st.q); } return; }
   if (t.dataset && t.dataset.matser) { const st = wMat[t.dataset.matser]; if (st) st.ser = t.value; return; }
+  if (t.id && /^man[TUCB]$/.test(t.id)) { manDraft[{manT: 't', manU: 'u', manC: 'c', manB: 'b'}[t.id]] = t.value; return; }
+  if (t.id === 'manQ') { manQ = t.value; const r = $('#manRes'); if (r) r.innerHTML = manResHtml(); return; }
   if (stoAdd && t.id && /^sto(Q|Desc|Cod|Ser|Note|Data)$/.test(t.id)) { stoAdd[{stoQ: 'q', stoDesc: 'desc', stoCod: 'cod', stoSer: 'ser', stoNote: 'nota', stoData: 'data'}[t.id]] = t.value; if (t.id === 'stoQ') { const r = $('#stoRes'); if (r) r.innerHTML = stoResHtml(); } return; }
   if (t.id === 'catQ') { catQ = t.value; catLoad = ''; const r = $('#catRes'); if (r) r.innerHTML = catResHtml(); return; }
   if (t.id === 'abbQ') { abbQ = t.value; const a = artById(artId); const r = $('#abbRes'); if (a && r) { const tmp = document.createElement('div'); tmp.innerHTML = artListinoHtml(a); const nr = tmp.querySelector('#abbRes'); r.innerHTML = nr ? nr.innerHTML : ''; } return; }
@@ -4223,7 +4263,8 @@ async function confirmClose(withSig){
     j.firmaIl = now; j.firmaNome = nome; j.firmaRuolo = ruolo;
   }
   closeHide();
-  if (wasFatto) { persist('interventi', j); render(); } else setStato(id, 'fatto');
+  if (worker) wOpenId = null;
+  if (wasFatto) { persist('interventi', j); render(); } else { setStato(id, 'fatto'); if (worker) render(); }
   toast(withSig ? 'Intervento chiuso con la firma del cliente.' : 'Intervento chiuso.');
 }
 
@@ -4241,6 +4282,93 @@ function wStatoHtml(j, st){
       <div class="job-actions"><button class="btn danger" data-act="w-nf-ok" data-id="${id}">Conferma: non fatto</button><button class="btn" data-act="w-nf-cancel" data-id="${id}">Annulla</button></div>
       <small class="muted">Dopo la conferma non potrai più cambiarlo.</small></div>`;
   return seg + `<div class="job-actions"><button class="btn primary" data-act="w-fatto" data-id="${id}">${ic('check', 16)}Fatto</button><button class="btn danger" data-act="w-nf-open" data-id="${id}">${ic('x', 16)}Non fatto</button></div>`;
+}
+/* ---- manuali di installazione (link a Google Drive): l'elenco è copiato nella scheda di ogni lavoratore, che già legge la propria ---- */
+const MAN_MAX = 200;
+let manDraft = {t: '', u: '', c: '', b: ''}, manQ = '', manOpen = false;
+const manUrlOk = u => /^https?:\/\/[^\s<>"']{4,480}$/i.test(u);
+function manClean(x){
+  if (!x || typeof x !== 'object') return null;
+  const u = String(x.u || '').trim(), ti = String(x.t || '').trim().slice(0, 120); if (!ti || !manUrlOk(u)) return null;
+  return {id: str(x.id, 40).replace(/[^\w-]/g, '') || uid(), t: ti, u, c: String(x.c || '').trim().slice(0, 40)};
+}
+function manList(){ let best = []; workers.forEach(w => { const l = Array.isArray(w.manuali) ? w.manuali : []; if (l.length > best.length) best = l; }); return best.map(manClean).filter(Boolean); }
+function manSave(list){ list = list.slice(0, MAN_MAX); workers.forEach(w => { w.manuali = list; persist('lavoratori', w); }); render(); }
+const manSort = (a, b) => a.t.localeCompare(b.t, 'it');
+function viewManuali(){
+  const l = manList().sort(manSort);
+  return `<div class="pagehead"><div><h2>Manuali</h2><p class="sub">I lavoratori li trovano nella finestra «Manuali» del loro telefono</p></div></div>
+  ${workers.length ? '' : '<div class="panel"><p class="muted">Prima inserisci almeno un lavoratore (scheda Lavoratori): i manuali vengono salvati nelle loro schede.</p></div>'}
+  <div class="panel"><h2 class="panel-title">Aggiungi un manuale</h2>
+    <label class="field"><span>Titolo</span><input id="manT" maxlength="120" value="${esc(manDraft.t)}" placeholder="Es. FAAC 740 - installazione" autocomplete="off"></label>
+    <label class="field"><span>Link di Google Drive</span><input id="manU" type="url" maxlength="480" value="${esc(manDraft.u)}" placeholder="https://drive.google.com/…" autocomplete="off"></label>
+    <label class="field"><span>Categoria (facoltativa)</span><input id="manC" maxlength="40" value="${esc(manDraft.c)}" placeholder="Es. Motori, Sbarre" autocomplete="off"></label>
+    <div class="job-actions"><button class="btn primary" data-act="man-add">${ic('plus', 16)}Aggiungi</button></div></div>
+  <div class="panel"><h2 class="panel-title">Aggiungi più manuali insieme</h2>
+    <label class="field"><span>Una riga per manuale: link, spazio, titolo</span><textarea id="manB" rows="5" placeholder="https://drive.google.com/file/d/… ALCOR N">${esc(manDraft.b)}</textarea></label>
+    <div class="job-actions"><button class="btn" data-act="man-bulk">Aggiungi dall’elenco</button></div></div>
+  <div class="panel"><h2 class="panel-title">Elenco (${l.length})</h2>${l.length ? '<div class="rows">' + l.map(x => `<div class="row"><div class="row-main"><strong>${esc(x.t)}</strong>${x.c ? `<small>${esc(x.c)}</small>` : ''}</div>
+    <span style="display:flex;gap:6px;align-items:center"><a class="btn small" href="${esc(x.u)}" target="_blank" rel="noopener">Apri</a><button class="icon-btn small" data-act="man-del" data-id="${esc(x.id)}" aria-label="Togli il manuale">${ic('x', 16)}</button></span></div>`).join('') + '</div>' : '<p class="muted">Nessun manuale inserito.</p>'}</div>`;
+}
+function manResHtml(){
+  const all = manList(), q = manQ.trim().toLowerCase();
+  if (!all.length) return '<p class="muted">Nessun manuale disponibile. Li aggiunge l’ufficio.</p>';
+  const l = all.filter(x => !q || (x.t + ' ' + x.c).toLowerCase().indexOf(q) >= 0).sort(manSort);
+  return l.length ? l.map(x => `<a class="w-row" href="${esc(x.u)}" target="_blank" rel="noopener"><span><strong>${esc(x.t)}</strong>${x.c ? `<small>${esc(x.c)}</small>` : ''}</span><span class="w-go" aria-hidden="true">›</span></a>`).join('') : '<p class="muted">Nessun manuale corrisponde alla ricerca.</p>';
+}
+function manRender(){
+  let o = $('#manOverlay');
+  if (!manOpen) { if (o) { o.hidden = true; o.innerHTML = ''; } return; }
+  if (!o) { o = document.createElement('div'); o.id = 'manOverlay'; o.className = 'overlay'; document.body.insertBefore(o, document.body.firstChild); }
+  if (!o.hidden && $('#manRes')) { $('#manRes').innerHTML = manResHtml(); return; }
+  o.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="Manuali"><div class="sheet-head"><div><p class="eyebrow">Manuali di installazione</p><h2>Manuali</h2></div><button class="icon-btn" data-act="man-close" aria-label="Chiudi">${ic('x', 20)}</button></div>
+    <label class="field"><span>Cerca</span><input id="manQ" type="search" value="${esc(manQ)}" placeholder="Nome del prodotto" autocomplete="off"></label><div id="manRes">${manResHtml()}</div></div>`;
+  o.hidden = false;
+}
+/* città ricavata dall'indirizzo ("Via X, 5, Città (AP)"): i lavoratori non vedono l'anagrafica */
+function cittaOf(j){
+  const parts = String(j.via || '').split(',').map(x => x.trim()).filter(Boolean); if (!parts.length) return '';
+  let c = parts[parts.length - 1].replace(/\(\s*[A-Za-z]{2}\s*\)\s*$/, '').replace(/^\d{5}\s+/, '').trim();
+  if (/^\d+\s*[a-z]?(\/\d+)?$/i.test(c)) return '';
+  if (parts.length === 1 && /^(via|viale|v\.le|piazza|p\.zza|largo|corso|c\.?\s?da|contrada|strada|loc\.?|localit|vicolo|borgo)\b/i.test(c)) return '';
+  return c;
+}
+function wRow(j){
+  const st = stOf(j), c = cittaOf(j);
+  return `<button type="button" class="w-row st-${st}" data-act="w-open" data-id="${esc(j.id)}"><span><strong>${esc(j.cliente)}</strong>${c ? `<small>${esc(c)}</small>` : ''}</span>${st !== 'da_fare' ? `<span class="stat st-${st}">${STATI[st]}</span>` : ''}<span class="w-go" aria-hidden="true">›</span></button>`;
+}
+let wOpenId = null;
+function wSheetHtml(j){
+  const st = stOf(j), href = mapsHref(j);
+  return `<div class="sheet" role="dialog" aria-modal="true" aria-label="Intervento">
+    <div class="sheet-head"><div><p class="eyebrow">${esc(j.tipo || 'Intervento')}${j.durata ? ' · ' + esc(fmtDur(j.durata)) : ''}</p><h2>${esc(j.cliente)}</h2></div>
+      <button class="icon-btn" data-act="w-close" aria-label="Chiudi">${ic('x', 20)}</button></div>
+    ${wStatoHtml(j, st)}
+    ${j.via ? `<p class="line" style="margin:12px 0 0">${ic('pin', 16)}<span>${esc(j.via)}</span></p>` : ''}
+    ${j.descrizione ? `<p class="desc" style="margin:10px 0">${esc(j.descrizione)}</p>` : ''}
+    <div class="job-actions">${j.telefono ? `<a class="btn" href="tel:${esc(digits(j.telefono))}">${ic('phone', 16)}Chiama</a>` : ''}
+      ${href ? `<a class="btn" href="${esc(href)}" target="_blank" rel="noopener">${ic('pin', 16)}Mappa</a>` : ''}</div>
+    ${usingDb ? docStrip(j, {add: false, del: false}) : ''}
+    ${usingDb ? fotoStrip(j, {add: true, del: true}) : ''}
+    ${j.noteLavoratore ? `<div class="wnote-sent"><span class="fl">Nota per l’ufficio · inviata</span><p>${esc(j.noteLavoratore)}</p></div>`
+      : `<label class="field" style="margin:0"><span>Nota per l’ufficio</span><textarea data-wnote="1" data-id="${esc(j.id)}" maxlength="500" placeholder="Es. materiale usato, cliente assente…"></textarea></label>
+      <div class="job-actions"><button class="btn" data-act="w-note" data-id="${esc(j.id)}">${ic('chat', 16)}Invia nota</button></div>
+      <small class="muted">Una volta inviata la nota non si può più modificare.</small>`}
+  </div>`;
+}
+function wSheetRender(){
+  let o = $('#wOverlay');
+  const j = wOpenId ? jobs.find(x => x.id === wOpenId) : null;
+  if (!j) { wOpenId = null; if (o) { o.hidden = true; o.innerHTML = ''; } return; }
+  if (!o) { o = document.createElement('div'); o.id = 'wOverlay'; o.className = 'overlay'; document.body.insertBefore(o, document.body.firstChild); }
+  const was = !o.hidden, old = o.querySelector('.sheet'), sc = old ? old.scrollTop : 0;
+  const vals = {}; o.querySelectorAll('textarea').forEach(n => { vals[n.dataset.causale ? 'c' : 'n'] = n.value; });
+  const a = document.activeElement, fk = a && o.contains(a) && a.tagName === 'TEXTAREA' ? (a.dataset.causale ? 'c' : 'n') : '', fs = fk ? a.selectionStart : 0, fe = fk ? a.selectionEnd : 0;
+  o.classList.toggle('w-sheet-re', was);
+  o.innerHTML = wSheetHtml(j); o.hidden = false;
+  o.querySelectorAll('textarea').forEach(n => { const k = n.dataset.causale ? 'c' : 'n'; if (vals[k] !== undefined) n.value = vals[k]; });
+  const s = o.querySelector('.sheet'); if (s) s.scrollTop = sc;
+  if (fk) { const n = o.querySelector(fk === 'c' ? 'textarea[data-causale]' : 'textarea[data-wnote]'); if (n) { n.focus({preventScroll: true}); try { n.setSelectionRange(fs, fe); } catch(e){} } }
 }
 function wCard(j){
   const st = stOf(j), href = mapsHref(j);
@@ -4271,18 +4399,20 @@ function viewOggi(){
   day.forEach(j => {
     const f = fasciaOf(j);
     if (f !== last) { h += `<div class="fgroup w-group">${esc(FASCIA_LABEL[f] || 'Senza fascia')}</div>`; last = f; }
-    h += wCard(j);
+    h += wRow(j);
   });
   return h;
 }
 function renderWorkerApp(){
-  $('#menu').innerHTML = `<button role="tab" aria-selected="true" data-act="go" data-view="oggi">${ic('clock', 18)}I miei interventi</button>`;
+  $('#menu').innerHTML = `<button role="tab" aria-selected="true" data-act="go" data-view="oggi">${ic('clock', 18)}I miei interventi</button><button role="tab" aria-selected="false" data-act="man-open">${ic('filetext', 18)}Manuali</button>`;
   $('#overlay').hidden = true;
   fotoSubWorker();
   const a = document.activeElement, kAttr = a && a.dataset ? (a.dataset.wnote ? 'wnote' : a.dataset.causale ? 'causale' : a.dataset.matq ? 'matq' : a.dataset.matser ? 'matser' : '') : '';
   const keep = kAttr ? {id: a.dataset.id, v: a.value, s: a.selectionStart, e: a.selectionEnd} : null;
   const cz = {}; document.querySelectorAll('textarea[data-causale]').forEach(n => { cz[n.dataset.id] = n.value; });
   $('#app').innerHTML = viewOggi();
+  wSheetRender();
+  manRender();
   Object.keys(cz).forEach(k => { const n = document.querySelector('textarea[data-causale][data-id="' + k + '"]'); if (n) n.value = cz[k]; });
   if (keep) { const n = document.querySelector('textarea[data-' + kAttr + '][data-id="' + keep.id + '"]'); if (n) { n.value = keep.v; n.focus({preventScroll: true}); try { n.setSelectionRange(keep.s, keep.e); } catch(e){} } }
 }
