@@ -1133,6 +1133,8 @@ function renderMenu(){
     ['magazzino', 'Magazzino', 'box', daAbbinare().length ? `<span class="pill warn" title="Codici da abbinare">${daAbbinare().length}</span>` : '', true],
     ['prefat', 'Pre-fatturazione', 'filetext', nb ? `<span class="pill warn" title="Interventi da pre-fatturare">${nb}</span>` : '', true],
     ['utenti', 'Utenti', 'users', (role === 'titolare' && pendingUsers()) ? `<span class="pill warn" title="In attesa di abilitazione">${pendingUsers()}</span>` : '', true],
+    ['muletti', 'Muletti', 'archive', mulLines().length ? `<span class="pill">${mulLines().length}</span>` : '', true],
+    ['riparazioni', 'Riparazioni', 'box', rips.filter(r => ripState(r) === 'ricevuto').length ? `<span class="pill">${rips.filter(r => ripState(r) === 'ricevuto').length}</span>` : '', true],
     ['manuali', 'Manuali', 'filetext', manList().length ? `<span class="pill">${manList().length}</span>` : '', true],
     ['archivio', 'Finder', 'search', '']
   ];
@@ -1141,7 +1143,7 @@ function renderMenu(){
 }
 function render(){
   if (gateRender()) return;
-  if (!canWrite && (view === 'carica' || view === 'anagrafica' || view === 'prefat' || view === 'magazzino' || view === 'manuali')) view = 'panoramica';
+  if (!canWrite && (view === 'carica' || view === 'anagrafica' || view === 'prefat' || view === 'magazzino' || view === 'manuali' || view === 'riparazioni' || view === 'muletti')) view = 'panoramica';
   if (view === 'utenti' && role !== 'titolare') view = 'panoramica';
   renderMenu();
   if (view === 'carica') { if (mounted !== 'carica') { mountCarica(); mounted = 'carica'; } refreshCarica(); }
@@ -1150,6 +1152,8 @@ function render(){
   else if (view === 'magazzino') { if (mounted !== 'magazzino') { mountMagazzino(); mounted = 'magazzino'; } refreshMagazzino(); }
   else if (view === 'prefat') { if (mounted !== 'prefat') { mountPrefat(); mounted = 'prefat'; } refreshPrefat(); }
   else if (view === 'utenti') { mounted = null; $('#app').innerHTML = viewUtenti(); }
+  else if (view === 'muletti') { mounted = null; const a = document.activeElement, fid = a && a.id && /^mul[A-Za-z]+$/.test(a.id) ? a.id : '', fs = fid && a.type !== 'date' && a.type !== 'number' ? a.selectionStart : null; $('#app').innerHTML = viewMuletti(); if (fid) { const n = document.getElementById(fid); if (n) { n.focus({preventScroll: true}); try { if (fs !== null) n.setSelectionRange(fs, fs); } catch(e){} } } }
+  else if (view === 'riparazioni') { mounted = null; const a = document.activeElement, fid = a && a.id && /^rip[A-Za-z]+$/.test(a.id) ? a.id : '', fs = fid ? a.selectionStart : 0; $('#app').innerHTML = viewRiparazioni(); if (fid) { const n = document.getElementById(fid); if (n) { n.focus({preventScroll: true}); try { n.setSelectionRange(fs, fs); } catch(e){} } } }
   else if (view === 'manuali') { mounted = null; const a = document.activeElement, fid = a && a.id && /^man[TUCB]$/.test(a.id) ? a.id : '', fs = fid ? a.selectionStart : 0; $('#app').innerHTML = viewManuali(); if (fid) { const n = document.getElementById(fid); if (n) { n.focus({preventScroll: true}); try { n.setSelectionRange(fs, fs); } catch(e){} } } }
   else if (view === 'archivio') { if (mounted !== 'archivio') { mountArchivio(); mounted = 'archivio'; } refreshArchivio(); }
   else { mounted = null; $('#app').innerHTML = view === 'assegna' ? viewAssegna() : viewPanoramica(); }
@@ -1769,7 +1773,7 @@ function saveWorker(f){
   const w = {id: f.dataset.id || uid(), nome: String(fd.get('nome')).trim(), telefono: String(fd.get('telefono')).trim(),
     attivo: fd.get('attivo') === 'on', colore: Number.isInteger(col) ? col : 0};
   const i = workers.findIndex(x => x.id === w.id);
-  w.manuali = i >= 0 && workers[i].manuali ? workers[i].manuali : manList();
+  w.manuali = i >= 0 && workers[i].manuali ? workers[i].manuali : manList(); w.ripara = i >= 0 ? !!workers[i].ripara : false;
   if (i >= 0) workers[i] = w; else workers.push(w);
   persist('lavoratori', w);
   editingWorkerId = null; mounted = null; render();
@@ -2581,7 +2585,7 @@ async function exportCsv(){
 }
 async function exportJson(){
   if (!canWrite) return;
-  const payload = JSON.stringify({app:'gestionale-interventi', versione:3, esportato:new Date().toISOString(), lavoratori:workers, interventi:jobs, tipi:tipi, clienti:clienti, prefatture:prefatture, azienda:azienda}, null, 1);
+  const payload = JSON.stringify({app:'gestionale-interventi', versione:3, esportato:new Date().toISOString(), lavoratori:workers, interventi:jobs, riparazioni:rips, muletti:muls, tipi:tipi, clienti:clienti, prefatture:prefatture, azienda:azienda}, null, 1);
   await saveFile('copia-dati-interventi-' + todayISO() + '.json', payload, 'application/json');
 }
 function cleanTipo(o){
@@ -2648,11 +2652,14 @@ async function importJson(file){
 function importData(data){
   if (!canWrite) return;
   const arr = k => data && Array.isArray(data[k]) ? data[k] : [];
-  const ws = arr('lavoratori'), js = arr('interventi'), ts = arr('tipi'), cs = arr('clienti'), ps = arr('prefatture');
-  if (!data || data.app !== 'gestionale-interventi' || (!ws.length && !js.length && !cs.length)) { toast('Questo file non è una copia dati del gestionale.'); return; }
+  const ws = arr('lavoratori'), js = arr('interventi'), ts = arr('tipi'), cs = arr('clienti'), ps = arr('prefatture'), rs = arr('riparazioni'), ms = arr('muletti');
+  if (!data || data.app !== 'gestionale-interventi' || (!ws.length && !js.length && !cs.length && !rs.length && !ms.length)) { toast('Questo file non è una copia dati del gestionale.'); return; }
   let nw = 0, nj = 0, nc = 0;
-  ws.forEach(o => { const w = cleanWorker(o); if (!w) return; { const ow = workers.find(x => x.id === w.id); w.manuali = (Array.isArray(o.manuali) ? o.manuali.map(manClean).filter(Boolean) : (ow && ow.manuali)) || manList(); } const i = workers.findIndex(x => x.id === w.id); if (i >= 0) workers[i] = w; else workers.push(w); persist('lavoratori', w); nw++; });
+  ws.forEach(o => { const w = cleanWorker(o); if (!w) return; { const ow = workers.find(x => x.id === w.id); w.manuali = (Array.isArray(o.manuali) ? o.manuali.map(manClean).filter(Boolean) : (ow && ow.manuali)) || manList(); w.ripara = ow ? !!ow.ripara : !!o.ripara; } const i = workers.findIndex(x => x.id === w.id); if (i >= 0) workers[i] = w; else workers.push(w); persist('lavoratori', w); nw++; });
   js.forEach(o => { const j = cleanJob(o); if (!j) return; const i = jobs.findIndex(x => x.id === j.id); if (i >= 0) jobs[i] = j; else jobs.push(j); persist('interventi', j); nj++; });
+  rs.forEach(o => { const r = cleanRip(o); if (!r) return; const i = rawJobs.findIndex(x => x.id === r.id); if (i >= 0) rawJobs[i] = r; else rawJobs.push(r); persist('interventi', r); });
+  ms.forEach(o => { const m = cleanMul(o); if (!m) return; const i = rawJobs.findIndex(x => x.id === m.id); if (i >= 0) rawJobs[i] = m; else rawJobs.push(m); persist('interventi', m); });
+  rebuildJobs();
   cs.forEach(o => { const c = cleanCliente(o); if (!c) return; const i = clienti.findIndex(x => x.id === c.id); if (i >= 0) clienti[i] = c; else clienti.push(c); persist('clienti', c); nc++; });
   ps.forEach(o => { const p = cleanPre(o); if (!p) return; const i = prefatture.findIndex(x => x.id === p.id); if (i >= 0) prefatture[i] = p; else prefatture.push(p); persist('prefatture', p); });
   if (ts.length) { ensureTipiSeeded(); ts.forEach(o => { const t = cleanTipo(o); if (!t) return; const i = tipi.findIndex(x => x.id === t.id); if (i >= 0) tipi[i] = t; else if (!tipoNameTaken(t.nome, '')) tipi.push(t); else return; persist('tipi', t); }); }
@@ -3530,6 +3537,72 @@ document.addEventListener('click', e => {
     case 'logout': if (fb) fb.signOut(fb.auth); break;
     case 'login-mode': loginMode = t.dataset.mode; render(); break;
     case 'fb-retry': location.reload(); break;
+    case 'mul-wopen': mulWOpen = true; render(); break;
+    case 'mul-wclose': mulWOpen = false; render(); break;
+    case 'mul-save': {
+      if (!mulDirty && mulDoc()) { toast('Nessuna modifica da salvare.'); break; }
+      const doc = mulDoc() || {id: 'muletti', mul: true};
+      doc.noteLavoratore = String(mulDirty ? mulTxt : mulSaved()).replace(/\s+$/, '').slice(0, 2000); delete doc.testo; delete doc.aggiornatoIl;
+      doc.esitoIl = new Date().toISOString(); doc.esitoDa = 'ufficio'; doc.workerId = (ripWorker() || {}).id || '';
+      if (!mulDoc()) rawJobs.push(doc);
+      mulDirty = false; rebuildJobs(); mulWrite(doc); render(); toast('Lista salvata.'); break;
+    }
+    case 'mul-wsave': {
+      const d = mulDoc(); if (!d) break;
+      if (!mulWDirty) { toast('Nessuna modifica da salvare.'); break; }
+      d.noteLavoratore = String(mulWTxt).replace(/\s+$/, '').slice(0, 2000); d.esitoIl = new Date().toISOString(); d.esitoDa = 'lavoratore';
+      mulWDirty = false; mulWrite(d); render(); toast('Lista salvata.'); break;
+    }
+    case 'rip-tab': ripTab = t.dataset.tab; render(); break;
+    case 'rip-new': ripDraft = {id: '', num: '', q: '', cliente: '', clienteId: '', telefono: '', free: false, cn: '', tel: '', modello: '', matricola: '', difetto: '', accessori: '', data: ripToday(), stato: 'ricevuto', nota: ''}; render(); { const i = $('#ripQc'); if (i) i.focus(); } break;
+    case 'rip-cancel': ripDraft = null; render(); break;
+    case 'rip-pickc': { const c = clienti.find(x => x.id === t.dataset.cid); if (c && ripDraft) { ripDraft.cliente = nomeCliente(c); ripDraft.clienteId = c.id; ripDraft.telefono = c.telefono || ''; ripDraft.q = ''; render(); } break; }
+    case 'rip-nocli': if (ripDraft) { ripDraft.cliente = ''; ripDraft.clienteId = ''; ripDraft.telefono = ''; render(); } break;
+    case 'rip-free': if (ripDraft) { ripDraft.free = true; render(); } break;
+    case 'rip-search': if (ripDraft) { ripDraft.free = false; render(); } break;
+    case 'rip-edit': { const r = rips.find(x => x.id === t.dataset.id); if (!r) break; ripDraft = {id: r.id, num: r.num, q: '', cliente: r.cliente, clienteId: r.clienteId || '', telefono: r.telefono || '', free: false, cn: '', tel: '', modello: r.modello, matricola: r.matricola || '', difetto: r.difetto || '', accessori: r.accessori || '', data: r.data, stato: r.stato === 'fatto' ? 'riparato' : r.stato === 'non_fatto' ? 'non_riparato' : 'ricevuto', nota: r.noteLavoratore || ''}; render(); window.scrollTo(0, 0); break; }
+    case 'rip-save': {
+      const d = ripDraft; if (!d) break;
+      const cli = (d.cliente || d.cn || '').trim();
+      if (!cli) { toast('Scegli il cliente o scrivi il nome.'); break; }
+      if (!String(d.modello).trim()) { toast('Scrivi il modello del motore.'); break; }
+      if (d.stato === 'non_riparato' && String(d.nota || '').trim().length < 3) { toast('Scrivi perché non è stato riparato.'); break; }
+      const now = new Date().toISOString(); let r = d.id ? rips.find(x => x.id === d.id) : null;
+      if (!r) { r = {id: newId('r'), rip: true, num: ripNum(), ingressoIl: now, workerId: (ripWorker() || {}).id || '', stato: 'da_fare'}; rawJobs.push(r); }
+      Object.assign(r, {data: /^\d{4}-\d{2}-\d{2}$/.test(d.data) ? d.data : ripToday(), cliente: cli.slice(0, 120), clienteId: d.cliente ? d.clienteId : (r.clienteId || ''), telefono: String(d.cliente ? d.telefono : d.tel).trim().slice(0, 40),
+        modello: String(d.modello).trim().slice(0, 120), matricola: String(d.matricola).trim().slice(0, 60), difetto: String(d.difetto).trim().slice(0, 500), accessori: String(d.accessori).trim().slice(0, 200)});
+      if (d.id) {
+        const ns = {ricevuto: 'da_fare', riparato: 'fatto', non_riparato: 'non_fatto'}[d.stato] || 'da_fare';
+        if (ns !== r.stato) { r.stato = ns; if (ns !== 'da_fare') { r.esitoIl = now; r.esitoDa = 'ufficio'; } }
+        r.noteLavoratore = String(d.nota || '').trim().slice(0, 500); if (ns === 'non_fatto') r.causale = r.noteLavoratore.slice(0, 300);
+      }
+      ripDraft = null; rebuildJobs(); ripWrite(r); render(); toast('Riparazione salvata: ' + r.num); break;
+    }
+    case 'rip-cons': case 'rip-unc': { const r = rips.find(x => x.id === t.dataset.id); if (!r) break; if (t.dataset.act === 'rip-cons') { r.consegnato = true; r.consegnaIl = new Date().toISOString(); } else { r.consegnato = false; } ripWrite(r); render(); break; }
+    case 'rip-del': { const r = rips.find(x => x.id === t.dataset.id); if (r) toast('Eliminare ' + r.num + ' (' + r.modello + ')?', 'Elimina', () => { rawJobs = rawJobs.filter(x => x.id !== r.id); rebuildJobs(); render(); fbRemove('interventi', r.id).catch(() => toast('Non sono riuscito a eliminare la riparazione.')); }); break; }
+    case 'rip-setw': {
+      const val = ripChoose === null ? (ripWorker() ? ripWorker().id : '') : ripChoose;
+      workers.forEach(w => { const want = !!val && w.id === val; if (!!w.ripara !== want) { w.ripara = want; persist('lavoratori', w); } });
+      if (val) rips.filter(r => !r.consegnato && r.workerId !== val).forEach(r => { r.workerId = val; ripWrite(r); });
+      { const md = mulDoc(); if (md && (md.workerId || '') !== (val || '')) { md.workerId = val || ''; mulWrite(md); } }
+      ripChoose = null; render(); toast(val ? 'Salvato: ora le riparazioni le vede quel lavoratore.' : 'Nessun lavoratore addetto alle riparazioni.'); break;
+    }
+    case 'rip-open': ripWOpen = true; ripWId = null; ripWTab = 'da'; render(); break;
+    case 'rip-wclose': ripWOpen = false; ripWId = null; render(); break;
+    case 'rip-wtab': ripWTab = t.dataset.tab; render(); break;
+    case 'rip-wback': ripWId = null; render(); break;
+    case 'rip-wopen': { const r = rips.find(x => x.id === t.dataset.id); if (r) { ripWId = r.id; ripNote = r.noteLavoratore || ''; render(); } break; }
+    case 'rip-wok': case 'rip-wno': case 'rip-wsave': case 'rip-wre': {
+      const r = rips.find(x => x.id === ripWId); if (!r || r.consegnato) break;
+      const a = t.dataset.act, nota = String(ripNote || '').trim().slice(0, 500), now = new Date().toISOString();
+      if (a === 'rip-wno' && nota.length < 3) { toast('Scrivi perché non è stato riparato.'); break; }
+      r.noteLavoratore = nota;
+      if (a === 'rip-wok') { r.stato = 'fatto'; r.esitoIl = now; r.esitoDa = 'lavoratore'; }
+      if (a === 'rip-wno') { r.stato = 'non_fatto'; r.causale = nota.slice(0, 300); r.esitoIl = now; r.esitoDa = 'lavoratore'; }
+      if (a === 'rip-wre') r.stato = 'da_fare';
+      ripWrite(r); if (a !== 'rip-wsave') ripWId = null; render();
+      toast(a === 'rip-wok' ? 'Segnato: riparato e provato.' : a === 'rip-wno' ? 'Segnato: non riparato.' : a === 'rip-wre' ? 'Rimesso da riparare.' : 'Nota salvata.'); break;
+    }
     case 'man-open': manOpen = true; manQ = ''; manRender(); break;
     case 'man-close': manOpen = false; manRender(); break;
     case 'man-add': {
@@ -3752,6 +3825,15 @@ document.addEventListener('input', e => {
   if (t.id === 'magQ') { magQ = t.value; refreshMagazzino(); return; }
   if (t.dataset && t.dataset.matq) { const st = wMat[t.dataset.matq]; if (st) { st.q = t.value; const r = document.querySelector('[data-matres="' + t.dataset.matq + '"]'); if (r) r.innerHTML = matResHtml(t.dataset.matq, matCerca(st.q, 8), st.q); } return; }
   if (t.dataset && t.dataset.matser) { const st = wMat[t.dataset.matser]; if (st) st.ser = t.value; return; }
+  if (t.id === 'mulTesto') { mulTxt = t.value; mulDirty = true; return; }
+  if (t.id === 'mulWtesto') { mulWTxt = t.value; mulWDirty = true; return; }
+  if (t.id && /^rip[A-Za-z]+$/.test(t.id)) {
+    const mp = {ripQc: 'q', ripCn: 'cn', ripTel: 'tel', ripMod: 'modello', ripMat: 'matricola', ripDif: 'difetto', ripAcc: 'accessori', ripDat: 'data', ripSt: 'stato', ripNot: 'nota'};
+    if (mp[t.id] && ripDraft) { ripDraft[mp[t.id]] = t.value; if (t.id === 'ripQc') { const r = $('#ripCres'); if (r) r.innerHTML = ripCliRes(); } return; }
+    if (t.id === 'ripSearch') { ripQ = t.value; const l = $('#ripList'); if (l) l.innerHTML = ripListHtml(); return; }
+    if (t.id === 'ripWsel') { ripChoose = t.value; return; }
+    if (t.id === 'ripWnote') { ripNote = t.value; return; }
+  }
   if (t.id && /^man[TUCB]$/.test(t.id)) { manDraft[{manT: 't', manU: 'u', manC: 'c', manB: 'b'}[t.id]] = t.value; return; }
   if (t.id === 'manQ') { manQ = t.value; const r = $('#manRes'); if (r) r.innerHTML = manResHtml(); return; }
   if (stoAdd && t.id && /^sto(Q|Desc|Cod|Ser|Note|Data)$/.test(t.id)) { stoAdd[{stoQ: 'q', stoDesc: 'desc', stoCod: 'cod', stoSer: 'ser', stoNote: 'nota', stoData: 'data'}[t.id]] = t.value; if (t.id === 'stoQ') { const r = $('#stoRes'); if (r) r.innerHTML = stoResHtml(); } return; }
@@ -3921,7 +4003,9 @@ async function purgeFoto(jobId){
   try { const sn = await fb.getDocs(fb.query(fb.collection(fb.db, 'foto'), fb.where('jobId', '==', jobId))); await Promise.all(sn.docs.map(d => fb.deleteDoc(fb.doc(fb.db, 'foto', d.id)))); } catch(e){}
 }
 function rebuildJobs(){
-  jobs = rawJobs.map(j => {
+  rips = rawJobs.filter(x => x.rip);
+  muls = rawJobs.filter(x => x.mul);
+  jobs = rawJobs.filter(x => !x.rip && !x.mul).map(j => {
     const f = fattMap[j.id];
     if (!f) return j;
     const o = Object.assign({}, j);
@@ -3936,7 +4020,7 @@ function stopSubs(){
   materiali = []; matLoaded = artLoaded = lstLoaded = catLoaded = false; matBusy = {}; matW = {}; matD = {}; wMat = {}; catDocs = []; catArr = [];
   if (matUnsubW) { try { matUnsubW(); } catch(e){} } if (matUnsubD) { try { matUnsubD(); } catch(e){} } matUnsubW = matUnsubD = null; matKeyW = matKeyD = '';
   articoli = []; codeMap = {}; scanLog = []; listinoDocs = []; listMap = {}; listArr = []; impPrev = null; artId = null; if (artMovUnsub) { try { artMovUnsub(); } catch(e){} artMovUnsub = null; artMovKey = ''; }
-  workers = []; jobs = []; rawJobs = []; fattMap = {}; tipi = []; clienti = []; prefatture = []; azienda = {}; utenti = [];
+  workers = []; jobs = []; rips = []; muls = []; rawJobs = []; fattMap = {}; tipi = []; clienti = []; prefatture = []; azienda = {}; utenti = [];
 }
 function fbSnapErr(err){
   if (err && err.code === 'permission-denied') toast('Permesso negato dall’archivio: controlla il ruolo assegnato.');
@@ -4283,6 +4367,143 @@ function wStatoHtml(j, st){
       <small class="muted">Dopo la conferma non potrai più cambiarlo.</small></div>`;
   return seg + `<div class="job-actions"><button class="btn primary" data-act="w-fatto" data-id="${id}">${ic('check', 16)}Fatto</button><button class="btn danger" data-act="w-nf-open" data-id="${id}">${ic('x', 16)}Non fatto</button></div>`;
 }
+/* ---- muletti: lista libera dei motori riparati pronti da dare in cambio. Un solo documento 'interventi' (id 'muletti', mul:true), solo ufficio ---- */
+let muls = [], mulTxt = '', mulDirty = false;
+const mulDoc = () => muls.find(x => x.id === 'muletti') || muls[0] || null;
+const mulSaved = () => { const d = mulDoc(); return d ? String(d.noteLavoratore != null ? d.noteLavoratore : (d.testo || '')) : ''; };
+const mulLines = () => mulSaved().split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+const mulWrite = r => fbWrite('interventi', r).catch(e => toast(e && e.code === 'permission-denied' ? 'Il database non permette di salvare la lista.' : 'Lista non salvata. Riprova.'));
+function cleanMul(o){ if (!o || typeof o !== 'object' || !o.mul) return null; return {id: 'muletti', mul: true, noteLavoratore: str(o.noteLavoratore != null ? o.noteLavoratore : o.testo, 2000), esitoIl: str(o.esitoIl || o.aggiornatoIl, 30), esitoDa: str(o.esitoDa, 12), workerId: str(o.workerId, 60)}; }
+let mulWOpen = false, mulWTxt = '', mulWDirty = false;
+const mulUpd = () => { const d = mulDoc(); return d && d.esitoIl ? 'Ultimo aggiornamento: ' + new Date(d.esitoIl).toLocaleString('it-IT', {dateStyle: 'short', timeStyle: 'short'}) + (d.esitoDa === 'lavoratore' ? ' (da chi ripara)' : d.esitoDa === 'ufficio' ? ' (dall’ufficio)' : '') : 'Lista vuota.'; };
+function mulWRender(){
+  let o = $('#mulOverlay');
+  if (!mulWOpen || !(workers[0] && workers[0].ripara)) { mulWOpen = false; if (o) { o.hidden = true; o.innerHTML = ''; } return; }
+  if (!o) { o = document.createElement('div'); o.id = 'mulOverlay'; o.className = 'overlay'; document.body.insertBefore(o, document.body.firstChild); }
+  const was = !o.hidden, old = o.querySelector('.sheet'), sc = old ? old.scrollTop : 0, d = mulDoc(), val = mulWDirty ? mulWTxt : mulSaved();
+  const a = document.activeElement, ft = a && a.id === 'mulWtesto', fs = ft ? a.selectionStart : 0, fe = ft ? a.selectionEnd : 0;
+  o.classList.toggle('w-sheet-re', was);
+  o.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="Motori muletto"><div class="sheet-head"><div><p class="eyebrow">Laboratorio</p><h2>Motori muletto</h2></div><button class="icon-btn" data-act="mul-wclose" aria-label="Chiudi">${ic('x', 20)}</button></div>
+    ${d ? `<label class="field"><span>Un motore per riga (modello, quantità, note)</span><textarea id="mulWtesto" rows="12" maxlength="2000" placeholder="Es.&#10;BFT Ares 1500 ×3">${esc(val)}</textarea></label>
+      <div class="job-actions"><button class="btn primary" data-act="mul-wsave">${ic('check', 16)}Salva la lista</button></div>
+      <p class="muted">${mulWDirty ? 'Modifiche non ancora salvate.' : esc(mulUpd())}</p>`
+      : '<p class="muted">La lista non è ancora stata creata: deve salvarla prima l’ufficio.</p>'}</div>`;
+  o.hidden = false;
+  const s = o.querySelector('.sheet'); if (s) s.scrollTop = sc;
+  if (ft) { const n = $('#mulWtesto'); if (n) { n.focus({preventScroll: true}); try { n.setSelectionRange(fs, fe); } catch(e){} } }
+}
+function viewMuletti(){
+  const val = mulDirty ? mulTxt : mulSaved();
+  return `<div class="pagehead"><div><h2>Muletti</h2><p class="sub">Motori riparati pronti da dare in cambio</p></div></div>
+  <div class="panel"><label class="field"><span>Scrivi un motore per riga (modello, quantità, note)</span><textarea id="mulTesto" rows="14" maxlength="2000" placeholder="Es.&#10;BFT Ares 1500 ×3&#10;BFT Eli 250 ×1 (scheda nuova)">${esc(val)}</textarea></label>
+    <div class="job-actions"><button class="btn primary" data-act="mul-save">${ic('check', 16)}Salva la lista</button></div>
+    <p class="muted">Questa lista la vede e la modifica anche chi ripara i motori.</p>
+    <p class="muted">${mulDirty ? 'Modifiche non ancora salvate.' : esc(mulUpd())}</p></div>`;
+}
+/* ---- riparazioni motori (banco): salvate come documenti 'interventi' con rip:true, fuori dall'agenda ----
+   stato: da_fare = Ricevuto · fatto = Riparato e provato · non_fatto = Non riparato · consegnato:true = Consegnato */
+let rips = [], ripTab = 'ricevuto', ripQ = '', ripDraft = null, ripChoose = null, ripWOpen = false, ripWId = null, ripWTab = 'da', ripNote = '';
+const RIP_ST = {ricevuto: 'Ricevuto', riparato: 'Riparato e provato', non_riparato: 'Non riparato', consegnato: 'Consegnato'};
+const ripState = r => r.consegnato ? 'consegnato' : r.stato === 'fatto' ? 'riparato' : r.stato === 'non_fatto' ? 'non_riparato' : 'ricevuto';
+const ripCls = s => s === 'riparato' || s === 'consegnato' ? 'st-fatto' : s === 'non_riparato' ? 'st-non_fatto' : 'st-da_fare';
+const ripWorker = () => workers.find(w => w.ripara) || null;
+const ripToday = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+const ripWrite = r => fbWrite('interventi', r).catch(e => toast(e && e.code === 'permission-denied' ? 'Il database non permette di salvare la riparazione.' : 'Riparazione non salvata. Riprova.'));
+function ripNum(){ const y = new Date().getFullYear(); let m = 0; rips.forEach(r => { const x = /^R-(\d{4})-(\d+)$/.exec(r.num || ''); if (x && Number(x[1]) === y) m = Math.max(m, Number(x[2])); }); return 'R-' + y + '-' + String(m + 1).padStart(3, '0'); }
+function cleanRip(o){
+  if (!o || typeof o !== 'object' || !o.rip) return null;
+  const id = str(o.id, 60).replace(/[^\w-]/g, ''), cliente = str(o.cliente, 120).trim(), modello = str(o.modello, 120).trim();
+  if (!id || !cliente || !modello) return null;
+  const r = {id, rip: true, num: str(o.num, 20), data: /^\d{4}-\d{2}-\d{2}$/.test(o.data) ? o.data : ripToday(), ingressoIl: str(o.ingressoIl, 30), cliente, clienteId: str(o.clienteId, 60), telefono: str(o.telefono, 40), modello,
+    matricola: str(o.matricola, 60), difetto: str(o.difetto, 500), accessori: str(o.accessori, 200), workerId: str(o.workerId, 60), stato: STATI[o.stato] ? o.stato : 'da_fare', noteLavoratore: str(o.noteLavoratore, 500), causale: str(o.causale, 300), esitoIl: str(o.esitoIl, 30), esitoDa: str(o.esitoDa, 12)};
+  if (o.consegnato) { r.consegnato = true; r.consegnaIl = str(o.consegnaIl, 30); }
+  return r;
+}
+function ripCliRes(){
+  const q = (ripDraft.q || '').trim().toLowerCase();
+  if (q.length < 2) return '<p class="muted" style="margin:0">Scrivi almeno 2 lettere del nome.</p>';
+  const l = clienti.filter(c => (nomeCliente(c) + ' ' + (c.citta || '')).toLowerCase().indexOf(q) >= 0).slice(0, 8);
+  return l.length ? l.map(c => `<button class="abbrow" data-act="rip-pickc" data-cid="${esc(c.id)}"><span><strong>${esc(nomeCliente(c))}</strong><small>${esc([c.citta, c.telefono].filter(Boolean).join(' · '))}</small></span><span class="btn small">Scegli</span></button>`).join('')
+    : '<p class="muted" style="margin:0">Nessun cliente trovato: puoi scrivere il nome a mano.</p>';
+}
+function ripFormHtml(){
+  const d = ripDraft, edit = !!d.id;
+  const cli = d.cliente ? `<div class="matsel"><strong>${esc(d.cliente)}</strong><small>${esc(d.telefono || '')}</small></div><div class="job-actions"><button class="btn small" data-act="rip-nocli">Cambia cliente</button></div>`
+    : d.free ? `<label class="field"><span>Nome del cliente</span><input id="ripCn" maxlength="120" value="${esc(d.cn)}" autocomplete="off"></label>
+        <label class="field"><span>Telefono (facoltativo)</span><input id="ripTel" maxlength="40" value="${esc(d.tel)}" autocomplete="off"></label>
+        <div class="job-actions"><button class="btn small" data-act="rip-search">Cerca in anagrafica</button></div>`
+    : `<label class="field"><span>Cliente</span><input id="ripQc" type="search" value="${esc(d.q)}" placeholder="Cerca per nome" autocomplete="off"></label><div id="ripCres">${ripCliRes()}</div>
+        <div class="job-actions"><button class="btn small" data-act="rip-free">Cliente non in anagrafica: scrivo il nome</button></div>`;
+  return `${cli}
+    <label class="field"><span>Modello del motore</span><input id="ripMod" maxlength="120" value="${esc(d.modello)}" placeholder="Es. BFT Ares 1500" autocomplete="off"></label>
+    <label class="field"><span>Matricola (facoltativa)</span><input id="ripMat" maxlength="60" value="${esc(d.matricola)}" autocomplete="off"></label>
+    <label class="field"><span>Difetto dichiarato</span><textarea id="ripDif" maxlength="500" rows="3">${esc(d.difetto)}</textarea></label>
+    <label class="field"><span>Accessori consegnati (facoltativo)</span><input id="ripAcc" maxlength="200" value="${esc(d.accessori)}" placeholder="Es. scheda, trasformatore, telecomando" autocomplete="off"></label>
+    <label class="field"><span>Data di ingresso</span><input id="ripDat" type="date" value="${esc(d.data)}"></label>
+    ${edit ? `<label class="field"><span>Stato</span><select id="ripSt">${['ricevuto', 'riparato', 'non_riparato'].map(k => `<option value="${k}"${d.stato === k ? ' selected' : ''}>${RIP_ST[k]}</option>`).join('')}</select></label>
+    <label class="field"><span>Nota: cosa è stato fatto</span><textarea id="ripNot" maxlength="500" rows="3">${esc(d.nota)}</textarea></label>` : ''}
+    <div class="job-actions"><button class="btn primary" data-act="rip-save">${ic('check', 16)}Salva</button><button class="btn ghost" data-act="rip-cancel">Annulla</button></div>`;
+}
+function ripCard(r){
+  const s = ripState(r);
+  return `<div class="panel" style="margin-bottom:10px"><div class="row" style="border:0;padding:0"><div class="row-main"><strong>${esc(r.modello)}${r.matricola ? ' · ' + esc(r.matricola) : ''}</strong><small>${esc(r.num)} · ${esc(r.cliente)} · dal ${esc(dmy(r.data))}</small></div><span class="stat ${ripCls(s)}">${RIP_ST[s]}</span></div>
+    ${r.difetto ? `<p class="desc" style="margin:8px 0 0"><b>Difetto:</b> ${esc(r.difetto)}</p>` : ''}
+    ${r.accessori ? `<p class="desc" style="margin:4px 0 0"><b>Accessori:</b> ${esc(r.accessori)}</p>` : ''}
+    ${r.noteLavoratore ? `<p class="desc" style="margin:4px 0 0"><b>Eseguito:</b> ${esc(r.noteLavoratore)}</p>` : ''}
+    <div class="job-actions">${r.telefono ? `<a class="btn small" href="tel:${esc(digits(r.telefono))}">${ic('phone', 14)}Chiama</a>` : ''}
+      ${s === 'riparato' || s === 'non_riparato' ? `<button class="btn small primary" data-act="rip-cons" data-id="${esc(r.id)}">${ic('check', 14)}Segna consegnato</button>` : ''}
+      ${s === 'consegnato' ? `<button class="btn small" data-act="rip-unc" data-id="${esc(r.id)}">Annulla consegna</button>` : ''}
+      <button class="btn small" data-act="rip-edit" data-id="${esc(r.id)}">${ic('edit', 14)}Modifica</button><button class="icon-btn small" data-act="rip-del" data-id="${esc(r.id)}" aria-label="Elimina">${ic('trash', 16)}</button></div></div>`;
+}
+function ripListHtml(){
+  const q = ripQ.trim().toLowerCase();
+  const l = rips.filter(r => ripState(r) === ripTab && (!q || [r.num, r.cliente, r.modello, r.matricola].join(' ').toLowerCase().indexOf(q) >= 0))
+    .sort((a, b) => ripTab === 'ricevuto' ? String(a.data + a.num).localeCompare(String(b.data + b.num)) : String(b.consegnaIl || b.esitoIl || b.data).localeCompare(String(a.consegnaIl || a.esitoIl || a.data)));
+  return l.length ? l.slice(0, 100).map(ripCard).join('') + (l.length > 100 ? '<p class="muted">Mostro le prime 100: restringi la ricerca.</p>' : '') : '<p class="muted">Nessuna riparazione in questa categoria.</p>';
+}
+function viewRiparazioni(){
+  const cn = {ricevuto: 0, riparato: 0, non_riparato: 0, consegnato: 0}; rips.forEach(r => { cn[ripState(r)]++; });
+  const wk = ripWorker(), act = workers.filter(w => w.attivo !== false), cur = ripChoose === null ? (wk ? wk.id : '') : ripChoose;
+  const tab = (k, l) => `<button class="btn small${ripTab === k ? ' primary' : ''}" data-act="rip-tab" data-tab="${k}">${l} (${cn[k]})</button>`;
+  return `<div class="pagehead"><div><h2>Riparazioni</h2><p class="sub">Motori in laboratorio</p></div><button class="btn primary" data-act="rip-new">${ic('plus', 16)}Nuova riparazione</button></div>
+  ${ripDraft ? `<div class="panel"><h2 class="panel-title">${ripDraft.id ? 'Modifica ' + esc(ripDraft.num) : 'Nuova riparazione'}</h2>${ripFormHtml()}</div>` : ''}
+  <div class="panel"><h2 class="panel-title">Chi ripara i motori</h2>${act.length ? `<label class="field"><span>Lavoratore</span><select id="ripWsel"><option value="">— nessuno —</option>${act.map(w => `<option value="${esc(w.id)}"${cur === w.id ? ' selected' : ''}>${esc(w.nome)}</option>`).join('')}</select></label>
+    <div class="job-actions"><button class="btn" data-act="rip-setw">Salva</button></div>${wk ? '' : '<p class="muted">Finché non scegli chi ripara, nessun lavoratore vede le riparazioni.</p>'}` : '<p class="muted">Prima inserisci i lavoratori.</p>'}</div>
+  <div class="job-actions" style="margin:10px 0">${tab('ricevuto', 'Ricevuti')}${tab('riparato', 'Riparati')}${tab('non_riparato', 'Non riparati')}${tab('consegnato', 'Consegnati')}</div>
+  <label class="field"><span>Cerca</span><input id="ripSearch" type="search" value="${esc(ripQ)}" placeholder="Numero, cliente, modello o matricola" autocomplete="off"></label>
+  <div id="ripList">${ripListHtml()}</div>`;
+}
+/* lato lavoratore: solo chi ha il flag "ripara" vede il pulsante Riparazioni */
+function ripWListHtml(){
+  const mine = rips.filter(r => !r.consegnato), by = (a, b) => String(a.data + a.num).localeCompare(String(b.data + b.num));
+  const da = mine.filter(r => ripState(r) === 'ricevuto').sort(by), fatti = mine.filter(r => ripState(r) !== 'ricevuto').sort((a, b) => String(b.esitoIl || '').localeCompare(String(a.esitoIl || ''))).slice(0, 60);
+  const l = ripWTab === 'da' ? da : fatti;
+  const tb = (k, lb, n) => `<button class="btn small${ripWTab === k ? ' primary' : ''}" data-act="rip-wtab" data-tab="${k}">${lb} (${n})</button>`;
+  return `<div class="job-actions" style="margin:0 0 10px">${tb('da', 'Da riparare', da.length)}${tb('fatti', 'Fatti', fatti.length)}</div>` +
+    (l.length ? l.map(r => `<button type="button" class="w-row st-${stOf(r)}" data-act="rip-wopen" data-id="${esc(r.id)}"><span><strong>${esc(r.modello)}${r.matricola ? ' · ' + esc(r.matricola) : ''}</strong><small>${esc(r.num)} · ${esc(r.cliente)}</small></span>${ripWTab === 'fatti' ? `<span class="stat ${ripCls(ripState(r))}">${RIP_ST[ripState(r)]}</span>` : ''}<span class="w-go" aria-hidden="true">›</span></button>`).join('')
+      : `<p class="muted">${ripWTab === 'da' ? 'Nessun motore da riparare.' : 'Ancora niente di fatto.'}</p>`);
+}
+function ripWDetailHtml(r){
+  const s = ripState(r), li = (k, v) => v ? `<p class="line" style="margin:6px 0"><b>${k}:</b>&nbsp;${esc(v)}</p>` : '';
+  return `<div class="sheet-head"><div><p class="eyebrow">${esc(r.num)} · ${RIP_ST[s]}</p><h2>${esc(r.modello)}</h2></div><button class="icon-btn" data-act="rip-wback" aria-label="Indietro">${ic('left', 20)}</button></div>
+    ${li('Cliente', r.cliente)}${li('Matricola', r.matricola)}${li('In laboratorio dal', dmy(r.data))}${li('Difetto', r.difetto)}${li('Accessori', r.accessori)}
+    ${r.consegnato ? '<p class="muted">Già consegnato.</p>' : `<label class="field"><span>Nota: cosa è stato fatto</span><textarea id="ripWnote" maxlength="500" rows="4" placeholder="Es. sostituita scheda, provato con pulsantiera">${esc(ripNote)}</textarea></label>
+      <div class="job-actions"><button class="btn primary" data-act="rip-wok">${ic('check', 16)}Riparato e provato</button><button class="btn" data-act="rip-wno">Non riparato</button></div>
+      <div class="job-actions"><button class="btn small ghost" data-act="rip-wsave">Salva solo la nota</button>${s !== 'ricevuto' ? '<button class="btn small ghost" data-act="rip-wre">Rimetti da riparare</button>' : ''}</div>`}`;
+}
+function ripWRender(){
+  let o = $('#ripOverlay');
+  if (!ripWOpen || !(workers[0] && workers[0].ripara)) { ripWOpen = false; if (o) { o.hidden = true; o.innerHTML = ''; } return; }
+  const r = ripWId ? rips.find(x => x.id === ripWId) : null; if (ripWId && !r) ripWId = null;
+  if (!o) { o = document.createElement('div'); o.id = 'ripOverlay'; o.className = 'overlay'; document.body.insertBefore(o, document.body.firstChild); }
+  const was = !o.hidden, old = o.querySelector('.sheet'), sc = old ? old.scrollTop : 0, a = document.activeElement, ft = a && a.id === 'ripWnote', fs = ft ? a.selectionStart : 0, fe = ft ? a.selectionEnd : 0;
+  o.classList.toggle('w-sheet-re', was);
+  o.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="Riparazioni">${r ? ripWDetailHtml(r)
+    : `<div class="sheet-head"><div><p class="eyebrow">Laboratorio</p><h2>Riparazioni</h2></div><button class="icon-btn" data-act="rip-wclose" aria-label="Chiudi">${ic('x', 20)}</button></div>${ripWListHtml()}`}</div>`;
+  o.hidden = false;
+  const s = o.querySelector('.sheet'); if (s) s.scrollTop = sc;
+  if (ft) { const n = $('#ripWnote'); if (n) { n.focus({preventScroll: true}); try { n.setSelectionRange(fs, fe); } catch(e){} } }
+}
 /* ---- manuali di installazione (link a Google Drive): l'elenco è copiato nella scheda di ogni lavoratore, che già legge la propria ---- */
 const MAN_MAX = 200;
 let manDraft = {t: '', u: '', c: '', b: ''}, manQ = '', manOpen = false;
@@ -4404,7 +4625,7 @@ function viewOggi(){
   return h;
 }
 function renderWorkerApp(){
-  $('#menu').innerHTML = `<button role="tab" aria-selected="true" data-act="go" data-view="oggi">${ic('clock', 18)}I miei interventi</button><button role="tab" aria-selected="false" data-act="man-open">${ic('filetext', 18)}Manuali</button>`;
+  $('#menu').innerHTML = `<button role="tab" aria-selected="true" data-act="go" data-view="oggi">${ic('clock', 18)}I miei interventi</button><button role="tab" aria-selected="false" data-act="man-open">${ic('filetext', 18)}Manuali</button>${workers[0] && workers[0].ripara ? `<button role="tab" aria-selected="false" data-act="rip-open">${ic('box', 18)}Riparazioni${rips.filter(r => !r.consegnato && ripState(r) === 'ricevuto').length ? ' (' + rips.filter(r => !r.consegnato && ripState(r) === 'ricevuto').length + ')' : ''}</button>` : ''}${workers[0] && workers[0].ripara ? `<button role="tab" aria-selected="false" data-act="mul-wopen">${ic('archive', 18)}Muletti</button>` : ''}`;
   $('#overlay').hidden = true;
   fotoSubWorker();
   const a = document.activeElement, kAttr = a && a.dataset ? (a.dataset.wnote ? 'wnote' : a.dataset.causale ? 'causale' : a.dataset.matq ? 'matq' : a.dataset.matser ? 'matser' : '') : '';
@@ -4413,6 +4634,8 @@ function renderWorkerApp(){
   $('#app').innerHTML = viewOggi();
   wSheetRender();
   manRender();
+  ripWRender();
+  mulWRender();
   Object.keys(cz).forEach(k => { const n = document.querySelector('textarea[data-causale][data-id="' + k + '"]'); if (n) n.value = cz[k]; });
   if (keep) { const n = document.querySelector('textarea[data-' + kAttr + '][data-id="' + keep.id + '"]'); if (n) { n.value = keep.v; n.focus({preventScroll: true}); try { n.setSelectionRange(keep.s, keep.e); } catch(e){} } }
 }
