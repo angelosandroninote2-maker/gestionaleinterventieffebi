@@ -3553,6 +3553,14 @@ document.addEventListener('click', e => {
       d.noteLavoratore = String(mulWTxt).replace(/\s+$/, '').slice(0, 2000); d.esitoIl = new Date().toISOString(); d.esitoDa = 'lavoratore';
       mulWDirty = false; mulWrite(d); render(); toast('Lista salvata.'); break;
     }
+    case 'rip-label': { const r = rips.find(x => x.id === t.dataset.id); if (r) ripLabel(r); break; }
+    case 'rip-wa': {
+      const r = rips.find(x => x.id === t.dataset.id); if (!r) break;
+      const n = waNum(r.telefono); if (!n) { toast('Questo numero non sembra un cellulare: WhatsApp non funziona. Chiama il cliente.'); break; }
+      const url = 'https://wa.me/' + n + '?text=' + encodeURIComponent(ripWaText(r));
+      const w = window.open(url, '_blank', 'noopener'); if (!w) location.href = url;
+      r.avvisatoIl = new Date().toISOString(); ripWrite(r); render(); break;
+    }
     case 'rip-tab': ripTab = t.dataset.tab; render(); break;
     case 'rip-new': ripDraft = {id: '', num: '', q: '', cliente: '', clienteId: '', telefono: '', free: false, cn: '', tel: '', modello: '', matricola: '', difetto: '', accessori: '', data: ripToday(), stato: 'ricevuto', nota: ''}; render(); { const i = $('#ripQc'); if (i) i.focus(); } break;
     case 'rip-cancel': ripDraft = null; render(); break;
@@ -3576,7 +3584,7 @@ document.addEventListener('click', e => {
         if (ns !== r.stato) { r.stato = ns; if (ns !== 'da_fare') { r.esitoIl = now; r.esitoDa = 'ufficio'; } }
         r.noteLavoratore = String(d.nota || '').trim().slice(0, 500); if (ns === 'non_fatto') r.causale = r.noteLavoratore.slice(0, 300);
       }
-      ripDraft = null; rebuildJobs(); ripWrite(r); render(); toast('Riparazione salvata: ' + r.num); break;
+      ripDraft = null; rebuildJobs(); ripWrite(r); render(); if (d.id) toast('Riparazione salvata: ' + r.num); else toast('Riparazione salvata: ' + r.num, 'Stampa foglio A4', () => ripLabel(r)); break;
     }
     case 'rip-cons': case 'rip-unc': { const r = rips.find(x => x.id === t.dataset.id); if (!r) break; if (t.dataset.act === 'rip-cons') { r.consegnato = true; r.consegnaIl = new Date().toISOString(); } else { r.consegnato = false; } ripWrite(r); render(); break; }
     case 'rip-del': { const r = rips.find(x => x.id === t.dataset.id); if (r) toast('Eliminare ' + r.num + ' (' + r.modello + ')?', 'Elimina', () => { rawJobs = rawJobs.filter(x => x.id !== r.id); rebuildJobs(); render(); fbRemove('interventi', r.id).catch(() => toast('Non sono riuscito a eliminare la riparazione.')); }); break; }
@@ -4415,7 +4423,7 @@ function cleanRip(o){
   const id = str(o.id, 60).replace(/[^\w-]/g, ''), cliente = str(o.cliente, 120).trim(), modello = str(o.modello, 120).trim();
   if (!id || !cliente || !modello) return null;
   const r = {id, rip: true, num: str(o.num, 20), data: /^\d{4}-\d{2}-\d{2}$/.test(o.data) ? o.data : ripToday(), ingressoIl: str(o.ingressoIl, 30), cliente, clienteId: str(o.clienteId, 60), telefono: str(o.telefono, 40), modello,
-    matricola: str(o.matricola, 60), difetto: str(o.difetto, 500), accessori: str(o.accessori, 200), workerId: str(o.workerId, 60), stato: STATI[o.stato] ? o.stato : 'da_fare', noteLavoratore: str(o.noteLavoratore, 500), causale: str(o.causale, 300), esitoIl: str(o.esitoIl, 30), esitoDa: str(o.esitoDa, 12)};
+    matricola: str(o.matricola, 60), difetto: str(o.difetto, 500), accessori: str(o.accessori, 200), workerId: str(o.workerId, 60), stato: STATI[o.stato] ? o.stato : 'da_fare', noteLavoratore: str(o.noteLavoratore, 500), causale: str(o.causale, 300), esitoIl: str(o.esitoIl, 30), esitoDa: str(o.esitoDa, 12), avvisatoIl: str(o.avvisatoIl, 30)};
   if (o.consegnato) { r.consegnato = true; r.consegnaIl = str(o.consegnaIl, 30); }
   return r;
 }
@@ -4444,15 +4452,33 @@ function ripFormHtml(){
     <label class="field"><span>Nota: cosa è stato fatto</span><textarea id="ripNot" maxlength="500" rows="3">${esc(d.nota)}</textarea></label>` : ''}
     <div class="job-actions"><button class="btn primary" data-act="rip-save">${ic('check', 16)}Salva</button><button class="btn ghost" data-act="rip-cancel">Annulla</button></div>`;
 }
+const waNum = p => { const d = String(p || '').replace(/[^\d+]/g, ''); if (d[0] === '+') return d.slice(1).replace(/\D/g, ''); if (d.indexOf('00') === 0) return d.slice(2); if (/^3\d{8,9}$/.test(d)) return '39' + d; if (/^39\d{9,10}$/.test(d)) return d; return ''; };
+function ripWaText(r){
+  const s = ripState(r), m = r.modello + (r.matricola ? ' (matr. ' + r.matricola + ')' : ''), az = azienda && azienda.ragione ? azienda.ragione : '', tel = azienda && azienda.telefono ? ' Per informazioni: ' + azienda.telefono + '.' : '';
+  const corpo = s === 'non_riparato' ? `purtroppo il suo motore ${m} (pratica ${r.num}) non è riparabile. La preghiamo di contattarci per le alternative o per il ritiro.` : `il suo motore ${m} (pratica ${r.num}) è stato riparato e provato: può passare a ritirarlo.`;
+  return `Buongiorno, ${corpo}${tel}${az ? '\n' + az : ''}`;
+}
+/* foglio A4 da attaccare al motore: numero, data, cliente, telefono, difetto, modello */
+function ripLabel(r){
+  const h = `<!doctype html><html lang="it"><head><meta charset="utf-8"><title>Riparazione ${esc(r.num)}</title><style>@page{size:A4;margin:15mm}*{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;color:#000}.n{display:flex;justify-content:space-between;font-size:20pt;font-weight:700;border-bottom:3pt solid #000;padding-bottom:4mm;margin-bottom:10mm}.l{font-size:12pt;text-transform:uppercase;letter-spacing:.06em;margin:0 0 2mm}.c{font-size:36pt;font-weight:700;line-height:1.1;margin-bottom:10mm;word-break:break-word}.t{font-size:32pt;font-weight:700;margin-bottom:10mm}.d{font-size:22pt;line-height:1.3;white-space:pre-wrap;word-break:break-word;margin-bottom:10mm}.m{font-size:16pt;border-top:1pt solid #000;padding-top:4mm}</style></head><body><div class="n"><span>${esc(r.num)}</span><span>${esc(dmy(r.data))}</span></div><p class="l">Cliente</p><div class="c">${esc(r.cliente)}</div><p class="l">Telefono</p><div class="t">${r.telefono ? esc(r.telefono) : '—'}</div><p class="l">Difetto</p><div class="d">${esc(r.difetto || '—')}</div><div class="m">${esc(r.modello)}${r.matricola ? ' · matr. ' + esc(r.matricola) : ''}</div></body></html>`;
+  const f = document.createElement('iframe'); f.setAttribute('aria-hidden', 'true'); f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+  document.body.appendChild(f);
+  const d = f.contentDocument; d.open(); d.write(h); d.close();
+  setTimeout(() => { try { f.contentWindow.focus(); f.contentWindow.print(); } catch(e) { toast('Non riesco ad aprire la stampa.'); } }, 250);
+  setTimeout(() => f.remove(), 120000);
+}
 function ripCard(r){
   const s = ripState(r);
   return `<div class="panel" style="margin-bottom:10px"><div class="row" style="border:0;padding:0"><div class="row-main"><strong>${esc(r.modello)}${r.matricola ? ' · ' + esc(r.matricola) : ''}</strong><small>${esc(r.num)} · ${esc(r.cliente)} · dal ${esc(dmy(r.data))}</small></div><span class="stat ${ripCls(s)}">${RIP_ST[s]}</span></div>
     ${r.difetto ? `<p class="desc" style="margin:8px 0 0"><b>Difetto:</b> ${esc(r.difetto)}</p>` : ''}
     ${r.accessori ? `<p class="desc" style="margin:4px 0 0"><b>Accessori:</b> ${esc(r.accessori)}</p>` : ''}
     ${r.noteLavoratore ? `<p class="desc" style="margin:4px 0 0"><b>Eseguito:</b> ${esc(r.noteLavoratore)}</p>` : ''}
+    ${r.avvisatoIl ? `<p class="muted" style="margin:6px 0 0">WhatsApp aperto il ${esc(new Date(r.avvisatoIl).toLocaleString('it-IT', {dateStyle: 'short', timeStyle: 'short'}))}</p>` : ''}
     <div class="job-actions">${r.telefono ? `<a class="btn small" href="tel:${esc(digits(r.telefono))}">${ic('phone', 14)}Chiama</a>` : ''}
       ${s === 'riparato' || s === 'non_riparato' ? `<button class="btn small primary" data-act="rip-cons" data-id="${esc(r.id)}">${ic('check', 14)}Segna consegnato</button>` : ''}
       ${s === 'consegnato' ? `<button class="btn small" data-act="rip-unc" data-id="${esc(r.id)}">Annulla consegna</button>` : ''}
+      <button class="btn small" data-act="rip-label" data-id="${esc(r.id)}">Stampa foglio A4</button>
+      ${(s === 'riparato' || s === 'non_riparato') && r.telefono ? `<button class="btn small" data-act="rip-wa" data-id="${esc(r.id)}">Avvisa su WhatsApp</button>` : ''}
       <button class="btn small" data-act="rip-edit" data-id="${esc(r.id)}">${ic('edit', 14)}Modifica</button><button class="icon-btn small" data-act="rip-del" data-id="${esc(r.id)}" aria-label="Elimina">${ic('trash', 16)}</button></div></div>`;
 }
 function ripListHtml(){
