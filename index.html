@@ -83,6 +83,8 @@ nav.menu::-webkit-scrollbar{display:none}
 nav.menu button{flex:none;min-height:46px;padding:0 14px;border:0;border-bottom:3px solid transparent;background:transparent;font-weight:500;color:var(--muted);cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:8px}
 nav.menu button:hover{color:var(--ink)}
 nav.menu button[aria-selected="true"]{color:var(--ink);font-weight:600;border-bottom-color:var(--brand)}
+/* PC con mouse: il menu va a capo e si vede tutto, senza dover scorrere */
+@media (hover:hover) and (pointer:fine){nav.menu{flex-wrap:wrap;overflow-x:visible;margin:0}}
 .pill{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 6px;border-radius:999px;background:var(--surface2);border:1px solid var(--line);color:var(--ink);font-size:12.5px;font-weight:600}
 .pill.warn{background:var(--warn-tint);border-color:var(--warn);color:var(--warn-text)}
 
@@ -3826,6 +3828,8 @@ document.addEventListener('change', e => {
   else if (t.matches && t.matches('input[data-act="wz-other"]')) { wzOther = t.checked; render(); }
   else if (t.matches && t.matches('select[data-act="assegna-d"]')) assign(t.dataset.id, t.value);
 });
+/* se il menu è comunque più largo dello schermo, la rotellina del mouse lo fa scorrere di lato */
+document.addEventListener('wheel', e => { const m = e.target && e.target.closest ? e.target.closest('nav.menu') : null; if (!m || m.scrollWidth <= m.clientWidth || !e.deltaY) return; m.scrollLeft += e.deltaY; e.preventDefault(); }, {passive: false});
 document.addEventListener('input', e => {
   const t = e.target;
   if (t.id === 'fCliente') { updateClienteLink(e.inputType === 'insertReplacementText'); return; }
@@ -4460,7 +4464,7 @@ function ripWaText(r){
 }
 /* foglio A4 da attaccare al motore: numero, data, cliente, telefono, difetto, modello */
 function ripLabel(r){
-  const h = `<!doctype html><html lang="it"><head><meta charset="utf-8"><title>Riparazione ${esc(r.num)}</title><style>@page{size:A4;margin:15mm}*{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;color:#000}.n{display:flex;justify-content:space-between;font-size:20pt;font-weight:700;border-bottom:3pt solid #000;padding-bottom:4mm;margin-bottom:10mm}.l{font-size:12pt;text-transform:uppercase;letter-spacing:.06em;margin:0 0 2mm}.c{font-size:36pt;font-weight:700;line-height:1.1;margin-bottom:10mm;word-break:break-word}.t{font-size:32pt;font-weight:700;margin-bottom:10mm}.d{font-size:22pt;line-height:1.3;white-space:pre-wrap;word-break:break-word;margin-bottom:10mm}.m{font-size:16pt;border-top:1pt solid #000;padding-top:4mm}</style></head><body><div class="n"><span>${esc(r.num)}</span><span>${esc(dmy(r.data))}</span></div><p class="l">Cliente</p><div class="c">${esc(r.cliente)}</div><p class="l">Telefono</p><div class="t">${r.telefono ? esc(r.telefono) : '—'}</div><p class="l">Difetto</p><div class="d">${esc(r.difetto || '—')}</div><div class="m">${esc(r.modello)}${r.matricola ? ' · matr. ' + esc(r.matricola) : ''}</div></body></html>`;
+  const h = `<!doctype html><html lang="it"><head><meta charset="utf-8"><title>Riparazione ${esc(r.num)}</title><style>@page{size:A4;margin:0}*{box-sizing:border-box}body{margin:0;padding:15mm;font-family:Arial,Helvetica,sans-serif;color:#000}.n{display:flex;justify-content:space-between;font-size:20pt;font-weight:700;border-bottom:3pt solid #000;padding-bottom:4mm;margin-bottom:10mm}.l{font-size:12pt;text-transform:uppercase;letter-spacing:.06em;margin:0 0 2mm}.c{font-size:36pt;font-weight:700;line-height:1.1;margin-bottom:10mm;word-break:break-word}.t{font-size:32pt;font-weight:700;margin-bottom:10mm}.d{font-size:22pt;line-height:1.3;white-space:pre-wrap;word-break:break-word;margin-bottom:10mm}.m{font-size:16pt;border-top:1pt solid #000;padding-top:4mm}</style></head><body><div class="n"><span>${esc(r.num)}</span><span>${esc(dmy(r.data))}</span></div><p class="l">Cliente</p><div class="c">${esc(r.cliente)}</div><p class="l">Telefono</p><div class="t">${r.telefono ? esc(r.telefono) : '—'}</div><p class="l">Difetto</p><div class="d">${esc(r.difetto || '—')}</div><div class="m">${esc(r.modello)}${r.matricola ? ' · matr. ' + esc(r.matricola) : ''}</div></body></html>`;
   const f = document.createElement('iframe'); f.setAttribute('aria-hidden', 'true'); f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
   document.body.appendChild(f);
   const d = f.contentDocument; d.open(); d.write(h); d.close();
