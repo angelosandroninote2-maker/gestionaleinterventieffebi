@@ -2136,6 +2136,7 @@ function buildJobPdf(j, mats, az, firma){
   const rows = [['Intervento', tipoText(j) || j.tipo || '—'], ['Fascia oraria', fasciaLabel(j)], ['Lavoratore', w ? w.nome : 'Non assegnato'],
     ['Esito', STATI[st] + (j.esitoIl ? ' · ' + abs(j.esitoIl) : '')]];
   if (j.inizioIl) rows.push(['Iniziato', abs(j.inizioIl)]);
+  { const hh = st === 'fatto' ? hoursOf(j) : null; if (hh) rows.push(['Ore di lavoro', fmtOre(hh.ore)], ['Persone al lavoro', String(hh.pers)]); }
   if (st === 'non_fatto' && j.causale) rows.push(['Motivo (non fatto)', j.causale]);
   if (j.descrizione) rows.push(['Lavoro richiesto', j.descrizione]);
   if (j.noteLavoratore) rows.push(['Nota del lavoratore', j.noteLavoratore]);
