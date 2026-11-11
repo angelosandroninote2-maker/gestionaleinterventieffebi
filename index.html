@@ -560,6 +560,26 @@ html,body{overflow-x:hidden}
 a.w-row{text-decoration:none}
 </style>
 <style id="gfx">
+/* notifiche: letto / non letto */
+.npanel{max-width:440px}
+.np-head{padding:14px 12px 6px 18px}
+.np-head h2{display:flex;align-items:center;gap:8px}
+.np-count{font-size:12.5px;font-weight:700;background:var(--brand);color:#fff;border-radius:999px;padding:2px 9px}
+.np-tools{display:flex;justify-content:space-between;align-items:center;padding:0 18px 8px;font-size:13px;color:var(--muted);gap:10px}
+.np-all{all:unset;cursor:pointer;color:var(--brand-text);font-weight:600;font-size:13.5px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.np-all[disabled]{color:var(--muted);cursor:default;font-weight:500}
+.np-sec{font-size:11.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:10px 12px 4px}
+.np-list{gap:4px}
+.np-item{position:relative;padding:11px 30px 11px 10px;width:100%}
+.np-item.unread{background:color-mix(in srgb,var(--brand) 6%,var(--surface))}
+.np-item.unread strong{font-weight:700}
+.np-item.unread::after{content:"";position:absolute;right:12px;top:50%;width:10px;height:10px;margin-top:-5px;border-radius:50%;background:var(--brand)}
+.np-item.read strong{font-weight:500;color:var(--muted)}
+.np-item.read .np-ico{opacity:.6}
+.np-foot{display:flex;align-items:center;gap:8px;justify-content:center;font-size:12.5px;color:var(--muted);padding:10px 12px 14px;border-top:1px solid var(--line)}
+.np-foot i{width:8px;height:8px;border-radius:50%;background:var(--ok)}
+.np-foot i.loc{background:var(--warn)}
+@media (max-width:600px){.npanel{left:0;right:0;top:auto;bottom:0;max-width:none;border-radius:18px 18px 0 0;max-height:86dvh}}
 /* ===== Nuova grafica: menu laterale, barra in basso, intestazione compatta ===== */
 :root{--side:#141416;--side-ink:#D4D4D8;--side-muted:#71717A;--side-line:#27272A;--info-tint:#E6EEFF;--info-text:#1D4ED8;--wa:#17924C}
 :root[data-theme="dark"]{--info-tint:#16233F;--info-text:#8DB2FF}
@@ -1332,7 +1352,7 @@ function jobTable(day, ctx){
       const w = ctx.wById[j.workerId], st = stOf(j);
       return `<tr class="st-${st}"><td class="nowrap">${esc(fasciaLabel(j))}</td>
         <td><button class="linkbtn" data-act="open-job" data-id="${esc(j.id)}">${esc(j.cliente)}</button> ${tagsOf(j)}</td>
-        <td class="nowrap"><span>${esc(j.tipo || (j.durata ? '' : '—'))}</span>${j.durata ? ` <span class="durtag">${esc(fmtDur(j.durata))}</span>` : ''}</td>
+        <td><span>${esc(j.tipo || (j.durata ? '' : '—'))}</span>${j.durata ? ` <span class="durtag">${esc(fmtDur(j.durata))}</span>` : ''}</td>
         <td>${esc(j.via)}</td>
         <td>${w ? `<span class="wtag ${cls(w)}"><i class="dotw"></i>${esc(w.nome)}</span>` : '<span class="muted">Da assegnare</span>'}</td>
         <td><span class="stat st-${st}">${STATI[st]}</span></td></tr>`;
@@ -3590,11 +3610,32 @@ function notifEvents(){
   return ev.sort((a, b) => a.t < b.t ? 1 : -1).slice(0, 60);
 }
 const seenKey = () => 'gestionale-notif-seen-' + (me ? me.uid : '');
+/* letto / non letto: salvato sull'utente online (notifLette/{uid}) e in copia su questo dispositivo */
+let nlRemote = null, nlOff = false, nlTimer = null;
+const nlKey = () => 'gestionale-notif-lette-' + (me ? me.uid : '');
+function nlState(){
+  let loc = null; try { loc = JSON.parse(lsGet(nlKey()) || 'null'); } catch(e){}
+  const a = nlRemote || {}, b = loc || {fino: lsGet(seenKey()), ids: []};
+  const fa = String(a.fino || ''), fb2 = String(b.fino || '');
+  return {fino: fa > fb2 ? fa : fb2, ids: new Set([].concat(a.ids || [], b.ids || []))};
+}
+const isLetta = (e, st) => e.t <= st.fino || st.ids.has(e.id);
+function nlSave(st){
+  const live = new Set(notifEvents().map(e => e.id));
+  const o = {fino: st.fino, ids: [...st.ids].filter(i => live.has(i)).slice(-300), agg: new Date().toISOString()};
+  lsSet(nlKey(), JSON.stringify(o));
+  nlRemote = Object.assign({}, nlRemote || {}, o);
+  if (nlOff || !usingDb || !me) return;
+  clearTimeout(nlTimer);
+  nlTimer = setTimeout(() => { fb.setDoc(fb.doc(fb.db, 'notifLette', me.uid), o).catch(err => { if (err && err.code === 'permission-denied') { nlOff = true; if (notifOpen) renderNotif(); } }); }, 600);
+}
+function nlMark(ids){ const st = nlState(); ids.forEach(i => i && st.ids.add(i)); nlSave(st); updateBell(); }
+function nlMarkAll(){ const st = nlState(), ev = notifEvents(), now = new Date().toISOString(), top = ev.length && ev[0].t > now ? ev[0].t : now; st.fino = top; st.ids = new Set(); nlSave(st); updateBell(); }
 function updateBell(){
   const b = $('#bellBtn'); if (!b) return;
   b.hidden = authState !== 'ready';
   if (b.hidden) return;
-  const seen = lsGet(seenKey()), n = notifEvents().filter(e => e.t > seen).length;
+  const st = nlState(), n = notifEvents().filter(e => !isLetta(e, st)).length;
   const badge = $('#bellN'); badge.hidden = !n; badge.textContent = n > 9 ? '9+' : String(n);
   b.setAttribute('aria-label', n ? 'Notifiche: ' + n + ' nuove' : 'Notifiche');
   if (notifOpen) renderNotif();
@@ -3608,16 +3649,23 @@ function notifToggle(force){
 }
 function renderNotif(){
   const p = $('#npanel'); if (!p) return;
-  const ev = notifEvents(), seen = lsGet(seenKey());
+  const ev = notifEvents(), st = nlState();
   const can = 'Notification' in window, perm = can ? Notification.permission : 'unsupported';
   const icoOf = {assign: 'plus', start: 'clock', fatto: 'check', non_fatto: 'x', late: 'alert'};
-  p.innerHTML = `<div class="np-head"><h2>Notifiche</h2><button class="icon-btn" data-act="notif-close" aria-label="Chiudi">${ic('x', 20)}</button></div>
+  const n = ev.filter(e => !isLetta(e, st)).length;
+  const oggi = new Date().toDateString(), ieri = new Date(Date.now() - 864e5).toDateString();
+  const grp = t => { const d = new Date(t).toDateString(); return d === oggi ? 'Oggi' : d === ieri ? 'Ieri' : 'Questa settimana'; };
+  let last = '', list = '';
+  ev.forEach(e => { const g = grp(e.t); if (g !== last) { list += `<div class="np-sec">${g}</div>`; last = g; }
+    const u = !isLetta(e, st);
+    list += `<button class="np-item k-${e.kind} ${u ? 'unread' : 'read'}" data-act="notif-go" data-id="${esc(e.job)}" data-nid="${esc(e.id)}"${u ? ' aria-label="Non letta: ' + esc(e.title) + '"' : ''}>
+        <span class="np-ico">${ic(icoOf[e.kind] || 'alert', 16)}</span><span class="np-txt"><strong>${esc(e.title)}</strong><span>${esc(e.body)}</span><small>${esc(whenTxt(e.t))}</small></span></button>`; });
+  p.innerHTML = `<div class="np-head"><h2>Notifiche${n ? `<span class="np-count">${n > 99 ? '99+' : n} ${n === 1 ? 'nuova' : 'nuove'}</span>` : ''}</h2><button class="icon-btn" data-act="notif-close" aria-label="Chiudi">${ic('x', 20)}</button></div>
+    ${ev.length ? `<div class="np-tools"><span>${n ? 'Tocca una notifica per aprirla e segnarla come letta' : 'Nessuna notifica da leggere'}</span><button class="np-all" data-act="notif-all"${n ? '' : ' disabled'}>${ic('check', 15)}Segna tutte come lette</button></div>` : ''}
     ${can && perm !== 'granted' ? `<div class="np-perm">${perm === 'denied' ? 'Le notifiche sul telefono sono bloccate: riattivale dalle impostazioni del browser per questo sito.' : 'Ricevi gli avvisi anche come notifiche del telefono.'}
       ${perm !== 'denied' ? `<button class="btn small primary" data-act="notif-perm">Attiva notifiche</button>` : ''}</div>` : ''}
-    ${ev.length ? `<div class="np-list">` + ev.map(e => `<button class="np-item k-${e.kind}${e.t > seen ? ' new' : ''}" data-act="notif-go" data-id="${esc(e.job)}">
-        <span class="np-ico">${ic(icoOf[e.kind] || 'alert', 16)}</span><span class="np-txt"><strong>${esc(e.title)}</strong><span>${esc(e.body)}</span><small>${esc(whenTxt(e.t))}</small></span></button>`).join('') + `</div>`
+    ${ev.length ? `<div class="np-list">${list}</div><div class="np-foot">${nlOff ? '<i class="loc"></i>Letto e non letto salvati solo su questo dispositivo' : '<i></i>Letto e non letto allineati su computer e telefono'}</div>`
       : `<p class="muted" style="padding:16px">${role === 'lavoratore' ? 'Qui trovi gli interventi che ti vengono assegnati.' : 'Qui trovi gli interventi iniziati, chiusi o non fatti dai lavoratori e quelli in ritardo.'}</p>`}`;
-  if (ev.length && ev[0].t > seen) { lsSet(seenKey(), ev[0].t); const badge = $('#bellN'); if (badge) badge.hidden = true; }
 }
 async function notifAskPerm(){
   try { await Notification.requestPermission(); } catch(e){}
@@ -3916,7 +3964,9 @@ document.addEventListener('click', e => {
     case 'notif': notifToggle(); break;
     case 'notif-close': notifToggle(false); break;
     case 'notif-perm': notifAskPerm(); break;
+    case 'notif-all': nlMarkAll(); break;
     case 'notif-go': {
+      if (t.dataset.nid) nlMark([t.dataset.nid]);
       const j = jobs.find(x => x.id === id); notifToggle(false);
       if (!j) break;
       if (role === 'lavoratore') { setDate(j.data); setTimeout(() => { const c = document.querySelector('.w-job[data-id="' + id + '"]'); if (c) c.scrollIntoView({block: 'center'}); }, 80); }
@@ -4276,6 +4326,8 @@ function startSubs(){
     sub(fb.query(col('interventi'), fb.where('workerId', '==', myWorkerId)), s => { rawJobs = s.docs.map(d => d.data()); takeSnap(s); setTimeout(notifyCheck, 0); rebuildJobs(); pickInitialDate(); sync(s); render(); });
     sub(fb.doc(fb.db, 'lavoratori', myWorkerId), s => { workers = s.exists() ? [s.data()] : []; render(); });
   }
+  nlRemote = null; nlOff = false;
+  unsubs.push(fb.onSnapshot(fb.doc(fb.db, 'notifLette', me.uid), s => { nlRemote = s.exists() ? s.data() : null; updateBell(); }, () => { nlOff = true; updateBell(); }));
 }
 function onAuth(user){
   if (ownUnsub) { ownUnsub(); ownUnsub = null; }
