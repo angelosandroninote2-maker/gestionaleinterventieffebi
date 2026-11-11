@@ -1,20 +1,19 @@
 <!DOCTYPE html>
-<!-- saved from url=(0071)https://angelosandroninote2-maker.github.io/gestionaleinterventieffebi/ -->
-<html lang="it" data-theme="light"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<html lang="it"><head><meta charset="utf-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Effebi Gestionale</title>
-<link rel="manifest" href="https://angelosandroninote2-maker.github.io/gestionaleinterventieffebi/manifest.webmanifest">
+<link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#D80C14">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Effebi">
-<link rel="icon" type="image/png" sizes="48x48" href="https://angelosandroninote2-maker.github.io/gestionaleinterventieffebi/favicon-48.png">
-<link rel="icon" type="image/png" sizes="192x192" href="https://angelosandroninote2-maker.github.io/gestionaleinterventieffebi/icon-192.png">
-<link rel="apple-touch-icon" href="https://angelosandroninote2-maker.github.io/gestionaleinterventieffebi/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="48x48" href="./favicon-48.png">
+<link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com/">
 <link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin="">
-<link href="./Effebi Gestionale_files/css2" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 <style>
 :root{
   --bg:#F4F4F5; --surface:#FFFFFF; --surface2:#F7F7F8; --ink:#161616; --muted:#5E5E66; --line:#E3E3E6;
@@ -47,7 +46,7 @@
   --bad:#FF7A90; --bad-tint:#3B1620; --bad-text:#FF9DAE;
   --shadow:0 1px 2px rgba(0,0,0,.4);
 }
-.c0{--wc:#52525B}.c1{--wc:#0D9488}.c2{--wc:#D9480F}.c3{--wc:#7C3AED}
+.c0{--wc:#2563EB}.c1{--wc:#0D9488}.c2{--wc:#D9480F}.c3{--wc:#7C3AED}
 .c4{--wc:#BE185D}.c5{--wc:#4D7C0F}.c6{--wc:#0E7490}.c7{--wc:#A16207}
 .c-none{--wc:var(--muted)}
 
@@ -560,6 +559,128 @@ html,body{overflow-x:hidden}
 .w-sheet-re .sheet{animation:none}
 a.w-row{text-decoration:none}
 </style>
+<style id="gfx">
+/* ===== Nuova grafica: menu laterale, barra in basso, intestazione compatta ===== */
+:root{--side:#141416;--side-ink:#D4D4D8;--side-muted:#71717A;--side-line:#27272A;--info-tint:#E6EEFF;--info-text:#1D4ED8;--wa:#17924C}
+:root[data-theme="dark"]{--info-tint:#16233F;--info-text:#8DB2FF}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--info-tint:#16233F;--info-text:#8DB2FF}}
+.pagehead{margin-top:4px}
+/* indicatori */
+.kpi{position:relative;padding:14px 16px 14px 62px;min-height:84px}
+.kpi .kic{position:absolute;left:14px;top:16px;width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:var(--surface2);color:var(--muted)}
+.kpi.k-warn .kic{background:var(--warn-tint);color:var(--warn-text)}
+.kpi.k-ok .kic{background:var(--ok-tint);color:var(--ok-text)}
+.kpi.k-run .kic{background:var(--info-tint);color:var(--info-text)}
+.kpi.alert{display:block;background:var(--surface);border-color:var(--warn);box-shadow:inset 4px 0 0 var(--warn)}
+.kpi.alert .l,.kpi.alert .s{color:var(--warn-text)}
+/* durata, whatsapp, pistola */
+.durtag{display:inline-block;font-size:12px;font-weight:600;padding:0 7px;border-radius:999px;background:var(--surface2);border:1px solid var(--line);color:var(--muted);white-space:nowrap;vertical-align:1px}
+.btn.wa{background:var(--wa);border-color:var(--wa);color:#fff;font-weight:600}.btn.wa:hover{filter:brightness(1.07)}
+.sendbox .row-main .tag{justify-self:start}
+#scanIn:focus,#scanIn:focus-visible,#invIn:focus,#invIn:focus-visible{outline:0;border-color:var(--ok);box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 22%,transparent)}
+.w-row.st-da_fare{border-left-color:var(--ink)}
+/* programma a schede (telefono) */
+.jcards{display:none;gap:10px}
+.jcard{all:unset;box-sizing:border-box;cursor:pointer;display:grid;gap:3px;border:1px solid var(--line);border-radius:12px;padding:12px 14px 12px 16px;background:var(--surface);box-shadow:inset 4px 0 0 var(--wc,var(--line))}
+.jcard:active{background:var(--surface2)}
+.jcard.st-fatto{opacity:.75}
+.jcard .jc-top{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+.jcard strong{font-size:16.5px}
+.jcard .jc-via{color:var(--muted);font-size:14px}
+.jcard .jc-w{font-size:13.5px;display:flex;align-items:center;gap:6px;margin-top:2px}
+.jcard .jc-un{color:var(--warn-text);font-weight:600;display:inline-flex;align-items:center;gap:5px}
+@media (max-width:700px){.dash .tbl-wrap{display:none}.dash .jcards{display:grid}}
+/* intestazione */
+.hsearch{flex:1;max-width:560px;display:flex;align-items:center;gap:10px;height:42px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface2);color:var(--muted);cursor:text}
+.hsearch:focus-within{border-color:var(--ink);background:var(--surface)}
+.hsearch input{all:unset;flex:1;min-width:0;font-size:15px;color:var(--ink)}
+.hsearch input::placeholder{color:var(--muted)}
+.hsearch kbd{font:600 12px var(--font-body);border:1px solid var(--line);border-radius:6px;padding:2px 6px;background:var(--surface);white-space:nowrap}
+.hspacer{display:none}
+.avatar-btn{position:relative;width:38px;height:38px;border-radius:50%;border:0;padding:0;background:var(--ink);color:var(--surface);cursor:pointer;flex:none}
+.shav{display:grid;place-items:center;width:100%;height:100%;font-weight:700;font-size:13.5px;letter-spacing:.02em}
+.avatar-btn i{position:absolute;right:-1px;bottom:-1px;width:12px;height:12px;border-radius:50%;border:2px solid var(--surface);background:var(--muted)}
+.avatar-btn i[data-s="online"]{background:var(--ok)}.avatar-btn i[data-s="local"]{background:var(--warn)}
+/* menu laterale */
+#side{display:none}
+#tabbar{display:none}
+.shell #menu{display:none}
+@media (min-width:960px){
+  .shell{padding-left:240px}
+  .shell header.top{border-top:0;box-shadow:none}
+  .shell .bar{padding:12px 0;gap:14px}
+  .shell header.top .mark,.shell header.top h1,.shell #logoutBtn{display:none}
+  .shell .hspacer{display:block;flex:1}
+  .shell .hsearch:not([hidden])+.hspacer{flex:0}
+  #side{position:fixed;left:0;top:0;bottom:0;width:240px;background:var(--side);color:var(--side-ink);z-index:12;display:flex;flex-direction:column;border-top:4px solid #D80C14;overflow-y:auto;scrollbar-width:thin}
+  body:not(.shell) #side{display:none}
+}
+#side .sb-brand{display:flex;align-items:center;gap:10px;padding:16px 18px 10px}
+#side .sb-brand img{width:38px;height:38px;border-radius:9px;background:#fff;padding:2px}
+#side .sb-brand b{color:#fff;font-weight:800;letter-spacing:.06em;font-size:17px;display:block;line-height:1.1}
+#side .sb-brand small{color:#A1A1AA;font-size:12.5px}
+#side h6{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--side-muted);margin:16px 20px 6px;font-weight:700}
+#side nav button{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:11px;width:calc(100% - 20px);margin:1px 10px;padding:9px 12px;border-radius:8px;font-size:14.5px;cursor:pointer;color:var(--side-ink);position:relative}
+#side nav button:hover{background:rgba(255,255,255,.06)}
+#side nav button:focus-visible{outline:2px solid #fff;outline-offset:-2px}
+#side nav button[aria-selected="true"]{background:rgba(227,22,29,.18);color:#fff;font-weight:600}
+#side nav button[aria-selected="true"]::before{content:"";position:absolute;left:-10px;top:8px;bottom:8px;width:4px;border-radius:0 4px 4px 0;background:#E3161D}
+#side nav .pill{margin-left:auto;background:rgba(255,255,255,.1);border-color:transparent;color:#fff}
+#side nav .pill.warn{background:#E8A317;border-color:#E8A317;color:#1a1a1a}
+#side .sb-foot{margin-top:auto;padding:14px 16px;border-top:1px solid var(--side-line);display:flex;align-items:center;gap:10px;font-size:13px}
+#side .sb-foot .shav{width:34px;height:34px;border-radius:50%;background:#fff;color:#141416;flex:none}
+#side .sb-foot .who{flex:1;min-width:0;line-height:1.25;color:#fff}
+#side .sb-foot .who small{color:#A1A1AA;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#side .sb-foot button{all:unset;cursor:pointer;color:#A1A1AA;border:1px solid #3F3F46;border-radius:7px;padding:5px 8px;display:inline-flex;align-items:center;gap:6px;font-size:12.5px}
+#side .sb-foot button:hover{color:#fff;border-color:#71717A}
+/* telefono e tablet */
+@media (max-width:959.98px){
+  .shell .bar{flex-wrap:nowrap;gap:10px;padding:8px 0}
+  .shell .bar::after{display:none}
+  .shell h1{font-size:17px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .shell .mark{width:34px;height:34px}
+  .shell #sync,.shell #logoutBtn,.shell #themeBtn,.shell .hsearch{display:none}
+  .shell #avatarBtn:not([hidden]){display:block}
+  .shell #installBtn{order:0}
+  .shell main{padding-bottom:calc(100px + env(safe-area-inset-bottom,0px))}
+  .shell .toast{bottom:calc(86px + env(safe-area-inset-bottom,0px))}
+  .shell #tabbar{position:fixed;left:0;right:0;bottom:0;z-index:15;background:var(--surface);border-top:1px solid var(--line);display:flex;justify-content:space-around;padding:6px 4px calc(8px + env(safe-area-inset-bottom,0px));box-shadow:0 -4px 16px rgba(0,0,0,.06)}
+  .pagehead{flex-direction:column;align-items:stretch;gap:10px}
+  .datebar{flex-wrap:nowrap}
+  .datebar input[type=date]{flex:1 1 0;min-width:0;width:auto}
+  .datebar .btn{padding:0 11px;flex:none}
+}
+@media (min-width:960px){#avatarBtn{display:none}}
+#tabbar button{all:unset;flex:1;max-width:96px;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11.5px;color:var(--muted);font-weight:500;position:relative;padding:4px 0 0;cursor:pointer;text-align:center;-webkit-tap-highlight-color:transparent}
+#tabbar button .tbt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+#tabbar button[aria-selected="true"]{color:var(--ink);font-weight:700}
+#tabbar button[aria-selected="true"] svg{color:var(--brand)}
+#tabbar .tb-n{position:absolute;top:-2px;left:calc(50% + 5px);min-width:17px;height:17px;border-radius:9px;background:var(--surface2);border:1px solid var(--line);color:var(--ink);font-size:10.5px;font-weight:700;display:grid;place-items:center;padding:0 4px}
+#tabbar .tb-n.warn{background:#E8A317;border-color:#E8A317;color:#1a1a1a}
+#tabbar button.tb-plus .cir{width:50px;height:50px;border-radius:50%;background:var(--brand);color:#fff;display:grid;place-items:center;margin-top:-22px;box-shadow:0 4px 12px rgba(216,12,20,.35)}
+#tabbar button.tb-plus svg{color:#fff!important}
+/* pannello "Altro" */
+.moresheet{position:fixed;inset:0;z-index:30;background:rgba(10,10,12,.45);display:flex;align-items:flex-end;justify-content:center}
+.moresheet .sh{background:var(--surface);width:100%;max-width:560px;border-radius:18px 18px 0 0;padding:10px 16px calc(22px + env(safe-area-inset-bottom,0px));max-height:85dvh;overflow:auto}
+.moresheet .grab{width:40px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 10px}
+.moresheet .prof{display:flex;align-items:center;gap:12px;padding:4px 2px 12px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.moresheet .prof .shav{width:42px;height:42px;border-radius:50%;background:var(--ink);color:var(--surface);flex:none}
+.moresheet .prof .who{flex:1;min-width:140px;line-height:1.3}.moresheet .prof .who small{display:block;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.moresheet .acts{display:flex;gap:8px}
+.moresheet h6{font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:14px 2px 8px}
+.moresheet .g{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.moresheet .g button{all:unset;box-sizing:border-box;cursor:pointer;border:1px solid var(--line);border-radius:12px;padding:12px 6px;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12.5px;font-weight:600;text-align:center;background:var(--surface2);position:relative;color:var(--ink)}
+.moresheet .g button[aria-selected="true"]{border-color:var(--brand);background:var(--brand-tint)}
+.moresheet .g button svg{color:var(--brand);width:22px;height:22px}
+.moresheet .g .pill{position:absolute;top:6px;right:6px;font-size:11px;min-width:19px;height:19px}
+@media (max-width:959.98px){
+  .kpi{padding:12px 14px;min-height:0}
+  .kpi .kic{position:static;width:28px;height:28px;border-radius:8px;margin-bottom:6px}
+  .kpi .kic svg{width:16px;height:16px}
+  .kpi .n{font-size:24px}
+}
+</style>
+
 </head>
 <body>
 
@@ -568,10 +689,13 @@ a.w-row{text-decoration:none}
     <div class="bar">
       <div class="mark" id="mark" aria-hidden="true"><img alt="" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAMAAADVRocKAAAASFBMVEX///////7+///+/v79/f38+/v15eby0dLEr7DBcnTdOT7aERc3LzAZFhfbDhXaDhXZDxXZDhXZDhTZDhPaChDXCRDXAQRsCQzJMz6DAAAEz0lEQVR42u1Y26KrKAylA3ipLVGo/f9PnVxAUaHtmbHzMs3utgQCy8QsglXqJz/5yU/+P2Lb86Qx1hijdwD9tf9Mkt31ehUtNa78IWmVMlrvfTjRha5tlNmHSLfP53N+niLzc2j3CBej+uewCDg37IW65PNeHkOzC5HWxl4fA4zj6FEQALANAN5jB/aOpGIHDgQYgEZ5HKQJIxuJ7eSHZ68OAKpFF3BdmGgZRxAk8YshnQxsRl30l1qwTEEXtgCYVhSk+Sx5hHYHoNEJ25wodh8ipVXbnyi7EGl1sap9nijt3gN6yo/hLBmHPYAx5MHgOUnpEgInKf4DBE9tyh0Zx34HbIUNB6nPpz6cXQPApE4mwQX+9hBkLsiihEqAaTFZmWDA+SqAWQFkIs0Iflpm0DqoEdfw45mDdDNk5yC3qgBgkqp2HhKBiJ8wyY1OGeFcHKKGy4ylI02EsQJQINrzoDw/o+MRQP/1J1WneWdgD0w2XyWakd3ue0Tjze5Eog3lNJ0HzmkgQtEX8Qgk9WDNwpUFvHtDRjefUrbAAy1MpqyW6TInTlg5ui6D+YjVJzjhYCDkkAwLTNaRaJz5E28NRCS8YIUa0RnkxTSm2ibZThZc1sZpIrpQWaMC56faVgHBuUD3EhYBanvsDfQP/MG2oy4ubSET2WFQHgUAyqKRN6EQZvygcJPaIfZTc+bRqKQrWnk2DWI3F57B5fLdikZpev1mRdP2PyDaXKlOJxBNGzkYRfrQVg+JM0u94rEQLWiA92s+paVyUK0HeNCLABmxgL/4yOWFFUJzFwlMt4B0h7XgQCqfRwCpB3JyHJk4Pq1HhWQal2K6lGCuMGQ4ciefG+FNTQZOYwwAcYUTWnj0CCUhlhE/PI3HQh4Z86jVZB6WwAdhzexj7Wefpok707nAS5+fucluT3wtlcxvHx2FaNcka+tPJJv17Yp2KPrmUiWasG38txUtqwcgeS8ntXSAzOjmXF5/QuKAY17I7GOaXmJF82m9jD1ryYx5w/xdAEKsrI5IVwWIJztZbDzcXaZT9kI2tgwuJ9MRTYbi8X2WEOH71ggxNCDFEPjdDbN8nJILfBVDPrAuB0mk9OiPPOC96LR3tHkqEE01J77tH4+Oxx8XThV8BJorP+5J1pi1Yek7b9nYL6qJwzZv858uANCWpxmFdiYG0RGM+3XsoVfSOCyGizEtI336AFCNkF4uVe9XC20PvxRlAFriIK4vAWOvtYwZjgCN2TU2StkkOhbH4w9STLT+tkqvuo+1JtM6BGFdFfai230VXCTTbi+19p6rhvUiQH8GwL19DXCLB7OOF0lav9H2Y+2iUQy6MgA+NgZYGd7db/d+o3UVbV1Q+ksAOgF0KSEE4CONF+TmKwC99cBuPLCbe95q5jMPlmcQs03ncd5pRrRoqT57Brss6lSeKf1rrbnfD3o1RP8EYJOmvX0NsAvKNmCV8H0SopMecssulXmgi2mqLb8eLhrv0JY9KKVpHYBfofZEI2OuPjr5Y3nzF4AS0Zr3AF2UNgHoGkC/WPKC8rv7e4DtZnfwgMuWfbnZvXkGOcCtBGDeAdR2U1PxgGuuPfhTAyBmN2UmG912q7Sq4Wus+aw1EcDoZmNpM8Vixlnu/clPfvKTn5wofwPWLf22poJ/3QAAAABJRU5ErkJggg=="></div>
       <h1><span class="b1">EFFEBI</span><span class="b2">Gestionale</span></h1>
+      <label class="hsearch" id="hsearch" hidden><span class="hs-ic"></span><input type="search" id="hsearchIn" placeholder="Cerca cliente, indirizzo, intervento…" autocomplete="off" aria-label="Cerca negli interventi"><kbd>Ctrl K</kbd></label>
+      <span class="hspacer"></span>
       <span id="sync" data-s="online" title="angelosandroninote2@gmail.com">Online · Titolare</span>
       <button class="btn small" id="installBtn" hidden="">Installa app</button>
       <button class="btn small ghost" id="logoutBtn" data-act="logout">Esci</button>
       <button class="icon-btn bell" id="bellBtn" data-act="notif" aria-label="Notifiche"><span id="bellIc"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg></span><span class="badge" id="bellN" hidden="">0</span></button>
+      <button class="avatar-btn" id="avatarBtn" data-act="shell-more" aria-label="Profilo e altre voci" hidden><span class="shav" id="avatarIni"></span><i id="avatarDot"></i></button>
       <button class="icon-btn" id="themeBtn" data-act="theme" aria-label="Cambia tema chiaro o scuro"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg></button>
     </div>
     <nav class="menu" id="menu" role="tablist" aria-label="Menu principale"><button role="tab" data-act="go" data-view="panoramica" aria-selected="true"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect></svg>Panoramica</button><button role="tab" data-act="go" data-view="carica" aria-selected="false"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Carica lavori<span class="pill">1</span></button><button role="tab" data-act="go" data-view="assegna" aria-selected="false"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h10M7 12h14M3 18h8"></path></svg>Assegna</button><button role="tab" data-act="go" data-view="lavoratori" aria-selected="false"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"></path></svg>Lavoratori<span class="pill">7</span></button><button role="tab" data-act="go" data-view="anagrafica" aria-selected="false"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><circle cx="9" cy="11" r="2.5"></circle><path d="M5.5 17a4 4 0 0 1 7 0M15 9h3M15 13h3"></path></svg>Anagrafica<span class="pill">4530</span></button><button role="tab" data-act="go" data-view="magazzino" aria-selected="false"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8 12 3 3 8v8l9 5 9-5z"></path><path d="M3 8l9 5 9-5M12 13v8"></path></svg>Magazzino</button><button role="tab" data-act="go" data-view="prefat" aria-selected="false"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path><path d="M14 3v5h5M9 13h6M9 17h6"></path></svg>Pre-fatturazione</button><button role="tab" data-act="go" data-view="utenti" aria-selected="false"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"></path></svg>Utenti</button><button role="tab" data-act="go" data-view="archivio" aria-selected="false"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>Finder</button></nav>
@@ -634,6 +758,10 @@ const LOGO_BIG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAPAAAADwCAMAAAAJ
 
 /* ---------- icone ---------- */
 const ICONS = {
+  calendar:'<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/>',
+  userplus:'<circle cx="9" cy="8" r="4"/><path d="M2 21c0-4 3-6 7-6s7 2 7 6M19 8v6M16 11h6"/>',
+  more:'<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>',
+  logout:'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
   phone:'<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/>',
   pin:'<path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/>',
   clock:'<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
@@ -1098,8 +1226,8 @@ function loadBlock(w, day){
   return `<div class="loadline${mins > cap ? ' over' : ''}"><span>${esc(fmtDur(mins) || '0 h')} / ${esc(fmtDur(cap))}</span><em>${pct}%</em></div>
     <div class="meter ${cls(w)}${mins > cap ? ' over' : ''}" role="img" aria-label="Carico ${pct}%"><i style="width:${Math.min(100, pct)}%"></i></div>`;
 }
-function kpi(label, n, sub, alert){
-  return `<div class="kpi${alert ? ' alert' : ''}"><div class="l">${label}</div><div class="n">${n}</div>${sub ? `<div class="s">${sub}</div>` : ''}</div>`;
+function kpi(label, n, sub, alert, icon, tone){
+  return `<div class="kpi${alert ? ' alert' : ''}${tone ? ' k-' + tone : ''}">${icon ? `<span class="kic">${ic(icon, 19)}</span>` : ''}<div class="l">${label}</div><div class="n">${n}</div>${sub ? `<div class="s">${sub}</div>` : ''}</div>`;
 }
 function tagsOf(j){
   return j.priorita === 'urgente' ? `<span class="tag urgent">${ic('zap', 12)}Urgente</span>` : '';
@@ -1186,6 +1314,17 @@ function setStato(id, st, causale){
 }
 
 /* ---------- Panoramica ---------- */
+function jobCards(day, ctx){
+  return `<div class="jcards">` + day.map(j => {
+    const w = ctx.wById[j.workerId], st = stOf(j);
+    return `<button type="button" class="jcard ${cls(w)} st-${st}" data-act="open-job" data-id="${esc(j.id)}">
+      <span class="jc-top"><span>${esc(fasciaLabel(j))}</span><span class="stat st-${st}">${STATI[st]}</span></span>
+      <strong>${esc(j.cliente)}</strong> ${tagsOf(j)}
+      <span class="jc-tipo">${esc(j.tipo || 'Intervento')}${j.durata ? ` <span class="durtag">${esc(fmtDur(j.durata))}</span>` : ''}</span>
+      ${j.via ? `<span class="jc-via">${esc(j.via)}</span>` : ''}
+      <span class="jc-w">${w ? `<i class="dotw"></i>${esc(w.nome)}` : `<span class="jc-un">${ic('alert', 14)}Da assegnare</span>`}</span></button>`;
+  }).join('') + `</div>`;
+}
 function jobTable(day, ctx){
   if (!day.length) return '<p class="muted">Nessun intervento in programma per questa data.</p>';
   return `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Fascia</th><th>Cliente</th><th>Intervento</th><th>Indirizzo</th><th>Lavoratore</th><th>Stato</th></tr></thead><tbody>` +
@@ -1193,11 +1332,11 @@ function jobTable(day, ctx){
       const w = ctx.wById[j.workerId], st = stOf(j);
       return `<tr class="st-${st}"><td class="nowrap">${esc(fasciaLabel(j))}</td>
         <td><button class="linkbtn" data-act="open-job" data-id="${esc(j.id)}">${esc(j.cliente)}</button> ${tagsOf(j)}</td>
-        <td>${esc(tipoText(j) || '—')}</td>
+        <td class="nowrap"><span>${esc(j.tipo || (j.durata ? '' : '—'))}</span>${j.durata ? ` <span class="durtag">${esc(fmtDur(j.durata))}</span>` : ''}</td>
         <td>${esc(j.via)}</td>
         <td>${w ? `<span class="wtag ${cls(w)}"><i class="dotw"></i>${esc(w.nome)}</span>` : '<span class="muted">Da assegnare</span>'}</td>
         <td><span class="stat st-${st}">${STATI[st]}</span></td></tr>`;
-    }).join('') + `</tbody></table></div>`;
+    }).join('') + `</tbody></table></div>` + jobCards(day, ctx);
 }
 function viewPanoramica(){
   const wById = workerMap();
@@ -1208,7 +1347,7 @@ function viewPanoramica(){
   const f = day.filter(j => stOf(j) === 'fatto').length;
   const c = day.filter(j => stOf(j) === 'in_corso').length;
   let h = pageHead('Panoramica');
-  h += `<div class="kpis">${kpi('Interventi del giorno', n)}${kpi('Da assegnare', un.length, un.length ? 'Richiede attenzione' : 'Tutti assegnati', un.length > 0)}${kpi('In corso', c)}${kpi('Completati', f, n ? Math.round(f / n * 100) + '% della giornata' : '')}</div>`;
+  h += `<div class="kpis">${kpi('Interventi del giorno', n, '', false, 'calendar', 'all')}${kpi('Da assegnare', un.length, un.length ? 'Richiede attenzione' : 'Tutti assegnati', un.length > 0, 'userplus', un.length ? 'warn' : 'ok')}${kpi('In corso', c, '', false, 'clock', 'run')}${kpi('Completati', f, n ? Math.round(f / n * 100) + '% della giornata' : '', false, 'check', 'ok')}</div>`;
   const lm = localMig();
   if (lm) h += `<div class="notice"><span>Ho trovato dati salvati solo su questo dispositivo (${plural((lm.jobs || []).length, 'intervento', 'interventi')}, ${plural((lm.workers || []).length, 'lavoratore', 'lavoratori')}). Vuoi importarli nell’archivio online?</span><div class="zone-actions"><button class="btn small primary" data-act="migra-locale">Importa nell’archivio online</button><button class="btn small ghost" data-act="migra-ignora">Non ora</button></div></div>`;
   if (canWrite && !workers.length) {
@@ -1350,7 +1489,7 @@ function sendPanel(lanesW, day){
     if (st === 'sent') sentN++;
     const tag = {sent: '<span class="tag type">Inviata</span>', changed: '<span class="tag late">Cambiata dopo l’invio</span>', todo: '<span class="tag paused">Da inviare</span>', nophone: '<span class="tag late">Manca il telefono</span>'}[st];
     const btn = st === 'nophone' ? `<button class="btn small" data-act="go" data-view="lavoratori">Aggiungi numero</button>`
-      : `<a class="btn small${st === 'sent' ? '' : ' primary'}" data-act="wa-sent" data-w="${esc(w.id)}" data-sig="${esc(sig)}" href="${esc(waHref(w, l))}" target="_blank" rel="noopener">${ic('chat', 16)}${st === 'sent' ? 'Invia di nuovo' : st === 'changed' ? 'Reinvia' : 'Invia su WhatsApp'}</a>`;
+      : `<a class="btn small${st === 'sent' ? '' : ' wa'}" data-act="wa-sent" data-w="${esc(w.id)}" data-sig="${esc(sig)}" href="${esc(waHref(w, l))}" target="_blank" rel="noopener">${ic('chat', 16)}${st === 'sent' ? 'Invia di nuovo' : st === 'changed' ? 'Reinvia' : 'Invia su WhatsApp'}</a>`;
     return `<div class="row"><div class="row-main"><strong>${esc(w.nome)}</strong> ${tag}<small>${plural(l.length, 'intervento', 'interventi')}</small></div>${btn}</div>`;
   }).join('');
   return `<div class="panel sendbox"><h2 class="panel-title">Invia la giornata ai lavoratori</h2>
@@ -5002,6 +5141,132 @@ function setSync(s){
 }
 function persist(coll, item){ if (usingDb && coll === 'interventi') docsFollow(item); if (usingDb) enqueue(coll + '/' + item.id, () => fbWrite(coll, item)); }
 function unpersist(coll, id){ if (usingDb) enqueue(coll + '/' + id, () => fbRemove(coll, id)); }
+
+/* ---------- menu laterale (computer) e barra in basso (telefono) ---------- */
+/* Il menu originale #menu resta la fonte: qui lo si ricopia in due forme. */
+const SHELL_GROUPS = [
+  ['Giornata', ['oggi', 'panoramica', 'carica', 'assegna']],
+  ['Officina', ['riparazioni', 'rip-open', 'centraline', 'muletti']],
+  ['Ufficio', ['anagrafica', 'prefat', 'magazzino']],
+  ['Gestione', ['lavoratori', 'utenti', 'manuali', 'man-open']]
+];
+const TAB_LABEL = {panoramica: 'Oggi', carica: 'Carica', assegna: 'Assegna', archivio: 'Cerca', oggi: 'Interventi', 'man-open': 'Manuali', 'rip-open': 'Motori'};
+const shellKey = b => b.dataset.view || b.dataset.act;
+let moreOpen = false;
+function shellIni(){
+  const e = (me && me.email) || '';
+  const parts = e.split('@')[0].split(/[._\-\s]+/).filter(Boolean);
+  const t = parts.length > 1 ? parts[0][0] + parts[1][0] : (parts[0] || '?').replace(/\d+/g, '').slice(0, 2);
+  return (t || '?').toUpperCase();
+}
+function shellCopy(b, opts){
+  const n = document.createElement('button');
+  n.type = 'button';
+  for (const k in b.dataset) n.dataset[k] = b.dataset[k];
+  n.setAttribute('aria-selected', b.getAttribute('aria-selected') === 'true' ? 'true' : 'false');
+  const svg = b.querySelector('svg'), pill = b.querySelector('.pill');
+  const label = [...b.childNodes].filter(x => x.nodeType === 3).map(x => x.textContent).join('').trim();
+  if (opts === 'tab') {
+    const k = shellKey(b);
+    const s = svg ? svg.outerHTML.replace(/width="\d+" height="\d+"/, 'width="22" height="22"') : '';
+    n.innerHTML = (k === 'carica' ? `<span class="cir">${s}</span>` : s) + `<span class="tbt">${esc(TAB_LABEL[k] || label)}</span>` + (pill && k !== 'carica' ? `<span class="tb-n${pill.classList.contains('warn') ? ' warn' : ''}">${esc(pill.textContent)}</span>` : '');
+    if (k === 'carica') n.classList.add('tb-plus');
+  } else {
+    n.innerHTML = (svg ? svg.outerHTML : '') + `<span>${esc(label)}</span>` + (pill ? pill.outerHTML : '');
+  }
+  return n;
+}
+function shellGroups(btns, skip){
+  const used = new Set(skip || []), out = [];
+  SHELL_GROUPS.forEach(([g, keys]) => {
+    const l = keys.map(k => btns.find(b => shellKey(b) === k)).filter(b => b && !used.has(shellKey(b)));
+    l.forEach(b => used.add(shellKey(b)));
+    if (l.length) out.push([g, l]);
+  });
+  const rest = btns.filter(b => !used.has(shellKey(b)));
+  if (rest.length) out.push(['Altro', rest]);
+  return out;
+}
+function shellSync(){
+  const menu = $('#menu'); if (!menu) return;
+  const btns = [...menu.querySelectorAll('button')];
+  const on = btns.length > 0;
+  document.body.classList.toggle('shell', on);
+  const av = $('#avatarBtn'); if (av) av.hidden = !on;
+  let side = $('#side'), tab = $('#tabbar');
+  if (!on) { if (side) side.innerHTML = ''; if (tab) tab.innerHTML = ''; moreClose(); return; }
+  if (!side) { side = document.createElement('aside'); side.id = 'side'; side.setAttribute('aria-label', 'Menu principale'); document.body.appendChild(side); }
+  if (!tab) { tab = document.createElement('nav'); tab.id = 'tabbar'; tab.setAttribute('aria-label', 'Menu rapido'); document.body.appendChild(tab); }
+  const hasFind = btns.some(b => shellKey(b) === 'archivio');
+  const hs = $('#hsearch'); if (hs) hs.hidden = !hasFind;
+  const ini = shellIni(), rl = ROLE_LABEL[role] || '';
+  $('#avatarIni').textContent = ini;
+  const sy = $('#sync'); $('#avatarDot').dataset.s = sy ? sy.dataset.s : '';
+  // computer: menu laterale con gruppi (il Finder è la barra di ricerca)
+  const nav = document.createElement('nav');
+  shellGroups(btns.filter(b => !hasFind || shellKey(b) !== 'archivio')).forEach(([g, l]) => {
+    const h = document.createElement('h6'); h.textContent = g; nav.appendChild(h);
+    l.forEach(b => nav.appendChild(shellCopy(b)));
+  });
+  side.innerHTML = `<div class="sb-brand"><img alt="" src="${LOGO_MARK}"><div><b>EFFEBI</b><small>Gestionale</small></div></div>`;
+  side.appendChild(nav);
+  side.insertAdjacentHTML('beforeend', `<div class="sb-foot"><span class="shav">${esc(ini)}</span><div class="who">${esc(rl)}<small>${esc(chiSono())}</small></div><button data-act="logout" title="Esci">${ic('logout', 15)}Esci</button></div>`);
+  // telefono: 4 voci principali + Altro
+  const pick = hasFind ? ['panoramica', 'assegna', 'carica', 'archivio'] : btns.map(shellKey).slice(0, 4);
+  const main = pick.map(k => btns.find(b => shellKey(b) === k)).filter(Boolean);
+  if (main.length < 2) main.splice(0, main.length, ...btns.slice(0, 4));
+  if (main.length > 4) main.length = 4;
+  tab.innerHTML = '';
+  main.forEach(b => tab.appendChild(shellCopy(b, 'tab')));
+  const keys = new Set(main.map(shellKey));
+  const otherSel = btns.some(b => !keys.has(shellKey(b)) && b.getAttribute('aria-selected') === 'true');
+  tab.insertAdjacentHTML('beforeend', `<button type="button" data-act="shell-more" aria-selected="${otherSel}">${ic('more', 22)}<span class="tbt">Altro</span></button>`);
+  if (moreOpen) moreRender();
+}
+function moreRender(){
+  let o = $('#moresheet');
+  if (!o) { o = document.createElement('div'); o.id = 'moresheet'; o.className = 'moresheet'; document.body.appendChild(o);
+    o.addEventListener('click', e => { if (e.target === o || e.target.closest('[data-act]')) setTimeout(moreClose, 0); }); }
+  const btns = [...$('#menu').querySelectorAll('button')];
+  const tabKeys = new Set([...document.querySelectorAll('#tabbar button')].map(b => b.dataset.view || b.dataset.act));
+  const inst = $('#installBtn'), dark = document.documentElement.dataset.theme === 'dark';
+  o.innerHTML = `<div class="sh" role="dialog" aria-modal="true" aria-label="Altre voci"><div class="grab"></div>
+    <div class="prof"><span class="shav">${esc(shellIni())}</span><div class="who"><b>${esc(ROLE_LABEL[role] || '')}</b><small>${esc({online: 'Online', local: 'Senza rete'}[($('#sync') || {dataset: {}}).dataset.s] || 'Collegamento…')} · ${esc(chiSono())}</small></div>
+    <div class="acts">${inst && !inst.hidden ? '<button class="btn small" data-act="shell-install">Installa app</button>' : ''}<button class="btn small" data-act="theme">${ic(dark ? 'sun' : 'moon', 16)}${dark ? 'Tema chiaro' : 'Tema scuro'}</button><button class="btn small" data-act="logout">${ic('logout', 16)}Esci</button></div></div></div>`;
+  const sh = o.firstElementChild;
+  shellGroups(btns, [...tabKeys]).forEach(([g, l]) => {
+    sh.insertAdjacentHTML('beforeend', `<h6>${esc(g)}</h6>`);
+    const grid = document.createElement('div'); grid.className = 'g';
+    l.forEach(b => grid.appendChild(shellCopy(b)));
+    sh.appendChild(grid);
+  });
+  o.hidden = false;
+}
+function moreClose(){ moreOpen = false; const o = $('#moresheet'); if (o) o.hidden = true; }
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-act]'); if (!t) return;
+  if (t.dataset.act === 'shell-more') { moreOpen = true; moreRender(); }
+  else if (t.dataset.act === 'shell-install') { const b = $('#installBtn'); if (b) b.click(); }
+  if (t.closest('#tabbar') && t.dataset.view === 'archivio') setTimeout(() => { const q = document.querySelector('[data-flt="q"]'); if (q) q.focus(); }, 60);
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && moreOpen) moreClose();
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) { const i = $('#hsearchIn'); if (i && !$('#hsearch').hidden && i.offsetParent) { e.preventDefault(); i.focus(); i.select(); } }
+});
+(() => {
+  const i = $('#hsearchIn'); if (!i) return;
+  $('#hsearch').querySelector('.hs-ic').innerHTML = ic('search', 18);
+  i.addEventListener('input', () => {
+    flt.q = i.value;
+    if (view !== 'archivio') { go('archivio'); i.focus(); }
+    else { const q = document.querySelector('[data-flt="q"]'); if (q) q.value = i.value; refreshArchivio(); }
+  });
+  i.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); if (view !== 'archivio') go('archivio'); } });
+  new MutationObserver(() => { clearTimeout(shellSync.t); shellSync.t = setTimeout(shellSync, 0); })
+    .observe($('#menu'), {childList: true, subtree: true, attributes: true, attributeFilter: ['aria-selected']});
+  new MutationObserver(() => { const d = $('#avatarDot'), s = $('#sync'); if (d && s) d.dataset.s = s.dataset.s; })
+    .observe($('#sync'), {attributes: true, childList: true, characterData: true, subtree: true});
+})();
 
 /* ---------- avvio ---------- */
 $('#mark').innerHTML = '<img alt="" src="' + LOGO_MARK + '">';
