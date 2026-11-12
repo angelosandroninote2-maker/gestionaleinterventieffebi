@@ -1,5 +1,5 @@
 {
-  "name": "Effebi Gestionale",
+  "name": "EFFEBI Gestionale",
   "short_name": "Effebi",
   "description": "Effebi Gestionale: interventi, magazzino Somfy/BFT e pre-fatture.",
   "lang": "it",
@@ -8,8 +8,8 @@
   "id": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#FFFFFF",
-  "theme_color": "#D80C14",
+  "background_color": "#141416",
+  "theme_color": "#141416",
   "icons": [
     {
       "src": "icon-192.png",
