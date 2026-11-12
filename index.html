@@ -561,6 +561,37 @@ a.w-row{text-decoration:none}
 </style>
 <style id="gfx">
 
+/* tasto Esci: giallo, simbolo e scritta neri in grassetto */
+#side .sb-foot button[data-act="logout"],.moresheet .acts button[data-act="logout"]{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:7px;background:#FACC15;color:#111;font-weight:800;font-size:13.5px;border-radius:8px;padding:7px 12px;border:1px solid #EAB308}
+.moresheet .acts button[data-act="logout"]{font-size:15px;padding:0 16px;min-height:38px;border-radius:10px}
+#side .sb-foot button[data-act="logout"] svg,.moresheet .acts button[data-act="logout"] svg{stroke:#111;stroke-width:2.6}
+#side .sb-foot button[data-act="logout"]:hover,.moresheet .acts button[data-act="logout"]:hover{background:#FDE047}
+#side .sb-foot button[data-act="logout"]:focus-visible{outline:3px solid #fff;outline-offset:2px}
+.moresheet .acts button[data-act="logout"]:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+
+/* ===== stati: grigio da fare, blu in corso, verde fatto, rosso non fatto ===== */
+:root{--todo:#64748B;--todo-tint:#EEF1F5;--todo-text:#475569;--run:#2563EB;--run-tint:#E6EEFF;--run-text:#1D4ED8}
+:root[data-theme="dark"]{--todo:#94A3B8;--todo-tint:#1E2530;--todo-text:#B6C2D2;--run:#6FA0FF;--run-tint:#16233F;--run-text:#8DB2FF}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--todo:#94A3B8;--todo-tint:#1E2530;--todo-text:#B6C2D2;--run:#6FA0FF;--run-tint:#16233F;--run-text:#8DB2FF}}
+.c0{--wc:#5B21B6}.c3{--wc:#C026D3}
+.stat.st-da_fare{background:var(--todo-tint);color:var(--todo-text)}
+.stat.st-in_corso{background:var(--run-tint);color:var(--run-text)}
+.stat.st-da_fare::before,.stat.st-in_corso::before,.stat.st-fatto::before,.stat.st-non_fatto::before{width:11px;height:11px;border-radius:0;background:currentColor;-webkit-mask:var(--sti) center/contain no-repeat;mask:var(--sti) center/contain no-repeat}
+.stat.st-da_fare{--sti:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='8'/%3E%3C/svg%3E")}
+.stat.st-in_corso{--sti:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7v5l3 2'/%3E%3C/svg%3E")}
+.stat.st-fatto{--sti:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E")}
+.stat.st-non_fatto{--sti:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18 6 6 18M6 6l12 12'/%3E%3C/svg%3E")}
+
+.st-in_corso .chip{background:var(--run-tint);color:var(--run-text)}.st-in_corso .chip::before{background:var(--run)}
+.blk.st-in_corso,.fjob.st-in_corso{box-shadow:inset 0 -3px 0 var(--run)}
+.progress .p{background:var(--run)}
+.w-job.st-da_fare{border-left-color:var(--todo)}.w-job.st-in_corso{border-left-color:var(--run)}
+.w-row.st-da_fare{border-left-color:var(--todo)}.w-row.st-in_corso{border-left-color:var(--run)}
+.w-row.st-fatto,.w-row.st-non_fatto{opacity:.85}
+.w-row .stat{flex:none}
+.k-start .np-ico{background:var(--run-tint);color:var(--run-text)}
+.k-late .np-ico{background:var(--warn-tint);color:var(--warn-text)}
+
 /* anagrafica a elenco */
 .ana-search{display:flex;align-items:center;gap:10px;height:48px;padding:0 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--muted);margin-bottom:12px;cursor:text}
 .ana-search:focus-within{border-color:var(--ink)}
@@ -646,7 +677,7 @@ a.w-row{text-decoration:none}
 .btn.wa{background:var(--wa);border-color:var(--wa);color:#fff;font-weight:600}.btn.wa:hover{filter:brightness(1.07)}
 .sendbox .row-main .tag{justify-self:start}
 #scanIn:focus,#scanIn:focus-visible,#invIn:focus,#invIn:focus-visible{outline:0;border-color:var(--ok);box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 22%,transparent)}
-.w-row.st-da_fare{border-left-color:var(--ink)}
+.w-row.st-da_fare{border-left-color:var(--todo)}
 /* programma a schede (telefono) */
 .jcards{display:none;gap:10px}
 .jcard{all:unset;box-sizing:border-box;cursor:pointer;display:grid;gap:3px;border:1px solid var(--line);border-radius:12px;padding:12px 14px 12px 16px;background:var(--surface);box-shadow:inset 4px 0 0 var(--wc,var(--line))}
@@ -5144,7 +5175,7 @@ function viaOf(j){
 }
 function wRow(j){
   const st = stOf(j), c = cittaOf(j), sv = viaOf(j);
-  return `<button type="button" class="w-row st-${st}" data-act="w-open" data-id="${esc(j.id)}"><span><strong>${esc(j.cliente)}</strong>${sv ? `<small>${esc(sv)}</small>` : ''}${c ? `<small>${esc(c)}</small>` : ''}</span>${distMap[j.id] ? `<span style="text-align:right;flex:none"><b>${distMap[j.id].ap ? '~' : ''}${fkm(distMap[j.id].km)}</b>${distMap[j.id].min != null ? `<small>${distMap[j.id].min} min</small>` : ''}${j.id === distNearest() ? '<small class="stat st-fatto">più vicino</small>' : ''}</span>` : ''}${st !== 'da_fare' ? `<span class="stat st-${st}">${STATI[st]}</span>` : ''}<span class="w-go" aria-hidden="true">›</span></button>`;
+  return `<button type="button" class="w-row st-${st}" data-act="w-open" data-id="${esc(j.id)}"><span><strong>${esc(j.cliente)}</strong>${sv ? `<small>${esc(sv)}</small>` : ''}${c ? `<small>${esc(c)}</small>` : ''}</span>${distMap[j.id] ? `<span style="text-align:right;flex:none"><b>${distMap[j.id].ap ? '~' : ''}${fkm(distMap[j.id].km)}</b>${distMap[j.id].min != null ? `<small>${distMap[j.id].min} min</small>` : ''}${j.id === distNearest() ? '<small class="stat st-fatto">più vicino</small>' : ''}</span>` : ''}<span class="stat st-${st}">${STATI[st]}</span><span class="w-go" aria-hidden="true">›</span></button>`;
 }
 let wOpenId = null;
 function wSheetHtml(j){
