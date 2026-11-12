@@ -560,6 +560,54 @@ html,body{overflow-x:hidden}
 a.w-row{text-decoration:none}
 </style>
 <style id="gfx">
+
+/* anagrafica a elenco */
+.ana-search{display:flex;align-items:center;gap:10px;height:48px;padding:0 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--muted);margin-bottom:12px;cursor:text}
+.ana-search:focus-within{border-color:var(--ink)}
+.ana-search input{all:unset;flex:1;min-width:0;font-size:16px;color:var(--ink)}
+.ana-search input::placeholder{color:var(--muted)}
+.ana-chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
+.ana-chips button{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:7px;padding:7px 13px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font-size:14px;font-weight:600;color:var(--ink)}
+.ana-chips button b{font-weight:600;color:var(--muted)}
+.ana-chips button[aria-selected="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.ana-chips button[aria-selected="true"] b{color:color-mix(in srgb,var(--surface) 70%,transparent)}
+.ana-chips button:focus-visible{outline:3px solid var(--brand);outline-offset:2px}
+.ana-city{width:auto;max-width:280px;min-height:0;height:36px;border-radius:999px;padding:0 32px 0 14px;font-weight:600;font-size:14px;background-color:var(--surface)}
+.ana-list{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.ana-item+.ana-item{border-top:1px solid var(--line)}
+.ana-row{display:flex;align-items:center;gap:10px;padding:0 14px 0 0}
+.ana-main{all:unset;box-sizing:border-box;cursor:pointer;flex:1;min-width:0;display:grid;grid-template-columns:40px minmax(0,2.2fr) minmax(0,1.4fr) minmax(0,.9fr);gap:14px;align-items:center;padding:10px 0 10px 16px}
+.ana-main:hover{background:var(--surface2)}
+.ana-main:focus-visible{outline:3px solid var(--brand);outline-offset:-3px}
+.ana-item.open{background:var(--surface2)}
+.ana-av{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:13.5px;color:#fff}
+.ana-av.t-privato{background:#2563EB}.ana-av.t-azienda{background:#0D9488}.ana-av.t-condominio{background:#7C3AED}
+.ana-n{min-width:0}.ana-n b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:15.5px}
+.ana-n small{color:var(--muted);font-size:13px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ana-warn{margin-left:8px;font-size:11.5px;font-weight:700;color:var(--warn-text);background:var(--warn-tint);border-radius:999px;padding:1px 8px}
+.ana-c,.ana-t{color:var(--muted);font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ana-t{font-variant-numeric:tabular-nums}
+.ana-mc{display:none}
+.ana-call{flex:none;width:40px;height:40px;border-radius:10px;border:1px solid var(--line);display:grid;place-items:center;background:var(--surface);color:var(--ink)}
+.ana-call:hover{border-color:var(--muted)}
+.ana-call.off{visibility:hidden}
+.ana-det{padding:0 14px 14px 68px}
+.ana-det .worker{margin:0}
+.ana-more{display:flex;justify-content:center;align-items:center;gap:12px;padding:14px;color:var(--muted);font-size:14px}
+.ana-new{position:relative}
+.ana-new summary{list-style:none;cursor:pointer}.ana-new summary::-webkit-details-marker{display:none}
+.ana-dd{position:absolute;right:0;top:calc(100% + 6px);z-index:16;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,.14);padding:6px;display:grid;min-width:200px}
+.ana-dd button{all:unset;cursor:pointer;display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;font-weight:600;color:var(--ink)}
+.ana-dd button:hover{background:var(--surface2)}
+@media (max-width:700px){
+  .ana-main{grid-template-columns:40px minmax(0,1fr);padding-left:12px;gap:12px}
+  .ana-c,.ana-t{display:none}.ana-mc{display:inline}
+  .ana-row{padding-right:10px}
+  .ana-det{padding:0 10px 12px}
+  .pagehead .ana-new,.pagehead .ana-new summary{width:100%;box-sizing:border-box}
+  .ana-city{flex:1 1 100%;max-width:none}
+  .ana-dd{left:0;right:0}
+}
 /* notifiche: letto / non letto */
 .npanel{max-width:440px}
 .np-head{padding:14px 12px 6px 18px}
@@ -900,7 +948,7 @@ let datePicked = false;
 let canWrite = true;
 let usingDb = false, dbh = null;
 let detailId = null;
-let anaTab = 'privato', anaQ = '', cliFormOpen = false, editingClienteId = null, cliPrefill = null;
+let anaTab = 'tutti', anaQ = '', anaCity = '', anaLim = 50, anaOpen = null, anaNewTipo = 'privato', cliFormOpen = false, editingClienteId = null, cliPrefill = null;
 let pfOff = new Set(), pfIva = {};
 let assSub = 'giornata';
 let fotoW = {}, fotoD = {};              // foto per intervento: del lavoratore (giorno visto) e del dettaglio aperto
@@ -1290,17 +1338,17 @@ function renderMenu(){
   const nb = canWrite ? billable().length : 0;
   const items = [
     ['panoramica', 'Panoramica', 'dashboard', ''],
-    ['carica', 'Carica lavori', 'clipadd', day.length ? `<span class="pill">${day.length}</span>` : '', true],
+    ['carica', 'Carica lavori', 'clipadd', '', true],
     ['assegna', 'Assegna', 'calcheck', un ? `<span class="pill warn" title="Da assegnare">${un}</span>` : ''],
-    ['lavoratori', 'Lavoratori', 'hardhat', workers.length ? `<span class="pill">${workers.length}</span>` : ''],
-    ['anagrafica', 'Anagrafica', 'contactbook', clienti.length ? `<span class="pill">${clienti.length}</span>` : '', true],
+    ['lavoratori', 'Lavoratori', 'hardhat', ''],
+    ['anagrafica', 'Anagrafica', 'contactbook', '', true],
     ['magazzino', 'Magazzino', 'warehouse', daAbbinare().length ? `<span class="pill warn" title="Codici da abbinare">${daAbbinare().length}</span>` : '', true],
     ['prefat', 'Pre-fatturazione', 'receipt', nb ? `<span class="pill warn" title="Interventi da pre-fatturare">${nb}</span>` : '', true],
     ['utenti', 'Utenti', 'shielduser', (role === 'titolare' && pendingUsers()) ? `<span class="pill warn" title="In attesa di abilitazione">${pendingUsers()}</span>` : '', true],
-    ['muletti', 'Muletti', 'forklift', mulLines().length ? `<span class="pill">${mulLines().length}</span>` : '', true],
-    ['riparazioni', 'Motori', 'engine', rips.filter(r => ripState(r) === 'ricevuto').length ? `<span class="pill">${rips.filter(r => ripState(r) === 'ricevuto').length}</span>` : '', true],
-    ['centraline', 'Centraline', 'chip', cens.filter(r => ripState(r) === 'ricevuto').length ? `<span class="pill">${cens.filter(r => ripState(r) === 'ricevuto').length}</span>` : '', true],
-    ['manuali', 'Manuali', 'bookopen', manList().length ? `<span class="pill">${manList().length}</span>` : '', true],
+    ['muletti', 'Muletti', 'forklift', '', true],
+    ['riparazioni', 'Motori', 'engine', rips.filter(r => ripState(r) === 'ricevuto').length ? `<span class="pill warn" title="Motori da riparare">${rips.filter(r => ripState(r) === 'ricevuto').length}</span>` : '', true],
+    ['centraline', 'Centraline', 'chip', cens.filter(r => ripState(r) === 'ricevuto').length ? `<span class="pill warn" title="Centraline da riparare">${cens.filter(r => ripState(r) === 'ricevuto').length}</span>` : '', true],
+    ['manuali', 'Manuali', 'bookopen', '', true],
     ['archivio', 'Finder', 'search', '']
   ];
   $('#menu').innerHTML = items.filter(i => (canWrite || !i[4]) && (i[0] !== 'utenti' || role === 'titolare')).map(i =>
@@ -2463,14 +2511,19 @@ function cliWarnLive(f){
 function mountAnagrafica(){
   const edit = editingClienteId ? clienteById(editingClienteId) : null;
   if (editingClienteId && !edit) editingClienteId = null;
-  const tipo = edit ? edit.tipo : anaTab;
+  const tipo = edit ? edit.tipo : (anaTab === 'tutti' ? anaNewTipo : anaTab);
   const form = canWrite && cliFormOpen ? `<section class="panel" id="cliFormPanel">${clienteFormHtml(edit || cliPrefill, tipo, !!edit)}</section>` : '';
-  const tab = (t, icon, label, id) => `<button role="tab" data-act="ana-tab" data-tab="${t}" aria-selected="${anaTab === t}">${ic(icon, 16)}${label}<span class="pill" id="${id}">0</span></button>`;
-  $('#app').innerHTML = `<div class="pagehead"><div><h2>Anagrafica clienti</h2><p class="sub">Privati, aziende e condomini, da usare nei lavori e nelle pre-fatture</p></div>
-      ${canWrite ? `<button class="btn primary" data-act="ana-new">${ic('plus', 18)}${anaTab === 'azienda' ? 'Nuova azienda' : anaTab === 'condominio' ? 'Nuovo condominio' : 'Nuovo cliente privato'}</button>` : ''}</div>
-    <div class="subnav" role="tablist" aria-label="Tipo di cliente">${tab('privato', 'user', 'Privati', 'anaCntP')}${tab('azienda', 'building', 'Aziende', 'anaCntA')}${tab('condominio', 'condo', 'Condomini', 'anaCntC')}</div>
+  const chip = (t, label, id) => `<button role="tab" data-act="ana-tab" data-tab="${t}" aria-selected="${anaTab === t}">${label} <b id="${id}"></b></button>`;
+  const nuovo = !canWrite ? '' : anaTab === 'tutti'
+    ? `<details class="ana-new"><summary class="btn primary">${ic('plus', 18)}Nuovo cliente</summary><div class="ana-dd">
+        <button data-act="ana-new" data-tipo="privato">${ic('user', 16)}Privato</button><button data-act="ana-new" data-tipo="azienda">${ic('building', 16)}Azienda</button><button data-act="ana-new" data-tipo="condominio">${ic('condo', 16)}Condominio</button></div></details>`
+    : `<button class="btn primary" data-act="ana-new" data-tipo="${anaTab}">${ic('plus', 18)}${anaTab === 'azienda' ? 'Nuova azienda' : anaTab === 'condominio' ? 'Nuovo condominio' : 'Nuovo cliente privato'}</button>`;
+  $('#app').innerHTML = `<div class="pagehead"><div><h2>Anagrafica clienti</h2><p class="sub">Privati, aziende e condomini, da usare nei lavori e nelle pre-fatture</p></div>${nuovo}</div>
     ${form}
-    <section class="panel"><label class="field" style="margin-bottom:12px"><span>Cerca (nome, partita IVA, telefono, città, amministratore)</span><input type="search" id="anaQ" value="${esc(anaQ)}"></label><div id="anaList"></div></section>`;
+    <label class="ana-search">${ic('search', 18)}<input type="search" id="anaQ" value="${esc(anaQ)}" placeholder="Cerca nome, telefono, città, P.IVA…" aria-label="Cerca cliente" autocomplete="off"></label>
+    <div class="ana-chips" role="tablist" aria-label="Tipo di cliente">${chip('tutti', 'Tutti', 'anaCntT')}${chip('privato', 'Privati', 'anaCntP')}${chip('azienda', 'Aziende', 'anaCntA')}${chip('condominio', 'Condomini', 'anaCntC')}
+      <select id="anaCity" class="ana-city" aria-label="Filtra per città"></select></div>
+    <div id="anaList"></div>`;
 }
 function condoCard(c, nj){
   const ind = indirizzoCliente(c), ms = manutStato(c), sameAmm = c.ammNome ? clienti.filter(x => x.tipo === 'condominio' && norm(x.ammNome || '') === norm(c.ammNome)).length : 0;
@@ -2505,21 +2558,46 @@ function cliCard(c){
       ${canWrite ? `<button class="btn small ghost" data-act="ana-edit" data-id="${esc(c.id)}">${ic('edit', 16)}Modifica</button>` : ''}
       ${canWrite && usingDb ? `<button class="btn small ghost" data-act="sto-open" data-id="${esc(c.id)}">${ic('box', 16)}Materiale installato</button>` : ''}</div></article>`;
 }
+const anaTipo = c => c.tipo === 'azienda' || c.tipo === 'condominio' ? c.tipo : 'privato';
+const anaIni = c => { const w = nomeCliente(c).replace(/^(condominio|condom\.?|cond\.?|studio|hotel|ditta)\s+/i, '').split(/\s+/).filter(Boolean); return ((w[0] || '?')[0] + (w[1] ? w[1][0] : '')).toUpperCase(); };
+function anaRow(c){
+  const t = anaTipo(c), ms = t === 'condominio' ? manutStato(c) : null;
+  const tel = t === 'condominio' ? (c.ammCell || c.ammTel || c.telefono || '') : (c.telefono || '');
+  const n1 = telList(tel)[0] || '';
+  const sub = [{privato: 'Privato', azienda: 'Azienda', condominio: 'Condominio'}[t], t === 'condominio' ? c.ammNome : t === 'azienda' ? c.referente : ''].filter(Boolean).map(esc).join(' · ');
+  const warn = ms && (ms.scaduta || ms.vicina) ? `<span class="ana-warn">${ms.scaduta ? 'Manutenzione scaduta' : 'Manutenzione vicina'}</span>` : '';
+  const open = anaOpen === c.id;
+  return `<div class="ana-item${open ? ' open' : ''}"><div class="ana-row">
+    <button class="ana-main" data-act="ana-open" data-id="${esc(c.id)}" aria-expanded="${open}"><span class="ana-av t-${t}" aria-hidden="true">${esc(anaIni(c))}</span>
+      <span class="ana-n"><b>${esc(nomeCliente(c))}</b><small>${sub}${c.citta ? `<span class="ana-mc"> · ${esc(c.citta)}</span>` : ''}${warn}</small></span>
+      <span class="ana-c">${esc([c.via, c.citta].filter(Boolean).join(', '))}</span><span class="ana-t">${esc(n1)}</span></button>
+    ${n1 ? `<a class="ana-call" href="tel:${esc(digits(n1))}" aria-label="Chiama ${esc(nomeCliente(c))}">${ic('phone', 17)}</a>` : '<span class="ana-call off" aria-hidden="true"></span>'}</div>
+    ${open ? `<div class="ana-det">${cliCard(c)}</div>` : ''}</div>`;
+}
 function refreshAnagrafica(){
-  const p = $('#anaCntP'), a = $('#anaCntA'), cc = $('#anaCntC');
-  const tipoOf = c => c.tipo === 'azienda' || c.tipo === 'condominio' ? c.tipo : 'privato';
-  if (p) p.textContent = clienti.filter(c => tipoOf(c) === 'privato').length;
-  if (a) a.textContent = clienti.filter(c => c.tipo === 'azienda').length;
-  if (cc) cc.textContent = clienti.filter(c => c.tipo === 'condominio').length;
+  const cnt = {tutti: clienti.length, privato: 0, azienda: 0, condominio: 0};
+  clienti.forEach(c => { cnt[anaTipo(c)]++; });
+  const f = n => n.toLocaleString('it-IT');
+  [['anaCntT', 'tutti'], ['anaCntP', 'privato'], ['anaCntA', 'azienda'], ['anaCntC', 'condominio']].forEach(([id, k]) => { const e = $('#' + id); if (e) e.textContent = f(cnt[k]); });
+  const base = clienti.filter(c => anaTab === 'tutti' || anaTipo(c) === anaTab);
+  const sel = $('#anaCity');
+  if (sel) {
+    const m = {}; base.forEach(c => { const k = (c.citta || '').trim(); if (k) m[k] = (m[k] || 0) + 1; });
+    const cities = Object.keys(m).sort((a, b) => m[b] - m[a] || a.localeCompare(b)).slice(0, 60);
+    if (anaCity && !m[anaCity]) anaCity = '';
+    sel.innerHTML = `<option value="">Città: tutte</option>` + cities.map(k => `<option value="${esc(k)}"${k === anaCity ? ' selected' : ''}>${esc(k)} (${m[k]})</option>`).join('');
+  }
   const q = norm(anaQ.trim());
-  const list = clienti.filter(c => tipoOf(c) === (anaTab || 'privato') &&
-    (!q || norm([nomeCliente(c), c.piva, c.cf, c.telefono, c.email, c.citta, c.via, c.ammNome, c.refNome].join(' ')).includes(q)))
+  const list = base.filter(c => (!anaCity || (c.citta || '').trim() === anaCity) &&
+    (!q || norm([nomeCliente(c), c.piva, c.cf, c.telefono, c.email, c.citta, c.via, c.ammNome, c.refNome, c.referente].join(' ')).includes(q)))
     .sort((x, y) => nomeCliente(x).localeCompare(nomeCliente(y)));
   const el = $('#anaList'); if (!el) return;
+  const shown = list.slice(0, anaLim);
   el.innerHTML = list.length
-    ? `<div class="workers">${list.map(cliCard).join('')}</div>`
-    : `<div class="empty"><h3>${clienti.length && q ? 'Nessun risultato' : (anaTab === 'azienda' ? 'Nessuna azienda inserita' : anaTab === 'condominio' ? 'Nessun condominio inserito' : 'Nessun cliente privato inserito')}</h3>
-        <p>${canWrite ? 'Usa il pulsante in alto per aggiungerne uno. Potrai sceglierlo quando carichi un lavoro, e comparirà nelle pre-fatture.' : 'Non ci sono ancora clienti.'}</p></div>`;
+    ? `<div class="ana-list">${shown.map(anaRow).join('')}</div>
+       <div class="ana-more">${list.length > shown.length ? `Mostrati ${f(shown.length)} di ${f(list.length)} <button class="btn small" data-act="ana-more">Mostra altri 50</button>` : `${list.length === 1 ? '1 cliente' : f(list.length) + ' clienti'}`}</div>`
+    : `<div class="empty"><h3>${clienti.length && (q || anaCity) ? 'Nessun risultato' : (anaTab === 'azienda' ? 'Nessuna azienda inserita' : anaTab === 'condominio' ? 'Nessun condominio inserito' : anaTab === 'privato' ? 'Nessun cliente privato inserito' : 'Nessun cliente inserito')}</h3>
+        <p>${clienti.length && (q || anaCity) ? 'Prova a cercare con meno lettere o togli il filtro città.' : canWrite ? 'Usa il pulsante in alto per aggiungerne uno. Potrai sceglierlo quando carichi un lavoro, e comparirà nelle pre-fatture.' : 'Non ci sono ancora clienti.'}</p></div>`;
 }
 function saveCliente(f){
   const c = clienteFromForm(f);
@@ -2533,7 +2611,7 @@ function saveCliente(f){
   const n = linkJobsByName(c);
   jobs.forEach(j => { if (j.clienteId === c.id && j.cliente !== nome) { j.cliente = nome; persist('interventi', j); } });
   const w = clienteWarnings(c);
-  cliFormOpen = false; editingClienteId = null; cliPrefill = null; mounted = null; anaTab = c.tipo; render();
+  cliFormOpen = false; editingClienteId = null; cliPrefill = null; mounted = null; if (anaTab !== 'tutti') anaTab = anaTipo(c); anaOpen = c.id; render();
   const AF = ['ammTel', 'ammCell', 'ammEmail', 'ammPec', 'ammIndirizzo'];
   const altri = c.tipo === 'condominio' && c.ammNome ? clienti.filter(x => x.id !== c.id && x.tipo === 'condominio' && norm(x.ammNome || '') === norm(c.ammNome) && AF.some(k => (x[k] || '') !== (c[k] || ''))) : [];
   const msg = (i >= 0 ? 'Cliente aggiornato.' : 'Cliente salvato.') + (n ? ` Collegati ${plural(n, 'lavoro', 'lavori')}.` : '') + (w.length ? ' Controlla: ' + w.join('; ') + '.' : '');
@@ -3724,11 +3802,13 @@ document.addEventListener('click', e => {
     case 'ass-mode': assMode = t.dataset.mode; render(); break;
     case 'set-fascia': { const j = jobs.find(x => x.id === id); if (j && canWrite) { j.fascia = t.dataset.f; j.ora = ''; persist('interventi', j); render(); } break; }
     case 'tipo-add': tipoAdd(); break;
-    case 'ana-tab': anaTab = t.dataset.tab; cliFormOpen = false; editingClienteId = null; cliPrefill = null; mounted = null; render(); break;
+    case 'ana-tab': anaTab = t.dataset.tab; anaLim = 50; anaOpen = null; cliFormOpen = false; editingClienteId = null; cliPrefill = null; mounted = null; render(); break;
+    case 'ana-open': anaOpen = anaOpen === id ? null : id; refreshAnagrafica(); break;
+    case 'ana-more': anaLim += 50; refreshAnagrafica(); break;
     case 'imp-add': { const l = $('#impList'); if (l) { l.insertAdjacentHTML('beforeend', impRowHtml({})); const r = l.lastElementChild; const s0 = r && r.querySelector('select'); if (s0) s0.focus(); } break; }
     case 'imp-del': { const r = t.closest('.imp-row'); if (r) r.remove(); break; }
     case 'amm-filter': anaQ = t.dataset.name || ''; mounted = null; render(); break;
-    case 'ana-new': cliFormOpen = true; editingClienteId = null; cliPrefill = null; mounted = null; render(); break;
+    case 'ana-new': anaNewTipo = t.dataset.tipo || (anaTab === 'tutti' ? 'privato' : anaTab); cliFormOpen = true; editingClienteId = null; cliPrefill = null; mounted = null; render(); break;
     case 'ana-edit': cliFormOpen = true; editingClienteId = id; cliPrefill = null; mounted = null; render(); window.scrollTo(0, 0); break;
     case 'ana-cancel': cliFormOpen = false; editingClienteId = null; cliPrefill = null; mounted = null; render(); break;
     case 'ana-del':
@@ -4102,7 +4182,8 @@ document.addEventListener('wheel', e => { const m = e.target && e.target.closest
 document.addEventListener('input', e => {
   const t = e.target;
   if (t.id === 'fCliente') { updateClienteLink(e.inputType === 'insertReplacementText'); return; }
-  if (t.id === 'anaQ') { anaQ = t.value; refreshAnagrafica(); return; }
+  if (t.id === 'anaQ') { anaQ = t.value; anaLim = 50; anaOpen = null; refreshAnagrafica(); return; }
+  if (t.id === 'anaCity') { anaCity = t.value; anaLim = 50; anaOpen = null; refreshAnagrafica(); return; }
   if (t.id === 'magQ') { magQ = t.value; refreshMagazzino(); return; }
   if (t.dataset && t.dataset.matq) { const st = wMat[t.dataset.matq]; if (st) { st.q = t.value; const r = document.querySelector('[data-matres="' + t.dataset.matq + '"]'); if (r) r.innerHTML = matResHtml(t.dataset.matq, matCerca(st.q, 8), st.q); } return; }
   if (t.dataset && t.dataset.matser) { const st = wMat[t.dataset.matser]; if (st) st.ser = t.value; return; }
