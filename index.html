@@ -805,7 +805,7 @@ a.w-row{text-decoration:none}
     <button class="btn" data-act="prev" aria-label="Giorno precedente"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg></button>
     <input type="date" id="dateInput" value="2026-11-04" aria-label="Data">
     <button class="btn" data-act="next" aria-label="Giorno successivo"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></button>
-    <button class="btn" data-act="oggi">Oggi</button></div></div><div class="kpis"><div class="kpi"><div class="l">Interventi del giorno</div><div class="n">1</div></div><div class="kpi"><div class="l">Da assegnare</div><div class="n">0</div><div class="s">Tutti assegnati</div></div><div class="kpi"><div class="l">In corso</div><div class="n">0</div></div><div class="kpi"><div class="l">Completati</div><div class="n">1</div><div class="s">100% della giornata</div></div></div><div class="dash">
+    <button class="btn" data-act="oggi">Oggi</button></div></div><div class="kpis"><div class="kpi"><div class="l">Interventi del giorno</div><div class="n">1</div></div><div class="kpi" data-act="open-unassigned-finder" role="button" tabindex="0" title="Apri Finder con gli interventi da fare"><div class="l">Da assegnare</div><div class="n">0</div><div class="s">Assistenze senza lavoratore · Clicca per aprire Finder</div></div><div class="kpi"><div class="l">In corso</div><div class="n">0</div></div><div class="kpi"><div class="l">Completati</div><div class="n">1</div><div class="s">100% della giornata</div></div></div><div class="dash">
     <section class="panel"><div class="split"><h2 class="panel-title" style="margin:0">Programma della giornata</h2>
       <button class="btn small" data-act="go" data-view="carica"><svg class="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Carica lavori</button></div>
       <div style="margin-bottom:14px"><div class="split" style="margin-bottom:6px"><span class="muted">Avanzamento</span><span class="muted">1 di 1 completati</span></div><div class="progress" role="img" aria-label="1 completati, 0 in corso, su 1"><i class="d" style="width:100%"></i><i class="p" style="width:0%"></i></div></div>
@@ -919,8 +919,9 @@ const parseISO = s => { const [y, m, d] = s.split('-').map(Number); return new D
 const shift = (s, n) => { const d = parseISO(s); d.setDate(d.getDate() + n); return iso(d); };
 const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
 const todayISO = () => iso(new Date());
-const fmtLong = s => cap(parseISO(s).toLocaleDateString('it-IT', {weekday:'long', day:'numeric', month:'long', year:'numeric'}));
-const fmtShort = s => parseISO(s).toLocaleDateString('it-IT', {weekday:'short', day:'numeric', month:'short'});
+const fmtLong = s => !/^\d{4}-\d{2}-\d{2}$/.test(s || '') ? 'Da programmare' : cap(parseISO(s).toLocaleDateString('it-IT', {weekday:'long', day:'numeric', month:'long', year:'numeric'}));
+const fmtShort = s => !/^\d{4}-\d{2}-\d{2}$/.test(s || '') ? 'Da programmare' : parseISO(s).toLocaleDateString('it-IT', {weekday:'short', day:'numeric', month:'short'});
+const fmtCreated = s => { const d = s ? new Date(s) : null; return d && !Number.isNaN(d.getTime()) ? d.toLocaleString('it-IT', {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}) : ''; };
 const digits = p => String(p || '').replace(/[^\d+]/g, '');
 const initials = n => String(n).trim().split(/\s+/).slice(0, 2).map(w => w.charAt(0).toUpperCase()).join('') || '?';
 const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
@@ -980,6 +981,9 @@ let canWrite = true;
 let usingDb = false, dbh = null;
 let detailId = null;
 let anaTab = 'tutti', anaQ = '', anaCity = '', anaLim = 50, anaOpen = null, anaNewTipo = 'privato', cliFormOpen = false, editingClienteId = null, cliPrefill = null;
+let anaPageClientes = [], anaPageCursor = null, anaPageLoading = false, anaPageHasMore = true, anaPageError = '';
+const ANA_PAGE_SIZE = 50;
+let clientiLoaded = false, clientiLoading = false, clientiCompleti = null;
 let pfOff = new Set(), pfIva = {};
 let assSub = 'giornata';
 let fotoW = {}, fotoD = {};              // foto per intervento: del lavoratore (giorno visto) e del dettaglio aperto
@@ -988,7 +992,7 @@ const MAX_FOTO = 8;
 const APP_URL = location.origin + location.pathname.replace(/[^\/]*$/, '');
 let wzWorker = '', wzDate = todayISO(), wzOther = false, wzSel = new Set();
 let editingJobId = null, draftJob = null, editingWorkerId = null;
-const flt = {q:'', da:'', a:'', stato:'', w:''};
+const flt = {q:'', da:'', a:'', stato:'', w:'', automazione:''};
 
 const workerMap = () => Object.fromEntries(workers.map(w => [w.id, w]));
 const dayJobs = d => jobs.filter(j => j.data === d).sort(byOra);
@@ -1339,7 +1343,8 @@ function loadBlock(w, day){
     <div class="meter ${cls(w)}${mins > cap ? ' over' : ''}" role="img" aria-label="Carico ${pct}%"><i style="width:${Math.min(100, pct)}%"></i></div>`;
 }
 function kpi(label, n, sub, alert, icon, tone){
-  return `<div class="kpi${alert ? ' alert' : ''}${tone ? ' k-' + tone : ''}">${icon ? `<span class="kic">${ic(icon, 19)}</span>` : ''}<div class="l">${label}</div><div class="n">${n}</div>${sub ? `<div class="s">${sub}</div>` : ''}</div>`;
+  const action = label === 'Da assegnare' ? ' data-act=\"open-unassigned-finder\" role=\"button\" tabindex=\"0\" title=\"Apri Finder con gli interventi da fare\" style=\"cursor:pointer\"' : '';
+  return `<div class=\"kpi${alert ? ' alert' : ''}${tone ? ' k-' + tone : ''}\"${action}>${icon ? `<span class=\"kic\">${ic(icon, 19)}</span>` : ''}<div class=\"l\">${label}</div><div class=\"n\">${n}</div>${sub ? `<div class=\"s\">${sub}</div>` : ''}</div>`;
 }
 function tagsOf(j){
   return j.priorita === 'urgente' ? `<span class="tag urgent">${ic('zap', 12)}Urgente</span>` : '';
@@ -1354,8 +1359,9 @@ function jobRow(j, ctx, withDate){
     <div class="row-time">${esc(fasciaLabel(j))}</div>
     <button class="row-main row-open" data-act="open-job" data-id="${esc(j.id)}" aria-label="Apri ${esc(j.cliente)}"><strong>${esc(j.cliente)}</strong> ${tagsOf(j)}
       <small>${subline(j)}</small>
-      <small>${withDate ? esc(fmtShort(j.data)) + ' · ' : ''}<i class="dotw"></i>${w ? esc(w.nome) : 'Da assegnare'} · ${STATI[stato]}</small></button>
+      <small>${withDate ? esc(fmtShort(j.data)) + ' · ' : ''}<i class="dotw"></i>${w ? esc(w.nome) : 'Da assegnare'} · ${STATI[stato]}</small>${j.creato ? `<small>Creato il ${esc(fmtCreated(j.creato))}</small>` : ''}</button>
     ${canWrite ? `<div class="acts">
+      ${withDate && !isClosed(stato) ? `<button class="btn small" data-act="qa-open" data-id="${esc(j.id)}">${ic('userplus', 16)}Assegna</button>` : ''}
       <button class="btn small" data-act="edit-job" data-id="${esc(j.id)}">${ic('edit', 16)}Modifica</button>
       <button class="btn small ghost" data-act="dup-job" data-id="${esc(j.id)}">${ic('copy', 16)}Duplica</button></div>` : ''}
   </div>`;
@@ -1382,13 +1388,14 @@ function renderMenu(){
     ['manuali', 'Manuali', 'bookopen', '', true],
     ['archivio', 'Finder', 'search', '']
   ];
-  $('#menu').innerHTML = items.filter(i => (canWrite || !i[4]) && (i[0] !== 'utenti' || role === 'titolare')).map(i =>
+  $('#menu').innerHTML = items.filter(i => (canWrite || !i[4]) && (i[0] !== 'da_programmare' || canWrite) && (i[0] !== 'utenti' || role === 'titolare')).map(i =>
     `<button role="tab" data-act="go" data-view="${i[0]}" aria-selected="${view === i[0]}">${ic(i[2], 18)}${i[1]}${i[3]}</button>`).join('');
 }
 function render(){
   if (gateRender()) return;
   if (!canWrite && (view === 'carica' || view === 'anagrafica' || view === 'prefat' || view === 'magazzino' || view === 'manuali' || view === 'riparazioni' || view === 'centraline' || view === 'muletti')) view = 'panoramica';
   if (view === 'utenti' && role !== 'titolare') view = 'panoramica';
+  if (view === 'da_programmare' && !canWrite) view = 'panoramica';
   renderMenu();
   if (view === 'carica') { if (mounted !== 'carica') { mountCarica(); mounted = 'carica'; } refreshCarica(); }
   else if (view === 'lavoratori') { if (mounted !== 'lavoratori') { mountLavoratori(); mounted = 'lavoratori'; } refreshLavoratori(); }
@@ -1401,6 +1408,7 @@ function render(){
   else if (view === 'centraline') { mounted = null; const a = document.activeElement, fid = a && a.id && /^cen[A-Za-z]+$/.test(a.id) ? a.id : '', fs = fid ? a.selectionStart : 0; $('#app').innerHTML = viewCentraline(); if (fid) { const n = document.getElementById(fid); if (n) { n.focus({preventScroll: true}); try { n.setSelectionRange(fs, fs); } catch(e){} } } }
   else if (view === 'manuali') { mounted = null; const a = document.activeElement, fid = a && a.id && /^man[TUCB]$/.test(a.id) ? a.id : '', fs = fid ? a.selectionStart : 0; $('#app').innerHTML = viewManuali(); if (fid) { const n = document.getElementById(fid); if (n) { n.focus({preventScroll: true}); try { n.setSelectionRange(fs, fs); } catch(e){} } } }
   else if (view === 'archivio') { if (mounted !== 'archivio') { mountArchivio(); mounted = 'archivio'; } refreshArchivio(); }
+  else if (view === 'da_programmare') { mounted = null; $('#app').innerHTML = viewDaProgrammare(); }
   else { mounted = null; $('#app').innerHTML = view === 'assegna' ? viewAssegna() : viewPanoramica(); }
   renderDetail();
 }
@@ -1450,10 +1458,19 @@ function jobTable(day, ctx){
         <td><span class="stat st-${st}">${STATI[st]}</span></td></tr>`;
     }).join('') + `</tbody></table></div>` + jobCards(day, ctx);
 }
+function viewDaProgrammare(){
+  const list = jobs.filter(j => !j.data && !isClosed(stOf(j))).sort((a,b) => (b.creato || '').localeCompare(a.creato || ''));
+  const ctx = {wById: workerMap()};
+  let h = pageHead('Da programmare');
+  h += `<section class=\"panel\"><div class=\"split\"><div><h2 class=\"panel-title\" style=\"margin:0\">Interventi senza data</h2><p class=\"muted\">Gli interventi appena creati restano qui finché non scegli il giorno di esecuzione.</p></div>${canWrite ? `<button class=\"btn small primary\" data-act=\"go\" data-view=\"carica\">${ic('plus',16)}Nuovo intervento</button>` : ''}</div>${list.length ? `<div class=\"rows\">${list.map(j => jobRow(j, ctx, false)).join('')}</div>` : `<div class=\"empty\"><h3>Nessun intervento da programmare</h3><p>Gli interventi creati senza data compariranno qui.</p>${canWrite ? `<button class=\"btn primary\" data-act=\"go\" data-view=\"carica\">${ic('plus',16)}Carica un intervento</button>` : ''}</div>`}</section>`;
+  return h;
+}
 function viewPanoramica(){
   const wById = workerMap();
   const day = dayJobs(date);
-  const un = unassignedOf(day, wById);
+  // Il contatore 'Da assegnare' comprende tutte le assistenze aperte senza lavoratore,
+  // indipendentemente dalla data programmata; le assistenze senza data non entrano nel calendario.
+  const un = jobs.filter(j => !wById[j.workerId] && stOf(j) === 'da_fare');
   const ctx = {wById, day};
   const n = day.length;
   const f = day.filter(j => stOf(j) === 'fatto').length;
@@ -1737,12 +1754,14 @@ function renderDetail(){
   const heads = canWrite ? `<div class="sheet-tools">
         <button class="tool-btn green${pfState === 'in' || pfState === 'done' ? ' on' : ''}" data-act="job-prefat" data-id="${esc(j.id)}" title="${esc(pfTitle)}" aria-label="${esc(pfTitle)}"${pfState === 'no' || pfState === 'done' ? ' disabled' : ''}>${ic(pfState === 'in' || pfState === 'done' ? 'check' : 'filetext', 18)}<span>${pfState === 'done' ? 'Pre-fatturato' : pfState === 'in' ? 'In pre-fatture' : 'Pre-fatture'}</span></button>
         <button class="tool-btn red" data-act="job-pdf" data-id="${esc(j.id)}" title="Genera PDF del lavoro" aria-label="Genera PDF del lavoro">${ic('download', 18)}<span>Genera PDF</span></button></div>` : '';
-  sh.innerHTML = `<div class="sheet-head"><div><p class="eyebrow">${esc(fmtShort(j.data))} · ${esc(fasciaLabel(j))}</p><h2>${esc(j.cliente)}</h2></div>
+  sh.innerHTML = `<div class="sheet-head"><div><p class="eyebrow">${j.data ? esc(fmtShort(j.data)) : 'Da programmare'} · ${esc(fasciaLabel(j))}</p><h2>${esc(j.cliente)}</h2></div>
       <button class="icon-btn" id="sheetClose" data-act="close-detail" aria-label="Chiudi">${ic('x', 20)}</button></div>
     ${heads}
     <div class="tags">${tagsOf(j)}<span class="stat st-${st}">${STATI[st]}</span></div>
     <dl class="info">
       <div><dt>Intervento</dt><dd>${esc(tipoText(j) || 'Non indicato')}</dd></div>
+      ${j.automazione ? `<div><dt>Automazione</dt><dd>${esc(j.automazione)}</dd></div>` : ''}
+      ${j.amministratore ? `<div><dt>Amministratore</dt><dd>${esc(j.amministratore)}</dd></div>` : ''}
       <div><dt>Indirizzo</dt><dd>${esc(j.via)}</dd></div>
       ${j.telefono ? `<div><dt>Telefono</dt><dd>${esc(j.telefono)}</dd></div>` : ''}
       ${j.descrizione ? `<div><dt>Lavoro</dt><dd>${esc(j.descrizione)}</dd></div>` : ''}
@@ -1844,6 +1863,44 @@ function updateTipoDur(){
   const s = $('#fTipo'), n = $('#tipoDur'), f = $('#jobForm');
   if (s && n) n.textContent = tipoDurText(s.value, f ? Number(f.dataset.olddur) || 0 : 0);
 }
+/* ---- tipo di automazione, foglio "intervento da fare" da stampare, assegnazione rapida dal Finder ---- */
+const AUTOMAZIONI = ['Cancello scorrevole', 'Cancello ad ante battente', 'Cancello ad ante interrato', 'Sbarra', 'Portone o serranda'];
+function printJobOrder(j){
+  const w = workerMap()[j.workerId];
+  const row = (k, v, big) => v ? `<tr><th>${k}</th><td${big ? ' class="big"' : ''}>${esc(v)}</td></tr>` : '';
+  const h = `<!doctype html><html lang="it"><head><meta charset="utf-8"><title>Intervento da fare</title><style>@page{size:A4;margin:0}*{box-sizing:border-box}body{margin:0;padding:15mm;font-family:Arial,Helvetica,sans-serif;color:#000;font-size:12pt}.hd{display:flex;justify-content:space-between;align-items:baseline;border-bottom:2pt solid #000;padding-bottom:3mm;margin-bottom:5mm;font-size:14pt}.dt{font-size:20pt;font-weight:700;margin:0 0 1mm}.fa{font-size:14pt;margin:0 0 6mm}.ur{display:inline-block;border:2pt solid #000;padding:0 3mm;margin-left:4mm;font-size:14pt}table{width:100%;border-collapse:collapse;margin-bottom:6mm}tr{border-bottom:.5pt solid #999}th{width:42mm;text-align:left;vertical-align:top;padding:2mm 3mm 2mm 0;font-size:10pt;text-transform:uppercase;letter-spacing:.04em;color:#333}td{padding:2mm 0;white-space:pre-wrap;word-break:break-word}.big{font-size:14pt;font-weight:700}.l{font-size:10pt;text-transform:uppercase;letter-spacing:.05em;margin:0 0 2mm}.box{height:42mm;border:.8pt solid #000;margin-bottom:8mm}.f{display:flex;gap:10mm}.f span{flex:1;border-bottom:.8pt solid #000;padding-bottom:1mm;min-height:9mm}</style></head><body>
+    <div class="hd"><b>EFFEBI S.R.L.</b><span>Intervento da fare</span></div>
+    <p class="dt">${esc(j.data ? fmtLong(j.data) : fmtCreated(j.creato || new Date().toISOString()))}${j.priorita === 'urgente' ? '<span class="ur">URGENTE</span>' : ''}</p><p class="fa">${esc(j.data ? fasciaLabel(j) : 'Creato alle ' + (j.creato ? hhmm(j.creato) : hhmm(new Date().toISOString())))}</p>
+    <table>${row('Cliente', j.cliente, true)}${row('Amministratore', j.amministratore)}${row('Indirizzo', j.via)}${row('Telefono', j.telefono)}${row('Intervento', tipoText(j))}${row('Automazione', j.automazione)}${row('Lavoratore', w ? w.nome : 'Da assegnare')}${row('Lavoro da fare', j.descrizione)}</table>
+    <p class="l">Note e materiale usato</p><div class="box"></div>
+    <div class="f"><span>Ore di lavoro:</span><span>Persone:</span><span>Firma del cliente:</span></div></body></html>`;
+  printHtml(h);
+}
+let qaId = null;
+function qaRender(){
+  let o = $('#qaOverlay');
+  const j = qaId ? jobs.find(x => x.id === qaId) : null;
+  if (!j) { qaId = null; if (o) { o.hidden = true; o.innerHTML = ''; } return; }
+  if (!o) { o = document.createElement('div'); o.id = 'qaOverlay'; o.className = 'overlay'; document.body.appendChild(o); }
+  const fa = fasciaOf(j);
+  o.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="Assegna intervento"><div class="sheet-head"><div><p class="eyebrow">Assegna intervento</p><h2>${esc(j.cliente)}</h2></div><button class="icon-btn" data-act="qa-close" aria-label="Chiudi">${ic('x', 20)}</button></div>
+    <p class="muted" style="margin:0 0 10px">${esc(j.via || '')}${j.tipo ? ' · ' + esc(j.tipo) : ''}</p>
+    <form id="qaForm" data-id="${esc(j.id)}"><div class="fgrid">
+      <label class="field"><span>Lavoratore</span><select name="w">${opts([['', '— da assegnare —']].concat(sortedWorkers().map(w => [w.id, w.nome])), j.workerId || '')}</select></label>
+      <label class="field"><span>Data</span><input type="date" name="data" value="${esc(j.data)}" required></label>
+      <fieldset class="field fascia"><legend class="lbl">Fascia oraria</legend><div class="seg wide">${FASCE.map(([val, lab]) => `<label><input type="radio" name="fascia" value="${val}"${fa === val ? ' checked' : ''}><span>${lab}</span></label>`).join('')}</div></fieldset></div>
+      <div class="form-actions"><button class="btn primary" type="submit">${ic('check', 18)}Assegna</button><button class="btn" type="button" data-act="qa-close">Annulla</button></div></form></div>`;
+  o.hidden = false;
+}
+function qaSave(f){
+  const j = jobs.find(x => x.id === f.dataset.id); if (!j) { qaId = null; qaRender(); return; }
+  const fd = new FormData(f), w = String(fd.get('w') || ''), d = String(fd.get('data') || ''), fa = String(fd.get('fascia') || '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) { toast('Scegli la data.'); return; }
+  j.data = d; j.workerId = w;
+  if (fa !== fasciaOf(j)) { j.fascia = fa === 'mattina' || fa === 'pomeriggio' ? fa : ''; j.ora = ''; }
+  persist('interventi', j); qaId = null; qaRender(); render();
+  toast(w ? 'Assegnato a ' + ((workerMap()[w] || {}).nome || '') + ' per ' + fmtLong(d) + '.' : 'Assegnazione tolta.');
+}
 function jobFormHtml(v, editing){
   v = v || {};
   const fa = fasciaOf(v);
@@ -1856,7 +1913,7 @@ function jobFormHtml(v, editing){
         <small>Riconosco nome, via, telefono, data, fascia oraria, tipo di intervento, priorità e link di Google Maps. Controlla sempre i campi prima di salvare.</small></label>
       <button class="btn small" type="button" data-act="smart-fill">${ic('sparkles', 16)}Compila i campi</button></div></details>`}
     <div class="fgrid cols3">
-      <label class="field"><span>Data</span><input type="date" name="data" id="fData" required value="${esc(v.data || date)}"></label>
+      <label class="field"><span>Data intervento (facoltativa)</span><input type="date" name="data" id="fData" value="${esc(v.data || '')}"></label>
       <fieldset class="field fascia"><legend class="lbl">Fascia oraria</legend><div class="seg wide">
         ${FASCE.map(([val, lab]) => `<label><input type="radio" name="fascia" value="${val}"${fa === val ? ' checked' : ''}><span>${lab}</span></label>`).join('')}</div></fieldset>
       <label class="field"><span>Priorità</span><select name="priorita">${opts([['normale', 'Normale'], ['urgente', 'Urgente']], v.priorita || 'normale')}</select></label>
@@ -1867,6 +1924,8 @@ function jobFormHtml(v, editing){
       <div class="field"><label class="lbl" for="fTipo">Tipo di intervento</label>
         <select id="fTipo" name="tipo" required>${tipoOptions(v.tipo || '')}</select>
         <small id="tipoDur">${esc(tipoDurText(v.tipo || '', Number(v.durata) || 0))}</small></div>
+      <label class="field"><span>Tipo di automazione</span><select name="automazione">${opts([['', '— scegli —']].concat(AUTOMAZIONI.map(a => [a, a])), v.automazione || '')}</select></label>
+      <label class="field span2" id="ammWrap" style="display:none"><span>Nome amministratore</span><input name="amministratore" maxlength="120" autocomplete="off" placeholder="Nome dell’amministratore di condominio" value="${esc(v.amministratore || '')}"></label>
       <div class="field span2"><label class="lbl" for="fVia">Via e città</label>
         <div class="ac"><input id="fVia" name="via" required role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="acList" autocomplete="off" autocapitalize="words" placeholder="Inizia a scrivere: Via Roma 12, Milano" value="${esc(v.via || '')}">
           <div class="ac-list" id="acList" role="listbox" aria-label="Suggerimenti indirizzo" hidden></div></div><small id="gNote"></small></div>
@@ -1878,9 +1937,11 @@ function jobFormHtml(v, editing){
     <div class="form-actions">
       ${editing
         ? `<button class="btn primary" type="submit" data-mode="save">${ic('check', 18)}Salva modifiche</button>
+           <button class="btn" type="submit" data-mode="print">${ic('filetext', 16)}Salva e stampa</button>
            <button class="btn" type="button" data-act="cancel-edit-job">Annulla modifica</button>
            <button class="btn danger" type="button" data-act="del-job" data-id="${esc(v.id)}">${ic('trash', 16)}Elimina</button>`
         : `<button class="btn primary" type="submit" data-mode="another">${ic('plus', 18)}Salva e aggiungi un altro</button>
+           <button class="btn" type="submit" data-mode="print">${ic('filetext', 16)}Salva e stampa</button>
            <button class="btn" type="submit" data-mode="assign">Salva e vai ad Assegna</button>`}
     </div></form>`;
 }
@@ -1947,6 +2008,7 @@ function smartFill(){
 }
 function saveJob(f, mode){
   const fd = new FormData(f);
+  if (mode === 'assign' && !String(fd.get('data') || '').trim()) { toast('Per assegnare l’intervento, scegli prima una data.'); return; }
   const old = jobs.find(x => x.id === f.dataset.id);
   const tipoName = String(fd.get('tipo') || '').trim();
   const tp = getTipi().find(t => t.nome === tipoName);
@@ -1957,18 +2019,22 @@ function saveJob(f, mode){
   const via = String(fd.get('via')).trim();
   const j = Object.assign({}, old || {}, {
     id: f.dataset.id || uid(),
-    data: fd.get('data'), fascia: fa === 'mattina' || fa === 'pomeriggio' ? fa : '', ora: '',
+    creato: old ? (old.creato || '') : new Date().toISOString(),
+    data: String(fd.get('data') || ''), fascia: fa === 'mattina' || fa === 'pomeriggio' ? fa : '', ora: '',
     cliente: cl ? nomeCliente(cl) : cliente, clienteId: cl ? cl.id : '', via,
     telefono: String(fd.get('telefono')).trim(), maps: String(fd.get('maps')).trim() || genMapsLink(via),
     descrizione: String(fd.get('descrizione')).trim(), tipo: tipoName, durata,
     priorita: fd.get('priorita') || 'normale',
+    automazione: AUTOMAZIONI.includes(String(fd.get('automazione') || '')) ? String(fd.get('automazione')) : '',
+    amministratore: ($('#ammWrap') && $('#ammWrap').style.display !== 'none') ? String(fd.get('amministratore') || '').trim().slice(0, 120) : '',
     workerId: old ? (old.workerId || '') : '', stato: old ? old.stato : 'da_fare'
   });
   const i = jobs.findIndex(x => x.id === j.id);
   if (i >= 0) jobs[i] = j; else jobs.push(j);
   persist('interventi', j);
-  date = j.data; datePicked = true; editingJobId = null; draftJob = null; mounted = null;
-  if (mode === 'assign') { assSub = 'nuova'; view = 'assegna'; wzDate = j.data; wzWorker = ''; wzSel = new Set(); wzOther = false; }
+  if (mode === 'print') printJobOrder(j);
+  if (j.data) { date = j.data; datePicked = true; } editingJobId = null; draftJob = null; mounted = null;
+  if (mode === 'assign' && j.data) { assSub = 'nuova'; view = 'assegna'; wzDate = j.data; wzWorker = ''; wzSel = new Set(); wzOther = false; }
   render();
   toast(i >= 0 ? 'Modifiche salvate.' : 'Intervento salvato.');
   if (view === 'carica') { const c = $('#jobForm input[name="cliente"]'); if (c) c.focus({preventScroll:true}); }
@@ -2123,6 +2189,7 @@ function clientiOptions(){
 function updateClienteLink(autofill){
   const inp = $('#fCliente'), hint = $('#cliHint'), f = $('#jobForm');
   if (!inp || !hint) return;
+  { const aw = $('#ammWrap'); if (aw) aw.style.display = (/condomin/i.test(inp.value) || (clienteByName(inp.value) || {}).tipo === 'condominio') ? '' : 'none'; }
   if (!inp.value.trim()) { hint.textContent = ''; return; }
   const c = clienteByName(inp.value);
   if (c) {
@@ -2131,6 +2198,7 @@ function updateClienteLink(autofill){
       const tel = f.elements.telefono;
       const tc = c.tipo === 'condominio' ? (c.refTel || c.ammCell || c.ammTel) : c.telefono;
       if (tel && !tel.value.trim() && tc) tel.value = tc;
+      { const am = f.elements.amministratore; if (am && !am.value.trim() && c.tipo === 'condominio' && c.ammNome) am.value = c.ammNome; }
       if (c.tipo === 'condominio') { const de = f.elements.descrizione; const info = [c.refNome ? 'Referente in loco: ' + c.refNome + (c.refTel ? ' ' + c.refTel : '') : '', c.accesso ? 'Accesso: ' + c.accesso : '', c.noteTecnico || ''].filter(Boolean).join('\n');
         if (de && !de.value.trim() && info) de.value = info; }
       const via = $('#fVia'), ind = indirizzoCliente(c);
@@ -2386,6 +2454,8 @@ function buildJobPdf(j, mats, az, firma){
   const w = workers.find(x => x.id === j.workerId), st = stOf(j);
   const rows = [['Intervento', tipoText(j) || j.tipo || '—'], ['Fascia oraria', fasciaLabel(j)], ['Lavoratore', w ? w.nome : 'Non assegnato'],
     ['Esito', STATI[st] + (j.esitoIl ? ' · ' + abs(j.esitoIl) : '')]];
+  if (j.automazione) rows.splice(1, 0, ['Automazione', j.automazione]);
+  if (j.amministratore) rows.splice(j.automazione ? 2 : 1, 0, ['Amministratore', j.amministratore]);
   if (j.inizioIl) rows.push(['Iniziato', abs(j.inizioIl)]);
   { const hh = st === 'fatto' ? hoursOf(j) : null; if (hh) rows.push(['Ore di lavoro', fmtOre(hh.ore)], ['Persone al lavoro', String(hh.pers)]); }
   if (st === 'non_fatto' && j.causale) rows.push(['Motivo (non fatto)', j.causale]);
@@ -2427,6 +2497,7 @@ function buildJobPdf(j, mats, az, firma){
 }
 async function jobPdf(id){
   const j = jobs.find(x => x.id === id); if (!j) return;
+  if (j.clienteId && !clienteById(j.clienteId) && usingDb && fb && canWrite) { try { const cd = await fb.getDoc(fb.doc(fb.db, 'clienti', j.clienteId)); if (cd.exists() && !clienteById(j.clienteId)) clienti.push(cd.data()); } catch(e){} }
   let mats = matOf(id).filter(m => !m.annullato);
   if (!mats.length && usingDb && fb) { try { const sn = await fb.getDocs(fb.query(fb.collection(fb.db, 'materiali'), fb.where('jobId', '==', id))); mats = sn.docs.map(d => d.data()).filter(m => !m.annullato); } catch(e){} }
   const fd = j.firmaIl ? await firmaGet(id) : null;
@@ -2551,7 +2622,7 @@ function mountAnagrafica(){
     : `<button class="btn primary" data-act="ana-new" data-tipo="${anaTab}">${ic('plus', 18)}${anaTab === 'azienda' ? 'Nuova azienda' : anaTab === 'condominio' ? 'Nuovo condominio' : 'Nuovo cliente privato'}</button>`;
   $('#app').innerHTML = `<div class="pagehead"><div><h2>Anagrafica clienti</h2><p class="sub">Privati, aziende e condomini, da usare nei lavori e nelle pre-fatture</p></div>${nuovo}</div>
     ${form}
-    <label class="ana-search">${ic('search', 18)}<input type="search" id="anaQ" value="${esc(anaQ)}" placeholder="Cerca nome, telefono, città, P.IVA…" aria-label="Cerca cliente" autocomplete="off"></label>
+    <label class="ana-search">${ic('search', 18)}<input type="search" id="anaQ" value="${esc(anaQ)}" placeholder="Cerca nei clienti caricati…" aria-label="Cerca cliente" autocomplete="off"></label>
     <div class="ana-chips" role="tablist" aria-label="Tipo di cliente">${chip('tutti', 'Tutti', 'anaCntT')}${chip('privato', 'Privati', 'anaCntP')}${chip('azienda', 'Aziende', 'anaCntA')}${chip('condominio', 'Condomini', 'anaCntC')}
       <select id="anaCity" class="ana-city" aria-label="Filtra per città"></select></div>
     <div id="anaList"></div>`;
@@ -2606,11 +2677,12 @@ function anaRow(c){
     ${open ? `<div class="ana-det">${cliCard(c)}</div>` : ''}</div>`;
 }
 function refreshAnagrafica(){
-  const cnt = {tutti: clienti.length, privato: 0, azienda: 0, condominio: 0};
-  clienti.forEach(c => { cnt[anaTipo(c)]++; });
+  const source = usingDb ? anaPageClientes : clienti;
+  const cnt = {tutti: source.length, privato: 0, azienda: 0, condominio: 0};
+  source.forEach(c => { cnt[anaTipo(c)]++; });
   const f = n => n.toLocaleString('it-IT');
   [['anaCntT', 'tutti'], ['anaCntP', 'privato'], ['anaCntA', 'azienda'], ['anaCntC', 'condominio']].forEach(([id, k]) => { const e = $('#' + id); if (e) e.textContent = f(cnt[k]); });
-  const base = clienti.filter(c => anaTab === 'tutti' || anaTipo(c) === anaTab);
+  const base = source.filter(c => anaTab === 'tutti' || anaTipo(c) === anaTab);
   const sel = $('#anaCity');
   if (sel) {
     const m = {}; base.forEach(c => { const k = (c.citta || '').trim(); if (k) m[k] = (m[k] || 0) + 1; });
@@ -2623,12 +2695,11 @@ function refreshAnagrafica(){
     (!q || norm([nomeCliente(c), c.piva, c.cf, c.telefono, c.email, c.citta, c.via, c.ammNome, c.refNome, c.referente].join(' ')).includes(q)))
     .sort((x, y) => nomeCliente(x).localeCompare(nomeCliente(y)));
   const el = $('#anaList'); if (!el) return;
-  const shown = list.slice(0, anaLim);
   el.innerHTML = list.length
-    ? `<div class="ana-list">${shown.map(anaRow).join('')}</div>
-       <div class="ana-more">${list.length > shown.length ? `Mostrati ${f(shown.length)} di ${f(list.length)} <button class="btn small" data-act="ana-more">Mostra altri 50</button>` : `${list.length === 1 ? '1 cliente' : f(list.length) + ' clienti'}`}</div>`
-    : `<div class="empty"><h3>${clienti.length && (q || anaCity) ? 'Nessun risultato' : (anaTab === 'azienda' ? 'Nessuna azienda inserita' : anaTab === 'condominio' ? 'Nessun condominio inserito' : anaTab === 'privato' ? 'Nessun cliente privato inserito' : 'Nessun cliente inserito')}</h3>
-        <p>${clienti.length && (q || anaCity) ? 'Prova a cercare con meno lettere o togli il filtro città.' : canWrite ? 'Usa il pulsante in alto per aggiungerne uno. Potrai sceglierlo quando carichi un lavoro, e comparirà nelle pre-fatture.' : 'Non ci sono ancora clienti.'}</p></div>`;
+    ? `<div class="ana-list">${list.map(anaRow).join('')}</div>
+       <div class="ana-more">${anaPageLoading ? 'Caricamento…' : anaPageError ? esc(anaPageError) : `${f(anaPageClientes.length)} clienti caricati${anaPageHasMore ? ` <button class="btn small" data-act="ana-more">Carica altri 50</button>` : ' · Fine elenco'}`}</div>`
+    : `<div class="empty"><h3>${anaPageLoading ? 'Caricamento clienti…' : source.length && (q || anaCity) ? 'Nessun risultato nella pagina caricata' : (anaTab === 'azienda' ? 'Nessuna azienda nella pagina caricata' : anaTab === 'condominio' ? 'Nessun condominio nella pagina caricata' : anaTab === 'privato' ? 'Nessun cliente privato nella pagina caricata' : 'Nessun cliente nella pagina caricata')}</h3>
+        <p>${anaPageHasMore && (q || anaCity) ? 'La ricerca e i filtri si applicano ai clienti caricati. Carica altre pagine per ampliare i risultati.' : canWrite ? 'Usa il pulsante in alto per aggiungerne uno.' : 'Non ci sono clienti in questa pagina.'}</p>${anaPageHasMore ? `<button class="btn small" data-act="ana-more">Carica altri 50</button>` : ''}</div>`;
 }
 function saveCliente(f){
   const c = clienteFromForm(f);
@@ -2637,7 +2708,10 @@ function saveCliente(f){
   if (!nome) { toast('Inserisci il nome del cliente.'); return; }
   if (clienti.some(x => x.id !== c.id && norm(nomeCliente(x)) === norm(nome))) { toast('Esiste già un cliente con questo nome.'); return; }
   const i = clienti.findIndex(x => x.id === c.id);
-  if (i >= 0) clienti[i] = c; else clienti.push(c);
+  if (i >= 0) clienti[i] = c; else if (!usingDb) clienti.push(c);
+  const ai = anaPageClientes.findIndex(x => x.id === c.id); if (ai >= 0) anaPageClientes[ai] = c; else anaPageClientes.unshift(c);
+  if (clientiCompleti) { const ci = clientiCompleti.findIndex(x => x.id === c.id); if (ci >= 0) clientiCompleti[ci] = c; else clientiCompleti.unshift(c); }
+  const cli = clienti.findIndex(x => x.id === c.id); if (cli >= 0) clienti[cli] = c; else clienti.unshift(c);
   persist('clienti', c);
   const n = linkJobsByName(c);
   jobs.forEach(j => { if (j.clienteId === c.id && j.cliente !== nome) { j.cliente = nome; persist('interventi', j); } });
@@ -2653,6 +2727,8 @@ function saveCliente(f){
 function deleteCliente(id){
   const c = clienteById(id); if (!c) return;
   clienti = clienti.filter(x => x.id !== id);
+  if (clientiCompleti) clientiCompleti = clientiCompleti.filter(x => x.id !== id);
+  anaPageClientes = anaPageClientes.filter(x => x.id !== id);
   unpersist('clienti', id);
   jobs.forEach(j => { if (j.clienteId === id) { j.clienteId = ''; persist('interventi', j); } });
   cliFormOpen = false; editingClienteId = null; mounted = null; render();
@@ -2811,7 +2887,8 @@ function filtered(){
     (!flt.da || j.data >= flt.da) && (!flt.a || j.data <= flt.a) &&
     (!flt.stato || stOf(j) === flt.stato) &&
     (!flt.w || (flt.w === '_none' ? !wById[j.workerId] : j.workerId === flt.w)) &&
-    (!q || [j.cliente, j.via, j.telefono, j.descrizione, j.tipo].join(' ').toLowerCase().includes(q))
+    (!flt.automazione || (() => { const a = String(j.automazione || '').toLowerCase(), t = String(j.tipo || '').toLowerCase(), d = String(j.descrizione || '').toLowerCase(); const v = flt.automazione; if (v === 'ante') return a.includes('ante'); if (v === 'scorrevole') return a.includes('scorrevole'); if (v === 'serranda') return a.includes('serranda') || a.includes('portone o serranda'); if (v === 'sbarra') return a.includes('sbarra'); if (v === 'portone') return a.includes('portone') || a.includes('portone o serranda'); if (v === 'allarme') return t.includes('allarme') || d.includes('allarme'); if (v === 'tvcc') return t.includes('tv.cc') || t.includes('tvcc') || d.includes('tv.cc') || d.includes('tvcc'); return true; })()) &&
+    (!q || [j.cliente, j.via, j.telefono, j.descrizione, j.tipo, j.automazione].join(' ').toLowerCase().includes(q))
   ).sort((a, b) => b.data.localeCompare(a.data) || byOra(a, b));
 }
 function mountArchivio(){
@@ -2822,11 +2899,14 @@ function mountArchivio(){
       <label class="field"><span>Dal</span><input type="date" data-flt="da" value="${esc(flt.da)}"></label>
       <label class="field"><span>Al</span><input type="date" data-flt="a" value="${esc(flt.a)}"></label>
       <label class="field"><span>Lavoratore</span><select data-flt="w" id="fltW"></select></label>
+      <label class="field"><span>Automazione / impianto</span><select data-flt="automazione">${opts([['', 'Tutti'], ['ante', 'Cancello ad ante'], ['scorrevole', 'Cancello scorrevole'], ['serranda', 'Serranda'], ['sbarra', 'Sbarra'], ['portone', 'Portone'], ['allarme', 'Allarme'], ['tvcc', 'TV.cc']], flt.automazione)}</select></label>
     </div>
     <div class="form-actions"><button class="btn small ghost" data-act="clear-filters">Azzera filtri</button>
+      ${usingDb && canWrite ? `<button class="btn small" data-act="load-archive" ${archiveLoading ? 'disabled' : ''}>${ic('search', 16)}${archiveLoading ? 'Caricamento storico…' : 'Cerca anche nello storico'}</button>` : ''}
       <button class="btn small" data-act="export">${ic('download', 16)}Esporta in CSV</button>
       ${canWrite ? `<button class="btn small" data-act="export-json">${ic('download', 16)}Copia dati (JSON)</button>` : ''}
-      ${canWrite ? `<button class="btn small" data-act="import-json">${ic('plus', 16)}Importa copia dati</button><input type="file" id="importFile" accept=".json,application/json" hidden>` : ''}</div></section>
+      ${canWrite ? `<button class="btn small" data-act="import-json">${ic('plus', 16)}Importa copia dati</button><input type="file" id="importFile" accept=".json,application/json" hidden>` : ''}</div>
+    <p class="muted" id="archiveStatus">${archiveLoadedCount ? `Storico caricato su richiesta: ${archiveLoadedCount} documenti. La ricerca include anche gli interventi vecchi.` : 'La ricerca normale usa gli interventi già caricati. Premi “Cerca anche nello storico” per recuperare interventi di anni precedenti; puoi impostare le date per limitare la ricerca e le letture.'}</p></section>
     <section class="panel" id="listPanel"></section>`;
 }
 function refreshArchivio(){
@@ -2837,6 +2917,45 @@ function refreshArchivio(){
   const shown = list.slice(0, 200);
   $('#listPanel').innerHTML = `<div class="split"><strong>${plural(list.length, 'intervento trovato', 'interventi trovati')}</strong>${list.length > 200 ? '<span class="muted">Mostrati i primi 200: restringi la ricerca.</span>' : ''}</div>
     ${list.length ? `<div class="rows">${shown.map(j => jobRow(j, ctx, true)).join('')}</div>` : '<p class="muted">Nessun intervento corrisponde ai filtri.</p>'}`;
+}
+async function loadArchive(){
+  if (!usingDb || !canWrite || archiveLoading) return;
+  const from = flt.da || '', to = flt.a || '';
+  const key = `${from}|${to}`;
+  if (archiveRanges.has(key)) { toast('Questo intervallo di storico è già stato caricato.'); return; }
+  archiveLoading = true; mounted = null; render();
+  try {
+    const base = fb.collection(fb.db, 'interventi');
+    const constraints = [];
+    if (from) constraints.push(fb.where('data', '>=', from));
+    if (to) constraints.push(fb.where('data', '<=', to));
+    const pageSize = 400;
+    let cursor = null, loaded = 0;
+    while (true) {
+      const pageConstraints = constraints.slice();
+      if (cursor) pageConstraints.push(fb.startAfter(cursor));
+      pageConstraints.push(fb.limit(pageSize));
+      const snap = await fb.getDocs(fb.query(base, ...pageConstraints));
+      if (!snap.docs.length) break;
+      snap.docs.forEach(d => archiveJobs.set(d.id, d.data()));
+      loaded += snap.docs.length;
+      cursor = snap.docs[snap.docs.length - 1];
+      if (snap.docs.length < pageSize) break;
+    }
+    archiveRanges.add(key); archiveLoadedCount = archiveJobs.size;
+    const merged = new Map(rawJobs.map(x => [x.id, x]));
+    archiveJobs.forEach((v, k) => merged.set(k, v));
+    rawJobs = Array.from(merged.values());
+    rebuildJobs();
+    refreshArchivio();
+    toast(`Storico caricato: ${loaded} documenti letti. Ora puoi cercare anche gli interventi vecchi.`);
+  } catch (err) {
+    console.error('Caricamento storico', err);
+    toast(err && err.code === 'permission-denied' ? 'Non hai i permessi per leggere lo storico.' : 'Caricamento storico non riuscito. Riprova.');
+  } finally {
+    archiveLoading = false;
+    if (view === 'archivio') render();
+  }
 }
 function csvCell(v){
   let s = String(v == null ? '' : v);
@@ -2864,8 +2983,8 @@ async function exportCsv(){
   const list = filtered();
   if (!list.length) { toast('Nessun intervento da esportare.'); return; }
   const wById = workerMap();
-  const head = ['Data', 'Fascia oraria', 'Cliente', 'Via', 'Telefono', 'Maps', 'Tipo di intervento', 'Priorità', 'Durata (min)', 'Lavoro', 'Lavoratore', 'Stato'].concat(canWrite ? ['Importo (€)', 'Pre-fattura'] : []);
-  const rows = list.map(j => [j.data, FASCIA_LABEL[fasciaOf(j)] || '', j.cliente, j.via, j.telefono, j.maps, j.tipo, j.priorita || 'normale', j.durata,
+  const head = ['Data', 'Fascia oraria', 'Cliente', 'Via', 'Telefono', 'Maps', 'Tipo di intervento', 'Automazione', 'Amministratore', 'Priorità', 'Durata (min)', 'Lavoro', 'Lavoratore', 'Stato'].concat(canWrite ? ['Importo (€)', 'Pre-fattura'] : []);
+  const rows = list.map(j => [j.data, FASCIA_LABEL[fasciaOf(j)] || '', j.cliente, j.via, j.telefono, j.maps, j.tipo, j.automazione || '', j.amministratore || '', j.priorita || 'normale', j.durata,
     j.descrizione, wById[j.workerId] ? wById[j.workerId].nome : '', STATI[stOf(j)]].concat(canWrite ? [
     stOf(j) === 'fatto' ? fmtNum(importoOf(j)) : '', ((prefatture.find(p => p.id === j.preFatturaId) || {}).numero) || ''] : []));
   const csv = '\uFEFF' + [head].concat(rows).map(r => r.map(csvCell).join(';')).join('\r\n');
@@ -2873,8 +2992,20 @@ async function exportCsv(){
 }
 async function exportJson(){
   if (!canWrite) return;
-  const payload = JSON.stringify({app:'gestionale-interventi', versione:3, esportato:new Date().toISOString(), lavoratori:workers, interventi:jobs, riparazioni:rips.concat(cens), muletti:muls, tipi:tipi, clienti:clienti, prefatture:prefatture, azienda:azienda}, null, 1);
-  await saveFile('copia-dati-interventi-' + todayISO() + '.json', payload, 'application/json');
+  if (usingDb && !confirm('La copia dati completa leggerà tutti i documenti di tutte le sezioni dal database Firebase. Potrebbe consumare molte letture. Vuoi continuare?')) return;
+  let data = {lavoratori:workers, interventi:rawJobs, fatturazione:Object.values(fattMap), riparazioni:rips.concat(cens), muletti:muls, tipi, clienti, prefatture, azienda};
+  if (usingDb) {
+    // notifLette è personale (ognuno legge solo la sua) e utenti la legge solo il titolare: non entrano nella copia di chi non può leggerle
+    const collections = ['lavoratori','interventi','fatturazione','tipi','clienti','prefatture','impostazioni','articoli','materiali','listino','movimenti','foto'].concat(role === 'titolare' ? ['utenti'] : []);
+    const res = await Promise.allSettled(collections.map(async name => { const snap = await fb.getDocs(fb.collection(fb.db, name)); return [name, snap.docs.map(d => Object.assign({id:d.id}, d.data()))]; }));
+    const mancanti = [];
+    res.forEach((r, i) => { if (r.status === 'fulfilled') data[r.value[0]] = r.value[1]; else mancanti.push(collections[i]); });
+    if (mancanti.length === collections.length) { toast('Copia non riuscita: non sono riuscito a leggere i dati. Controlla la connessione e riprova.'); return; }
+    data.azienda = (data.impostazioni || []).find(x => x.id === 'azienda') || azienda;
+    if (mancanti.length) { data.nonCopiate = mancanti; toast('Copia salvata, tranne: ' + mancanti.join(', ') + '.'); }
+  }
+  const payload = JSON.stringify({app:'gestionale-interventi', versione:4, esportato:new Date().toISOString(), ...data}, null, 1);
+  await saveFile('copia-dati-completa-' + todayISO() + '.json', payload, 'application/json');
 }
 function cleanTipo(o){
   if (!o || typeof o !== 'object') return null;
@@ -2927,7 +3058,7 @@ function cleanJob(o){
   const j = {id, data, fascia, cliente, via, telefono: str(o.telefono, 40), maps: str(o.maps, 500), descrizione: str(o.descrizione, 2000), tipo: str(o.tipo, 80),
     priorita: o.priorita === 'urgente' ? 'urgente' : 'normale', durata: dur > 0 && dur <= 1440 ? dur : '',
     workerId: str(o.workerId, 60).replace(/[^\w-]/g, ''), stato: STATI[o.stato] ? o.stato : 'da_fare',
-    clienteId: str(o.clienteId, 60).replace(/[^\w-]/g, ''), noteFatt: str(o.noteFatt, 160), preFatturaId: str(o.preFatturaId, 60).replace(/[^\w-]/g, '')};
+    clienteId: str(o.clienteId, 60).replace(/[^\w-]/g, ''), noteFatt: str(o.noteFatt, 160), automazione: AUTOMAZIONI.includes(o.automazione) ? o.automazione : '', amministratore: str(o.amministratore, 120), preFatturaId: str(o.preFatturaId, 60).replace(/[^\w-]/g, '')};
   if (o.importo !== undefined && o.importo !== '' && o.importo !== null && isFinite(Number(o.importo))) j.importo = Math.max(0, round2(o.importo));
   return j;
 }
@@ -2966,9 +3097,46 @@ function cleanWorker(o){
   return {id, nome, telefono: str(o.telefono, 40), attivo: o.attivo !== false, colore: Number.isInteger(col) ? ((col % 8) + 8) % 8 : 0};
 }
 
+/* Anagrafica: paginazione Firestore reale, 50 documenti per richiesta. */
+function resetAnaPages(){
+  anaPageClientes = []; anaPageCursor = null; anaPageLoading = false; anaPageHasMore = false; anaPageError = ''; anaLim = 50;
+  if (usingDb) {
+    if (clientiLoaded && clientiCompleti) { anaPageClientes = clientiCompleti.slice(); refreshAnagrafica(); }
+    else { anaPageLoading = true; ensureClientiLoaded(); }
+  } else { anaPageClientes = clienti.slice(); }
+}
+function loadAnaPage(){
+  if (!usingDb || anaPageLoading || !anaPageHasMore) return;
+  anaPageLoading = true; anaPageError = '';
+  let constraints = [fb.orderBy('id'), fb.limit(ANA_PAGE_SIZE)];
+  if (anaPageCursor) constraints.splice(1, 0, fb.startAfter(anaPageCursor));
+  fb.getDocs(fb.query(fb.collection(fb.db, 'clienti'), ...constraints)).then(s => {
+    const docs = s.docs || [];
+    anaPageClientes = anaPageClientes.concat(docs.map(d => d.data())); clienti = anaPageClientes.slice();
+    anaPageCursor = docs.length ? docs[docs.length - 1] : anaPageCursor;
+    anaPageHasMore = docs.length === ANA_PAGE_SIZE;
+    anaPageLoading = false;
+    if (view === 'anagrafica') refreshAnagrafica();
+  }).catch(e => { anaPageLoading = false; anaPageError = 'Errore caricamento pagina clienti'; fbSnapErr(e); if (view === 'anagrafica') refreshAnagrafica(); });
+}
+/* Clienti caricati una sola volta quando altre sezioni ne hanno bisogno. */
+function ensureClientiLoaded(){
+  if (!usingDb || clientiLoaded || clientiLoading) return;
+  clientiLoading = true;
+  fb.getDocs(fb.collection(fb.db, 'clienti')).then(s => {
+    clienti = s.docs.map(d => d.data());
+    clientiCompleti = clienti.slice(); clientiLoaded = true; clientiLoading = false;
+    if (view === 'anagrafica') { anaPageClientes = clientiCompleti.slice(); anaPageLoading = false; anaPageHasMore = false; refreshAnagrafica(); }
+    if (['anagrafica','carica','prefat','riparazioni','centraline','muletti'].includes(view)) render();
+  }).catch(e => { clientiLoading = false; fbSnapErr(e); toast('Impossibile caricare l’anagrafica clienti.'); });
+}
+
 /* ---------- rendering ---------- */
 function go(v){
   view = v; mounted = null; detailId = null;
+  if (['carica','prefat','riparazioni','centraline','muletti'].includes(v)) ensureClientiLoaded();
+  if (v === 'anagrafica') resetAnaPages();
+  activateLazySection(v);
   if (v === 'carica') { editingJobId = null; draftJob = null; }
   if (v === 'lavoratori') editingWorkerId = null;
   if (v === 'assegna') assSub = 'giornata';
@@ -3826,16 +3994,19 @@ document.addEventListener('click', e => {
   const id = t.dataset.id;
   switch (t.dataset.act) {
     case 'go': go(t.dataset.view); break;
+    case 'open-unassigned-finder': flt.q = ''; flt.da = ''; flt.a = ''; flt.stato = 'da_fare'; flt.w = '_none'; flt.automazione = ''; go('archivio'); break;
     case 'prev': setDate(shift(date, -1)); break;
     case 'next': setDate(shift(date, 1)); break;
     case 'oggi': setDate(todayISO()); break;
     case 'theme': toggleTheme(); break;
+    case 'qa-open': qaId = t.dataset.id; qaRender(); break;
+    case 'qa-close': qaId = null; qaRender(); break;
     case 'ass-mode': assMode = t.dataset.mode; render(); break;
     case 'set-fascia': { const j = jobs.find(x => x.id === id); if (j && canWrite) { j.fascia = t.dataset.f; j.ora = ''; persist('interventi', j); render(); } break; }
     case 'tipo-add': tipoAdd(); break;
     case 'ana-tab': anaTab = t.dataset.tab; anaLim = 50; anaOpen = null; cliFormOpen = false; editingClienteId = null; cliPrefill = null; mounted = null; render(); break;
     case 'ana-open': anaOpen = anaOpen === id ? null : id; refreshAnagrafica(); break;
-    case 'ana-more': anaLim += 50; refreshAnagrafica(); break;
+    case 'ana-more': loadAnaPage(); break;
     case 'imp-add': { const l = $('#impList'); if (l) { l.insertAdjacentHTML('beforeend', impRowHtml({})); const r = l.lastElementChild; const s0 = r && r.querySelector('select'); if (s0) s0.focus(); } break; }
     case 'imp-del': { const r = t.closest('.imp-row'); if (r) r.remove(); break; }
     case 'amm-filter': anaQ = t.dataset.name || ''; mounted = null; render(); break;
@@ -4062,7 +4233,7 @@ document.addEventListener('click', e => {
     case 'mat-q': { const st = wMat[id]; if (st) { st.qta = Math.max(1, Math.min(999, st.qta + Number(t.dataset.d))); render(); renderDetail(); } break; }
     case 'mat-ok': { const st = wMat[id], j = jobs.find(x => x.id === id); if (st && st.pick && j) { matAdd(j, st.pick, st.qta, st.ser); delete wMat[id]; render(); renderDetail(); } break; }
     case 'mat-del': { const m = matOf(t.dataset.job).find(x => x.id === t.dataset.mid); if (m) toast('Togliere «' + (m.descrizione || m.codice) + '»?', 'Togli', () => { matRemove(m); renderDetail(); }); break; }
-    case 'pf-mat': detailId = id; wMat[id] = wMat[id] || {q: '', pick: null, qta: 1, ser: ''}; renderDetail();
+    case 'pf-mat': ensureMagData(); detailId = id; wMat[id] = wMat[id] || {q: '', pick: null, qta: 1, ser: ''}; renderDetail();
       setTimeout(() => { const b = $('#matBox'); if (b) b.scrollIntoView({block: 'center'}); const i = document.querySelector('input[data-matq="' + id + '"]'); if (i) i.focus(); }, 60); break;
     case 'job-prefat': { const j = jobs.find(x => x.id === id); if (j) setPrefat(id, !j.prefat); break; }
     case 'pf-unsend': setPrefat(id, false); break;
@@ -4120,7 +4291,7 @@ document.addEventListener('click', e => {
     case 'wz-all': wzCands().forEach(j => wzSel.add(j.id)); render(); break;
     case 'wz-none': wzSel = new Set(); render(); break;
     case 'wz-create': wzCreate(); break;
-    case 'open-job': detailId = id; renderDetail(); break;
+    case 'open-job': detailId = id; if (canWrite) ensureMagData(); renderDetail(); break;
     case 'close-detail': detailId = null; renderDetail(); break;
     case 'stato': { const j = jobs.find(x => x.id === id); if (j) { const nx = NEXT[stOf(j)]; if (nx === 'fatto') openClose(id); else setStato(id, nx); } break; }
     case 'set-stato': if (t.dataset.st === 'fatto') { const j = jobs.find(x => x.id === id); if (j && stOf(j) !== 'fatto') { openClose(id); break; } } setStato(id, t.dataset.st); break;
@@ -4159,7 +4330,8 @@ document.addEventListener('click', e => {
       if (t.dataset.armed !== '1') { t.dataset.armed = '1'; t.textContent = 'Tocca ancora per eliminare'; }
       else { removeWorker(id); editingWorkerId = null; mounted = null; render(); toast('Lavoratore eliminato.'); }
       break;
-    case 'clear-filters': Object.assign(flt, {q:'', da:'', a:'', stato:'', w:''}); mounted = null; render(); break;
+    case 'clear-filters': Object.assign(flt, {q:'', da:'', a:'', stato:'', w:'', automazione:''}); mounted = null; render(); break;
+    case 'load-archive': loadArchive(); break;
     case 'export': exportCsv(); break;
     case 'export-json': exportJson(); break;
     case 'import-json': { const f = $('#importFile'); if (f) f.click(); break; }
@@ -4167,6 +4339,7 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('change', e => {
   const t = e.target;
+  if (t.dataset && t.dataset.flt) { flt[t.dataset.flt] = t.value; refreshArchivio(); return; }
   if (t.id === 'dateInput') setDate(t.value);
   else if (t.id === 'magFlt') { magFlt = t.value; refreshMagazzino(); }
   else if (t.dataset && t.dataset.matqta) { const m = matOf(detailId).find(x => x.id === t.dataset.matqta); if (m) { matSetQta(m, t.value); renderDetail(); } }
@@ -4212,6 +4385,7 @@ document.addEventListener('change', e => {
 document.addEventListener('wheel', e => { const m = e.target && e.target.closest ? e.target.closest('nav.menu') : null; if (!m || m.scrollWidth <= m.clientWidth || !e.deltaY) return; m.scrollLeft += e.deltaY; e.preventDefault(); }, {passive: false});
 document.addEventListener('input', e => {
   const t = e.target;
+  if (t.dataset && t.dataset.flt) { flt[t.dataset.flt] = t.value; refreshArchivio(); return; }
   if (t.id === 'fCliente') { updateClienteLink(e.inputType === 'insertReplacementText'); return; }
   if (t.id === 'anaQ') { anaQ = t.value; anaLim = 50; anaOpen = null; refreshAnagrafica(); return; }
   if (t.id === 'anaCity') { anaCity = t.value; anaLim = 50; anaOpen = null; refreshAnagrafica(); return; }
@@ -4255,6 +4429,7 @@ document.addEventListener('submit', e => {
   e.preventDefault();
   const f = e.target;
   if (f.id === 'jobForm') saveJob(f, (e.submitter && e.submitter.dataset.mode) || 'another');
+  else if (f.id === 'qaForm') qaSave(f);
   else if (f.id === 'workerForm') saveWorker(f);
   else if (f.id === 'clienteForm') saveCliente(f);
   else if (f.id === 'loginForm') doAuth(f);
@@ -4372,6 +4547,8 @@ let srvSnap = {};   // ultima versione dall'archivio dei campi che contano (per 
 function takeSnap(s){ srvSnap = {}; s.docs.forEach(d => { const x = d.data(), o = {workerId: x.workerId || ''}; W_KEYS.forEach(k => { o[k] = x[k]; }); srvSnap[d.id] = o; }); }
 let fb = null, authState = 'loading', role = '', myWorkerId = '', me = null, fbErr = '', loginMode = 'login', migHidden = false;
 let unsubs = [], ownUnsub = null, utenti = [], rawJobs = [], fattMap = {};
+let archiveJobs = new Map(), archiveRanges = new Set(), archiveLoading = false, archiveLoadedCount = 0;
+let fetchMissingBillable = () => {};
 
 const cleanObj = o => JSON.parse(JSON.stringify(o));
 async function fbWrite(coll, item){
@@ -4414,14 +4591,53 @@ function rebuildJobs(){
     return o;
   });
 }
+// Listener lazy per sezione: un solo listener per chiave, attivato quando serve.
+const sectionSubs = {};
+function sectionSub(key, ref, fn){
+  if (sectionSubs[key]) return;
+  sectionSubs[key] = fb.onSnapshot(ref, fn, fbSnapErr);
+}
+function stopSection(key){
+  if (sectionSubs[key]) { try { sectionSubs[key](); } catch(e){} delete sectionSubs[key]; }
+}
+function stopLazySections(keep, all){
+  // i dati del magazzino (mag-*) una volta caricati restano attivi fino all'uscita: servono anche a scheda intervento e pre-fatture
+  Object.keys(sectionSubs).forEach(k => { if (!keep.includes(k) && (all || !k.startsWith('mag-'))) stopSection(k); });
+}
+/* Articoli e listino: caricati la prima volta che servono (magazzino, pre-fatturazione, materiale usato, scarico) */
+function ensureMagData(){
+  if (!usingDb || !canWrite || !fb) return;
+  const col = n => fb.collection(fb.db, n);
+  sectionSub('mag-articoli', col('articoli'), s => { articoli = s.docs.map(d => d.data()); buildCodeMap(); artLoaded = true; setTimeout(matConsolida, 0); render(); });
+  sectionSub('mag-listino', col('listino'), s => { listinoDocs = s.docs.map(d => d.data()); buildListino(); lstLoaded = true; render(); });
+}
+function activateLazySection(v){
+  if (!usingDb || !canWrite) return;
+  const col = n => fb.collection(fb.db, n);
+  if (v === 'magazzino') {
+    ensureMagData();
+    stopLazySections([]);
+  } else if (v === 'prefat') {
+    ensureMagData();
+    sectionSub('prefat-prefatture', col('prefatture'), s => { prefatture = s.docs.map(d => d.data()); render(); });
+    sectionSub('prefat-impostazioni', col('impostazioni'), s => { azienda = s.docs.map(d => d.data()).find(x => x.id === 'azienda') || {}; render(); });
+    stopLazySections(['prefat-prefatture','prefat-impostazioni']);
+  } else if (v === 'utenti' && role === 'titolare') {
+    sectionSub('utenti-lista', col('utenti'), s => { utenti = s.docs.map(d => Object.assign({uid: d.id}, d.data())); pendingUsersCount = utenti.filter(u => !u.ruolo).length; render(); });
+    stopLazySections(['utenti-lista']);
+  } else stopLazySections([]);
+}
+
 function stopSubs(){
+  stopLazySections([], true);
   fotoStop(); srvSnap = {}; notifToggle(false);
   unsubs.forEach(u => { try { u(); } catch(e){} });
   unsubs = []; usingDb = false;
+  archiveJobs = new Map(); archiveRanges = new Set(); archiveLoading = false; archiveLoadedCount = 0;
   materiali = []; matLoaded = artLoaded = lstLoaded = catLoaded = false; matBusy = {}; matW = {}; matD = {}; wMat = {}; catDocs = []; catArr = [];
   if (matUnsubW) { try { matUnsubW(); } catch(e){} } if (matUnsubD) { try { matUnsubD(); } catch(e){} } matUnsubW = matUnsubD = null; matKeyW = matKeyD = '';
   articoli = []; codeMap = {}; scanLog = []; listinoDocs = []; listMap = {}; listArr = []; impPrev = null; artId = null; if (artMovUnsub) { try { artMovUnsub(); } catch(e){} artMovUnsub = null; artMovKey = ''; }
-  workers = []; jobs = []; rips = []; cens = []; muls = []; rawJobs = []; fattMap = {}; tipi = []; clienti = []; prefatture = []; azienda = {}; utenti = [];
+  workers = []; jobs = []; rips = []; cens = []; muls = []; rawJobs = []; fattMap = {}; tipi = []; clienti = []; clientiCompleti = null; anaPageClientes = []; anaPageCursor = null; anaPageLoading = false; anaPageHasMore = true; prefatture = []; azienda = {}; utenti = []; pendingUsersCount = 0; clientiLoaded = false; clientiLoading = false;
 }
 function fbSnapErr(err){
   if (err && err.code === 'permission-denied') toast('Permesso negato dall’archivio: controlla il ruolo assegnato.');
@@ -4437,16 +4653,60 @@ function startSubs(){
   const list = (n, fn) => sub(col(n), s => { fn(s); render(); });
   if (canWrite) {
     list('lavoratori', s => { workers = s.docs.map(d => d.data()); sync(s); });
-    list('interventi', s => { rawJobs = s.docs.map(d => d.data()); rawJobs.forEach(x => { docSig[x.id] = (x.workerId || '') + '|' + x.data; }); takeSnap(s); setTimeout(notifyCheck, 0); rebuildJobs(); pickInitialDate(); sync(s); });
-    list('fatturazione', s => { fattMap = {}; s.docs.forEach(d => { fattMap[d.id] = d.data(); }); rebuildJobs(); });
+    // Ufficio: interventi degli ultimi 180 giorni + interventi ancora aperti.
+    // Le due query vengono unite per ID; lo storico non viene cancellato dal database.
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 180);
+    const cutoffIso = cutoff.toISOString().slice(0, 10);
+    const jobSets = {recent: new Map(), open: new Map(), muletti: new Map(), riparazioni: new Map()};
+    const mergeOfficeJobs = snap => {
+      snap.docs.forEach(d => { const x = d.data(); docSig[x.id] = (x.workerId || '') + '|' + x.data; });
+      const merged = new Map(archiveJobs);
+      jobSets.recent.forEach((v, k) => merged.set(k, v));
+      jobSets.open.forEach((v, k) => merged.set(k, v));
+      jobSets.muletti.forEach((v, k) => merged.set(k, v));
+      jobSets.riparazioni.forEach((v, k) => merged.set(k, v));
+      rawJobs = Array.from(merged.values());
+      // Ricostruisci lo snapshot notifiche sull'unione, non su una singola query.
+      srvSnap = {}; rawJobs.forEach(x => { const o = {workerId: x.workerId || ''}; W_KEYS.forEach(k => { o[k] = x[k]; }); srvSnap[x.id] = o; });
+      rebuildJobs(); pickInitialDate(); sync(snap); setTimeout(notifyCheck, 0); render(); setTimeout(fetchMissingBillable, 0);
+    };
+    sub(fb.query(col('interventi'), fb.where('data', '>=', cutoffIso)), s => {
+      jobSets.recent = new Map(s.docs.map(d => [d.id, d.data()])); mergeOfficeJobs(s);
+    });
+    sub(fb.query(col('interventi'), fb.where('stato', 'in', ['da_fare', 'in_corso'])), s => {
+      jobSets.open = new Map(s.docs.map(d => [d.id, d.data()])); mergeOfficeJobs(s);
+    });
+    // Query dedicate: garantiscono che muletti e riparazioni siano disponibili anche quando sono datati.
+    sub(fb.query(col('interventi'), fb.where('mul', '==', true)), s => {
+      jobSets.muletti = new Map(s.docs.map(d => [d.id, d.data()])); mergeOfficeJobs(s);
+    });
+    // Interventi fuori dai 180 giorni ma ancora da pre-fatturare: letti uno per uno, solo quelli.
+    const billFetched = new Set();
+    fetchMissingBillable = () => {
+      const have = new Set(rawJobs.map(x => x.id));
+      const ids = Object.keys(fattMap).filter(id => fattMap[id] && fattMap[id].prefat === true && !fattMap[id].preFatturaId && !have.has(id) && !billFetched.has(id));
+      if (!ids.length) return;
+      ids.forEach(id => billFetched.add(id));
+      Promise.all(ids.map(id => fb.getDoc(fb.doc(fb.db, 'interventi', id)).then(d => d.exists() ? d.data() : null).catch(() => null))).then(list => {
+        let n = 0; list.forEach(x => { if (x && x.id) { archiveJobs.set(x.id, x); n++; } });
+        if (n) mergeOfficeJobs({docs: [], metadata: {}});
+      });
+    };
+    sub(fb.query(col('interventi'), fb.where('rip', '==', true)), s => {
+      jobSets.riparazioni = new Map(s.docs.map(d => [d.id, d.data()])); mergeOfficeJobs(s);
+    });
+    list('fatturazione', s => { fattMap = {}; s.docs.forEach(d => { fattMap[d.id] = d.data(); }); rebuildJobs(); fetchMissingBillable(); });
+    // Materiale usato ancora aperto: pochi documenti, serve a scheda intervento, PDF e pre-fatture.
+    sectionSub('mag-materiali', fb.query(col('materiali'), fb.where('aperto', '==', true)), s => { materiali = s.docs.map(d => d.data()); matLoaded = true; if (materiali.some(m => m.pend)) ensureMagData(); setTimeout(matConsolida, 0); render(); });
+    // Condomini: pochi documenti, servono all'avviso manutenzioni della Panoramica.
+    fb.getDocs(fb.query(col('clienti'), fb.where('tipo', '==', 'condominio'))).then(sn => { if (clientiLoaded) return; const ids = new Set(clienti.map(c => c.id)); sn.docs.forEach(d => { const c = d.data(); if (!ids.has(c.id)) clienti.push(c); }); render(); }).catch(() => {});
     list('tipi', s => { tipi = s.docs.map(d => d.data()); });
-    list('clienti', s => { clienti = s.docs.map(d => d.data()); });
-    list('articoli', s => { articoli = s.docs.map(d => d.data()); buildCodeMap(); artLoaded = true; setTimeout(matConsolida, 0); });
-    sub(fb.query(col('materiali'), fb.where('aperto', '==', true)), s => { materiali = s.docs.map(d => d.data()); matLoaded = true; setTimeout(matConsolida, 0); render(); });
-    list('listino', s => { listinoDocs = s.docs.map(d => d.data()); buildListino(); lstLoaded = true; });
-    list('prefatture', s => { prefatture = s.docs.map(d => d.data()); });
-    list('impostazioni', s => { azienda = s.docs.map(d => d.data()).find(x => x.id === 'azienda') || {}; });
-    if (role === 'titolare') list('utenti', s => { utenti = s.docs.map(d => Object.assign({uid: d.id}, d.data())); });
+    // Dati azienda: un solo documento caricato all'avvio.
+    fb.getDoc(fb.doc(fb.db, 'impostazioni', 'azienda')).then(s => { azienda = s.exists() ? s.data() : {}; render(); }).catch(fbSnapErr);
+    if (role === 'titolare') fb.getCountFromServer(fb.query(col('utenti'), fb.where('ruolo', '==', ''))).then(s => { pendingUsersCount = s.data().count || 0; render(); }).catch(() => { pendingUsersCount = 0; });
+    // Clienti: caricamento su richiesta, non listener globale permanente.
+    // Dati pesanti/di sezione caricati solo all'apertura della sezione.
+    // Articoli, materiali aperti e listino: Magazzino. Prefatture e azienda: Pre-fatturazione. Utenti: Titolare.
   } else {
     sub(fb.query(col('interventi'), fb.where('workerId', '==', myWorkerId)), s => { rawJobs = s.docs.map(d => d.data()); takeSnap(s); setTimeout(notifyCheck, 0); rebuildJobs(); pickInitialDate(); sync(s); render(); });
     sub(fb.doc(fb.db, 'lavoratori', myWorkerId), s => { workers = s.exists() ? [s.data()] : []; render(); });
@@ -4467,7 +4727,7 @@ function onAuth(user){
     }
     const d = snap.data(), r = d.ruolo || '', w = d.workerId || '';
     if (r === 'titolare' || r === 'ufficio' || (r === 'lavoratore' && w)) {
-      if (authState !== 'ready' || role !== r || myWorkerId !== w) { role = r; myWorkerId = w; authState = 'ready'; startSubs(); render(); }
+      if (authState !== 'ready' || role !== r || myWorkerId !== w) { role = r; myWorkerId = w; authState = 'ready'; startSubs(); activateLazySection(view); render(); }
     } else {
       stopSubs(); role = ''; authState = r === 'disattivato' ? 'disabled' : (r === 'lavoratore' ? 'nolink' : 'pending'); render();
     }
@@ -5185,6 +5445,8 @@ function wSheetHtml(j){
       <button class="icon-btn" data-act="w-close" aria-label="Chiudi">${ic('x', 20)}</button></div>
     ${wStatoHtml(j, st)}
     ${j.via ? `<p class="line" style="margin:12px 0 0">${ic('pin', 16)}<span>${esc(j.via)}</span></p>` : ''}
+    ${j.automazione ? `<p class="line" style="margin:6px 0 0"><b>Automazione:</b>&nbsp;${esc(j.automazione)}</p>` : ''}
+    ${j.amministratore ? `<p class="line" style="margin:6px 0 0"><b>Amministratore:</b>&nbsp;${esc(j.amministratore)}</p>` : ''}
     ${j.descrizione ? `<p class="desc" style="margin:10px 0">${esc(j.descrizione)}</p>` : ''}
     <div class="job-actions">${telBtns(j.telefono, 'btn', 16)}
       ${href ? `<a class="btn" href="${esc(href)}" target="_blank" rel="noopener">${ic('pin', 16)}Mappa</a>` : ''}</div>
@@ -5266,7 +5528,8 @@ function renderWorkerApp(){
 }
 
 /* ---- gestione utenti (solo titolare) ---- */
-const pendingUsers = () => utenti.filter(u => !u.ruolo).length;
+let pendingUsersCount = 0;
+const pendingUsers = () => pendingUsersCount;
 function viewUtenti(){
   const list = utenti.slice().sort((a, b) => ((a.ruolo ? 1 : 0) - (b.ruolo ? 1 : 0)) || String(a.email || '').localeCompare(String(b.email || '')));
   const wopts = '<option value="">Scegli il lavoratore…</option>' + sortedWorkers().map(w => `<option value="__ID__">${esc(w.nome)}</option>`).join('');
