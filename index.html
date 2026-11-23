@@ -545,6 +545,21 @@ html,body{overflow-x:hidden}
 .imp-row .btn{justify-self:start}
 .meta.warnx{color:var(--bad-text);font-weight:600}
 .closesheet{max-width:620px}
+.cstep{display:grid;gap:8px;margin:0 0 14px}
+.cstep .cl{display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px}
+.cstep .cl i{font-style:normal;display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--ink);color:var(--surface);font-size:12px;font-weight:800}
+.cstep .cl small{font-weight:500;color:var(--muted);font-size:12.5px}
+.qchips{display:flex;flex-wrap:wrap;gap:6px}
+.qc{min-height:44px;min-width:48px;padding:0 12px;border-radius:10px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);font:inherit;font-weight:700;font-size:15px;cursor:pointer}
+.qc[aria-pressed="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.qc.sm{min-height:34px;min-width:0;font-weight:500;font-size:13.5px;background:var(--surface2);border-radius:999px}
+.qsel{min-height:44px;border-radius:10px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);font:inherit;padding:0 6px;width:auto;max-width:118px}
+.qsel.on{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.chint{margin:0;font-size:13px;color:var(--muted)}
+.closesheet .closeacts{position:sticky;bottom:calc(-18px - env(safe-area-inset-bottom,0px));background:var(--surface);margin:4px -18px 0;padding:10px 18px calc(12px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line);z-index:3}
+.closesheet .closeacts .btn.primary{flex:1 1 220px;min-height:50px;font-size:16px}
+.closesheet .sigbox{margin:0}
+.nfbox .qchips{margin-top:2px}
 .sigbox{display:grid;gap:8px;margin:6px 0 12px}
 #sigPad{width:100%;height:auto;aspect-ratio:600/220;background:#fff;border:2px dashed var(--line);border-radius:12px;touch-action:none;cursor:crosshair}
 .sigimg{max-width:260px;width:100%;background:#fff;border:1px solid var(--line);border-radius:8px;margin-top:6px}
@@ -1760,7 +1775,7 @@ function renderDetail(){
     <div class="tags">${tagsOf(j)}<span class="stat st-${st}">${STATI[st]}</span></div>
     <dl class="info">
       <div><dt>Intervento</dt><dd>${esc(tipoText(j) || 'Non indicato')}</dd></div>
-      ${j.automazione ? `<div><dt>Automazione</dt><dd>${esc(j.automazione)}</dd></div>` : ''}
+      ${j.automazione ? `<div><dt>Impianto</dt><dd>${esc(j.automazione)}</dd></div>` : ''}
       ${j.amministratore ? `<div><dt>Amministratore</dt><dd>${esc(j.amministratore)}</dd></div>` : ''}
       <div><dt>Indirizzo</dt><dd>${esc(j.via)}</dd></div>
       ${j.telefono ? `<div><dt>Telefono</dt><dd>${esc(j.telefono)}</dd></div>` : ''}
@@ -1872,7 +1887,7 @@ function printJobOrder(j){
   const h = `<!doctype html><html lang="it"><head><meta charset="utf-8"><title>Intervento da fare</title><style>@page{size:A4;margin:0}*{box-sizing:border-box}body{margin:0;padding:15mm;font-family:Arial,Helvetica,sans-serif;color:#000;font-size:12pt}.hd{display:flex;justify-content:space-between;align-items:baseline;border-bottom:2pt solid #000;padding-bottom:3mm;margin-bottom:5mm;font-size:14pt}.dt{font-size:20pt;font-weight:700;margin:0 0 1mm}.fa{font-size:14pt;margin:0 0 6mm}.ur{display:inline-block;border:2pt solid #000;padding:0 3mm;margin-left:4mm;font-size:14pt}table{width:100%;border-collapse:collapse;margin-bottom:6mm}tr{border-bottom:.5pt solid #999}th{width:42mm;text-align:left;vertical-align:top;padding:2mm 3mm 2mm 0;font-size:10pt;text-transform:uppercase;letter-spacing:.04em;color:#333}td{padding:2mm 0;white-space:pre-wrap;word-break:break-word}.big{font-size:14pt;font-weight:700}.l{font-size:10pt;text-transform:uppercase;letter-spacing:.05em;margin:0 0 2mm}.box{height:42mm;border:.8pt solid #000;margin-bottom:8mm}.f{display:flex;gap:10mm}.f span{flex:1;border-bottom:.8pt solid #000;padding-bottom:1mm;min-height:9mm}</style></head><body>
     <div class="hd"><b>EFFEBI S.R.L.</b><span>Intervento da fare</span></div>
     <p class="dt">${esc(j.data ? fmtLong(j.data) : fmtCreated(j.creato || new Date().toISOString()))}${j.priorita === 'urgente' ? '<span class="ur">URGENTE</span>' : ''}</p><p class="fa">${esc(j.data ? fasciaLabel(j) : 'Creato alle ' + (j.creato ? hhmm(j.creato) : hhmm(new Date().toISOString())))}</p>
-    <table>${row('Cliente', j.cliente, true)}${row('Amministratore', j.amministratore)}${row('Indirizzo', j.via)}${row('Telefono', j.telefono)}${row('Intervento', tipoText(j))}${row('Automazione', j.automazione)}${row('Lavoratore', w ? w.nome : 'Da assegnare')}${row('Lavoro da fare', j.descrizione)}</table>
+    <table>${row('Cliente', j.cliente, true)}${row('Amministratore', j.amministratore)}${row('Indirizzo', j.via)}${row('Telefono', j.telefono)}${row('Intervento', tipoText(j))}${row('Impianto', j.automazione)}${row('Lavoratore', w ? w.nome : 'Da assegnare')}${row('Lavoro da fare', j.descrizione)}</table>
     <p class="l">Note e materiale usato</p><div class="box"></div>
     <div class="f"><span>Ore di lavoro:</span><span>Persone:</span><span>Firma del cliente:</span></div></body></html>`;
   printHtml(h);
@@ -1925,7 +1940,7 @@ function jobFormHtml(v, editing){
       <div class="field"><label class="lbl" for="fTipo">Tipo di intervento</label>
         <select id="fTipo" name="tipo" required>${tipoOptions(v.tipo || '')}</select>
         <small id="tipoDur">${esc(tipoDurText(v.tipo || '', Number(v.durata) || 0))}</small></div>
-      <label class="field"><span>Tipo di impianto</span><select name="automazione">${opts([['', '— scegli —']].concat(IMPIANTI_CARICA.map(a => [a, a])), v.automazione || '')}</select></label>
+      <label class="field"><span>Tipo di impianto</span><select name="automazione">${opts([['', '— scegli —']].concat(IMPIANTI_CARICA.concat(v.automazione && !IMPIANTI_CARICA.includes(v.automazione) && AUTOMAZIONI.includes(v.automazione) ? [v.automazione] : []).map(a => [a, a])), v.automazione || '')}</select></label>
       <label class="field span2" id="ammWrap" style="display:none"><span>Nome amministratore</span><input name="amministratore" maxlength="120" autocomplete="off" placeholder="Nome dell’amministratore di condominio" value="${esc(v.amministratore || '')}"></label>
       <div class="field span2"><label class="lbl" for="fVia">Via e città</label>
         <div class="ac"><input id="fVia" name="via" required role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="acList" autocomplete="off" autocapitalize="words" placeholder="Inizia a scrivere: Via Roma 12, Milano" value="${esc(v.via || '')}">
@@ -2455,7 +2470,7 @@ function buildJobPdf(j, mats, az, firma){
   const w = workers.find(x => x.id === j.workerId), st = stOf(j);
   const rows = [['Intervento', tipoText(j) || j.tipo || '—'], ['Fascia oraria', fasciaLabel(j)], ['Lavoratore', w ? w.nome : 'Non assegnato'],
     ['Esito', STATI[st] + (j.esitoIl ? ' · ' + abs(j.esitoIl) : '')]];
-  if (j.automazione) rows.splice(1, 0, ['Automazione', j.automazione]);
+  if (j.automazione) rows.splice(1, 0, ['Impianto', j.automazione]);
   if (j.amministratore) rows.splice(j.automazione ? 2 : 1, 0, ['Amministratore', j.amministratore]);
   if (j.inizioIl) rows.push(['Iniziato', abs(j.inizioIl)]);
   { const hh = st === 'fatto' ? hoursOf(j) : null; if (hh) rows.push(['Ore di lavoro', fmtOre(hh.ore)], ['Persone al lavoro', String(hh.pers)]); }
@@ -2888,7 +2903,7 @@ function filtered(){
     (!flt.da || j.data >= flt.da) && (!flt.a || j.data <= flt.a) &&
     (!flt.stato || stOf(j) === flt.stato) &&
     (!flt.w || (flt.w === '_none' ? !wById[j.workerId] : j.workerId === flt.w)) &&
-    (!flt.automazione || (() => { const a = String(j.automazione || '').toLowerCase(), t = String(j.tipo || '').toLowerCase(), d = String(j.descrizione || '').toLowerCase(); const v = flt.automazione; if (v === 'ante') return a.includes('ante'); if (v === 'scorrevole') return a.includes('scorrevole'); if (v === 'serranda') return a.includes('serranda') || a.includes('portone o serranda'); if (v === 'sbarra') return a.includes('sbarra'); if (v === 'portone') return a.includes('portone') || a.includes('portone o serranda'); if (v === 'allarme') return t.includes('allarme') || d.includes('allarme'); if (v === 'tvcc') return t.includes('tv.cc') || t.includes('tvcc') || d.includes('tv.cc') || d.includes('tvcc'); return true; })()) &&
+    (!flt.automazione || (() => { const a = String(j.automazione || '').toLowerCase(), t = String(j.tipo || '').toLowerCase(), d = String(j.descrizione || '').toLowerCase(); const v = flt.automazione; if (v === 'ante') return a.includes('ante'); if (v === 'scorrevole') return a.includes('scorrevole'); if (v === 'serranda') return a.includes('serranda') || a.includes('portone o serranda'); if (v === 'sbarra') return a.includes('sbarra'); if (v === 'portone') return a.includes('portone') || a.includes('portone o serranda'); if (v === 'cancello') return a.includes('cancello'); if (v === 'allarme') return a.includes('allarme') || t.includes('allarme') || d.includes('allarme'); if (v === 'tvcc') return a.includes('tv.cc') || t.includes('tv.cc') || t.includes('tvcc') || d.includes('tv.cc') || d.includes('tvcc'); return true; })()) &&
     (!q || [j.cliente, j.via, j.telefono, j.descrizione, j.tipo, j.automazione].join(' ').toLowerCase().includes(q))
   ).sort((a, b) => b.data.localeCompare(a.data) || byOra(a, b));
 }
@@ -2900,7 +2915,7 @@ function mountArchivio(){
       <label class="field"><span>Dal</span><input type="date" data-flt="da" value="${esc(flt.da)}"></label>
       <label class="field"><span>Al</span><input type="date" data-flt="a" value="${esc(flt.a)}"></label>
       <label class="field"><span>Lavoratore</span><select data-flt="w" id="fltW"></select></label>
-      <label class="field"><span>Automazione / impianto</span><select data-flt="automazione">${opts([['', 'Tutti'], ['ante', 'Cancello ad ante'], ['scorrevole', 'Cancello scorrevole'], ['serranda', 'Serranda'], ['sbarra', 'Sbarra'], ['portone', 'Portone'], ['allarme', 'Allarme'], ['tvcc', 'TV.cc']], flt.automazione)}</select></label>
+      <label class="field"><span>Automazione / impianto</span><select data-flt="automazione">${opts([['', 'Tutti'], ['cancello', 'Cancello (tutti)'], ['ante', 'Cancello ad ante'], ['scorrevole', 'Cancello scorrevole'], ['serranda', 'Serranda'], ['sbarra', 'Sbarra'], ['portone', 'Portone'], ['allarme', 'Allarme'], ['tvcc', 'TV.cc']], flt.automazione)}</select></label>
     </div>
     <div class="form-actions"><button class="btn small ghost" data-act="clear-filters">Azzera filtri</button>
       ${usingDb && canWrite ? `<button class="btn small" data-act="load-archive" ${archiveLoading ? 'disabled' : ''}>${ic('search', 16)}${archiveLoading ? 'Caricamento storico…' : 'Cerca anche nello storico'}</button>` : ''}
@@ -4191,8 +4206,11 @@ document.addEventListener('click', e => {
       j.noteLavoratore = v; persist('interventi', j); render(); toast('Nota inviata all’ufficio.'); break;
     }
     case 'w-fatto': openClose(id); break;
-    case 'close-ok': confirmClose(true); break;
+    case 'close-ok': confirmClose(sigInk); break;
     case 'close-skip': confirmClose(false); break;
+    case 'q-pick': qPick(t.dataset.q, Number(t.dataset.v)); break;
+    case 'q-note': { const n = $('#closeNote'); if (!n) break; const cur = n.value.replace(/[\s.;,]+$/, ''); n.value = (cur ? cur + '. ' : '') + t.dataset.t; n.focus({preventScroll: true}); break; }
+    case 'nf-chip': { const n = document.querySelector('textarea[data-causale][data-id="' + id + '"]'); if (!n) break; const cur = n.value.replace(/[\s.;,]+$/, ''); n.value = (cur ? cur + '. ' : '') + t.dataset.t; n.focus({preventScroll: true}); break; }
     case 'close-x': closeHide(); break;
     case 'sig-clear': { const c = $('#sigPad'); if (c) { const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); } sigInk = false; const h = $('#sigHint'); if (h) h.textContent = 'Fai firmare il cliente qui sopra con il dito.'; break; }
     case 'close-foto': { const i = document.querySelector('input[data-fotoin="' + closeId + '"]'); if (i) i.click(); break; }
@@ -4344,6 +4362,7 @@ document.addEventListener('change', e => {
   if (t.id === 'dateInput') setDate(t.value);
   else if (t.id === 'magFlt') { magFlt = t.value; refreshMagazzino(); }
   else if (t.dataset && t.dataset.matqta) { const m = matOf(detailId).find(x => x.id === t.dataset.matqta); if (m) { matSetQta(m, t.value); renderDetail(); } }
+  else if (t.classList && t.classList.contains('qsel')) qPick(t.dataset.q, Number(t.value) || 0);
   else if (t.id === 'dNoteL') { const j = jobs.find(x => x.id === t.dataset.id); if (j && canWrite) { j.noteLavoratore = t.value.trim().slice(0, 500); persist('interventi', j); toast('Nota aggiornata.'); } }
   else if (t.form && t.form.id === 'clienteForm' && t.name === 'ammNome') {
     const a = amministratori().find(x => norm(x.nome) === norm(t.value)), h = $('#ammHint');
@@ -4954,6 +4973,24 @@ function showLightbox(src){
 
 /* ---- finestra "Chiudi intervento" (Fatto): nota, firma del cliente facoltativa, promemoria foto ---- */
 let closeId = null, sigInk = false, firmaCache = {};
+const ORE_CHIPS = [0.5, 1, 1.5, 2, 2.5, 3, 4], PERS_CHIPS = [1, 2, 3, 4];
+const NOTE_QUICK = ['Impianto funzionante', 'Da ricontrollare', 'Serve preventivo', 'Materiale da ordinare', 'Cliente avvisato'];
+const NF_QUICK = ['Cliente assente', 'Manca il materiale', 'Accesso impossibile', 'Rimandato dal cliente', 'Serve un secondo intervento'];
+const persKey = () => 'gestionale-pers-' + (me ? me.uid : '');
+function oreSuggest(j){
+  if (!j.inizioIl) return null;
+  const h = (Date.now() - Date.parse(j.inizioIl)) / 3600000;
+  if (!(h > 0.1 && h < 10)) return null;
+  return Math.min(8, Math.max(0.5, Math.round(h * 2) / 2));
+}
+function qPick(kind, v){
+  const inp = $(kind === 'ore' ? '#closeOre' : '#closePers'); if (!inp) return;
+  inp.value = v ? String(v) : '';
+  document.querySelectorAll('.qc[data-q="' + kind + '"]').forEach(b => b.setAttribute('aria-pressed', String(Number(b.dataset.v) === Number(v))));
+  const s = document.querySelector('.qsel[data-q="' + kind + '"]');
+  if (s) { const inChips = !!document.querySelector('.qc[data-q="' + kind + '"][data-v="' + v + '"]'); s.value = inChips ? '' : String(v || ''); s.classList.toggle('on', !!v && !inChips); }
+  if (kind === 'ore') { const hi = $('#oreHint'); if (hi && hi.dataset.auto) { hi.textContent = 'Scelto da te.'; delete hi.dataset.auto; } }
+}
 function firmaGet(jobId){
   if (firmaCache[jobId] !== undefined) return Promise.resolve(firmaCache[jobId]);
   if (!usingDb || !fb || !canWrite) return Promise.resolve(null);
@@ -4965,23 +5002,35 @@ function openClose(id){
   closeId = id; sigInk = false;
   let o = $('#closeOverlay'); if (!o) { o = document.createElement('div'); o.id = 'closeOverlay'; o.className = 'overlay'; document.body.appendChild(o); }
   const worker = role === 'lavoratore', noteLocked = worker && !!j.noteLavoratore, nf = usingDb && !fotoOf(id).filter(f => !f.doc).length && worker;
+  const hh = hoursOf(j) || {}, sug = hh.ore ? null : (worker ? oreSuggest(j) : null), ore0 = hh.ore || sug || '';
+  let pers0 = hh.pers || ''; if (!pers0 && worker) { const p = Number(lsGet(persKey())); if (PERS_OPTS.includes(p)) pers0 = p; }
+  const chips = (kind, list, cur, fmt) => list.map(v => `<button type="button" class="qc" data-act="q-pick" data-q="${kind}" data-v="${v}" aria-pressed="${Number(cur) === v}">${fmt(v)}</button>`).join('');
+  const more = (kind, all, chipList, cur, fmt) => { const off = cur && !chipList.includes(Number(cur)); return `<select class="qsel${off ? ' on' : ''}" data-q="${kind}" aria-label="Altro"><option value="">Altro…</option>${all.filter(v => !chipList.includes(v)).map(v => `<option value="${v}"${off && Number(cur) === v ? ' selected' : ''}>${fmt(v)}</option>`).join('')}</select>`; };
+  const fOre = v => v < 1 ? '30 min' : Number.isInteger(v) ? v + ' h' : Math.floor(v) + 'h 30', fPers = v => String(v);
+  const req = worker ? '<small>obbligatorio</small>' : '';
   o.innerHTML = `<div class="sheet closesheet" role="dialog" aria-modal="true" aria-label="Chiudi intervento">
     <div class="sheet-head"><div><p class="eyebrow">Chiudi intervento</p><h2>${esc(j.cliente)}</h2><p class="muted" style="margin:2px 0 0">${esc(j.tipo || 'Intervento')}</p></div>
       <button class="icon-btn" data-act="close-x" aria-label="Annulla">${ic('x', 20)}</button></div>
-    ${noteLocked ? `<div class="wnote-sent"><span class="fl">Nota per l’ufficio · già inviata</span><p>${esc(j.noteLavoratore)}</p></div>`
-      : `<label class="field"><span>Nota per l’ufficio (facoltativa${worker ? ', dopo non si potrà modificare' : ''})</span><textarea id="closeNote" maxlength="500" placeholder="Es. materiale usato, lavoro eseguito…">${esc(worker ? '' : (j.noteLavoratore || ''))}</textarea></label>`}
-    <div class="fgrid"><label class="field" style="margin:0"><span>Ore di lavoro${worker ? ' (obbligatorio)' : ''}</span><select id="closeOre">${oreOpts((hoursOf(j) || {}).ore)}</select></label>
-      <label class="field" style="margin:0"><span>Persone al lavoro${worker ? ' (obbligatorio)' : ''}</span><select id="closePers">${persOpts((hoursOf(j) || {}).pers)}</select></label></div>
-    <div class="sigbox"><div class="split"><span class="fl">Firma del cliente (facoltativa)</span><button class="btn small ghost" type="button" data-act="sig-clear">Cancella e rifai</button></div>
+    <div class="cstep"><span class="cl"><i>1</i>Quanto è durato? ${req}</span>
+      <div class="qchips">${chips('ore', ORE_CHIPS, ore0, fOre)}${more('ore', ORE_OPTS, ORE_CHIPS, ore0, fmtOre)}</div>
+      ${sug ? `<p class="chint" id="oreHint" data-auto="1">Proposto in base a quando hai premuto «In corso». Cambialo se serve.</p>` : ''}
+      <input type="hidden" id="closeOre" value="${esc(String(ore0))}"></div>
+    <div class="cstep"><span class="cl"><i>2</i>Quante persone eravate? ${req}</span>
+      <div class="qchips">${chips('pers', PERS_CHIPS, pers0, fPers)}${more('pers', PERS_OPTS, PERS_CHIPS, pers0, v => v + ' persone')}</div>
+      <input type="hidden" id="closePers" value="${esc(String(pers0))}"></div>
+    <div class="cstep"><span class="cl"><i>3</i>Nota per l’ufficio <small>facoltativa${worker && !noteLocked ? ', poi non si modifica' : ''}</small></span>
+    ${noteLocked ? `<div class="wnote-sent"><span class="fl">Già inviata</span><p>${esc(j.noteLavoratore)}</p></div>`
+      : `<div class="qchips">${NOTE_QUICK.map(t => `<button type="button" class="qc sm" data-act="q-note" data-t="${esc(t)}">+ ${esc(t)}</button>`).join('')}</div>
+      <textarea id="closeNote" maxlength="500" rows="3" placeholder="Scrivi o tocca una frase qui sopra…">${esc(worker ? '' : (j.noteLavoratore || ''))}</textarea>`}</div>
+    <div class="cstep sigbox"><div class="split"><span class="cl"><i>4</i>Firma del cliente <small>facoltativa</small></span><button class="btn small ghost" type="button" data-act="sig-clear">Cancella</button></div>
       <canvas id="sigPad" width="600" height="220" aria-label="Riquadro per la firma"></canvas>
-      <p class="muted" id="sigHint" style="margin:0;font-size:13.5px">Fai firmare il cliente qui sopra con il dito.</p>
-      <div class="fgrid"><label class="field" style="margin:0"><span>Nome e cognome di chi firma</span><input id="sigNome" maxlength="80" autocomplete="off"></label>
-        <label class="field" style="margin:0"><span>Ruolo (facoltativo)</span><input id="sigRuolo" maxlength="60" placeholder="Es. proprietario, amministratore, portiere" autocomplete="off"></label></div></div>
-    ${nf ? `<div class="notice"><span>Nessuna foto del lavoro.</span><button class="btn small" type="button" data-act="close-foto">${ic('plus', 14)}Aggiungi foto</button></div>` : ''}
-    <div class="form-actions closeacts"><button class="btn primary" data-act="close-ok" id="closeOk">${ic('check', 16)}Conferma e chiudi</button>
-      <button class="btn" data-act="close-skip" id="closeSkip">Salta firma e chiudi</button>
-      <button class="btn ghost" data-act="close-x">Annulla</button></div>
-    <small class="muted">Dopo la conferma l’intervento risulta «Fatto»${worker ? ' e non potrai più cambiarlo' : ''}.</small></div>`;
+      <p class="chint" id="sigHint">Fai firmare il cliente qui sopra con il dito. Se non firma, chiudi lo stesso.</p>
+      <div class="fgrid"><label class="field" style="margin:0"><span>Nome di chi firma</span><input id="sigNome" maxlength="80" autocomplete="off"></label>
+        <label class="field" style="margin:0"><span>Ruolo (facoltativo)</span><input id="sigRuolo" maxlength="60" placeholder="Es. proprietario, amministratore" autocomplete="off"></label></div></div>
+    ${nf ? `<div class="notice" id="closeFotoN"><span>Nessuna foto del lavoro.</span><button class="btn small" type="button" data-act="close-foto">${ic('plus', 14)}Aggiungi foto</button></div>` : ''}
+    <small class="muted" style="display:block;margin-top:4px">Dopo la conferma l’intervento risulta «Fatto»${worker ? ' e non potrai più cambiarlo' : ''}.</small>
+    <div class="form-actions closeacts"><button class="btn primary" data-act="close-ok" id="closeOk">${ic('check', 18)}Chiudi intervento</button>
+      <button class="btn ghost" data-act="close-x">Annulla</button></div></div>`;
   o.hidden = false;
   sigSetup($('#sigPad'));
 }
@@ -5005,7 +5054,8 @@ async function confirmClose(withSig){
   const c = $('#sigPad');
   if (withSig && !sigInk) { toast('Il riquadro della firma è vuoto: fai firmare il cliente oppure premi «Salta firma».'); return; }
   const ore = Number(($('#closeOre') || {}).value) || 0, pers = Number(($('#closePers') || {}).value) || 0;
-  if (worker && (!ore || !pers)) { toast('Indica le ore di lavoro e quante persone eravate.'); return; }
+  if (worker && (!ore || !pers)) { toast(!ore ? 'Indica quanto è durato il lavoro.' : 'Indica quante persone eravate.'); const s = document.querySelector('.cstep'); if (s) s.scrollIntoView({behavior: 'smooth', block: 'center'}); return; }
+  if (worker && pers) lsSet(persKey(), String(pers));
   const wasFatto = stOf(j) === 'fatto';
   if (ore && pers) j.causale = hoursPack(ore, pers);
   if (note !== null) { if (worker) { if (note && !j.noteLavoratore) j.noteLavoratore = note; } else j.noteLavoratore = note; }
@@ -5032,7 +5082,8 @@ function wStatoHtml(j, st){
   }
   const seg = `<div class="seg wide" role="group" aria-label="Stato">${['da_fare', 'in_corso'].map(k => `<button data-act="w-stato" data-id="${id}" data-st="${k}" aria-pressed="${k === st}">${STATI[k]}</button>`).join('')}</div>`;
   if (wNF[j.id]) return seg + `<div class="nfbox"><label class="field" style="margin:0"><span>Perché non è stato fatto? (obbligatorio)</span>
-      <textarea data-causale="1" data-id="${id}" maxlength="300" placeholder="Es. cliente assente, manca il materiale, accesso impossibile…"></textarea></label>
+      <textarea data-causale="1" data-id="${id}" maxlength="300" placeholder="Tocca un motivo o scrivilo…"></textarea></label>
+      <div class="qchips">${NF_QUICK.map(t => `<button type="button" class="qc sm" data-act="nf-chip" data-id="${id}" data-t="${esc(t)}">+ ${esc(t)}</button>`).join('')}</div>
       <div class="job-actions"><button class="btn danger" data-act="w-nf-ok" data-id="${id}">Conferma: non fatto</button><button class="btn" data-act="w-nf-cancel" data-id="${id}">Annulla</button></div>
       <small class="muted">Dopo la conferma non potrai più cambiarlo.</small></div>`;
   return seg + `<div class="job-actions"><button class="btn primary" data-act="w-fatto" data-id="${id}">${ic('check', 16)}Fatto</button><button class="btn danger" data-act="w-nf-open" data-id="${id}">${ic('x', 16)}Non fatto</button></div>`;
@@ -5446,7 +5497,7 @@ function wSheetHtml(j){
       <button class="icon-btn" data-act="w-close" aria-label="Chiudi">${ic('x', 20)}</button></div>
     ${wStatoHtml(j, st)}
     ${j.via ? `<p class="line" style="margin:12px 0 0">${ic('pin', 16)}<span>${esc(j.via)}</span></p>` : ''}
-    ${j.automazione ? `<p class="line" style="margin:6px 0 0"><b>Automazione:</b>&nbsp;${esc(j.automazione)}</p>` : ''}
+    ${j.automazione ? `<p class="line" style="margin:6px 0 0"><b>Impianto:</b>&nbsp;${esc(j.automazione)}</p>` : ''}
     ${j.amministratore ? `<p class="line" style="margin:6px 0 0"><b>Amministratore:</b>&nbsp;${esc(j.amministratore)}</p>` : ''}
     ${j.descrizione ? `<p class="desc" style="margin:10px 0">${esc(j.descrizione)}</p>` : ''}
     <div class="job-actions">${telBtns(j.telefono, 'btn', 16)}
