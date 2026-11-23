@@ -196,6 +196,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14.5px;min-width:560px}
 .dotw{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--wc,var(--muted));flex:none}
 .tag{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;border-radius:999px;padding:1px 8px;margin:0 6px 0 0;vertical-align:middle;background:var(--surface2);color:var(--muted)}
 .tag.urgent{background:var(--bad-tint);color:var(--bad-text)}
+.tag.urgent.xx{background:var(--bad,#C81E1E);color:#fff;font-weight:800}
 .tag.late{background:var(--warn-tint);color:var(--warn-text)}
 .tag.type{background:var(--brand-tint);color:var(--brand-text)}
 .tag.paused{margin-left:8px}
@@ -1054,7 +1055,7 @@ function suggest(j, day){
 function autoAssign(){
   const wById = workerMap();
   const day = dayJobs(date);
-  const un = unassignedOf(day, wById).sort((a, b) => (b.priorita === 'urgente') - (a.priorita === 'urgente') || byFascia(a, b));
+  const un = unassignedOf(day, wById).sort((a, b) => prioRank(b) - prioRank(a) || byFascia(a, b));
   if (!un.length || !workers.some(isActive)) return;
   un.forEach(j => { const s = suggest(j, day); if (!s) return; j.workerId = s.w.id; persist('interventi', j); });
   render();
@@ -1092,7 +1093,8 @@ function parseText(raw){
     const n = p.replace(/\D/g, '');
     if (n.length >= 8 && n.length <= 13) { out.telefono = p.trim().replace(/\s+/g, ' '); s = s.replace(p, ' '); break; }
   }
-  if (/urgent/i.test(s)) { out.priorita = 'urgente'; s = s.replace(/\burgent\w*/ig, ' '); }
+  if (/urgentissim|chiamat\w* pi[uù] volte/i.test(s)) { out.priorita = 'urgentissimo'; s = s.replace(/\burgent\w*/ig, ' ').replace(/\bchiamat\w* pi[uù] volte/ig, ' '); }
+  else if (/urgent/i.test(s)) { out.priorita = 'urgente'; s = s.replace(/\burgent\w*/ig, ' '); }
   m = s.match(/\b(?:via|viale|piazza|piazzale|corso|largo|vicolo|strada|contrada|località)\s+[^\n]+/i);
   if (m) {
     let v = m[0].split(/\s[-–]\s/)[0].replace(/\s{2,}/g, ' ');
@@ -1325,7 +1327,7 @@ function waHref(w, list){
     if (f !== last) { out.push('*' + (FASCIA_LABEL[f] || 'Senza fascia oraria').toUpperCase() + '*'); last = f; }
     i++;
     const dur = fmtDur(j.durata);
-    out.push(i + ') ' + (j.tipo || 'Intervento') + (dur ? ' (' + dur + ')' : '') + (j.priorita === 'urgente' ? ' - URGENTE' : ''));
+    out.push(i + ') ' + (j.tipo || 'Intervento') + (dur ? ' (' + dur + ')' : '') + (j.priorita === 'urgentissimo' ? ' - URGENTISSIMO' : j.priorita === 'urgente' ? ' - URGENTE' : ''));
     out.push('Cliente: ' + j.cliente);
     out.push(j.via);
     if (j.telefono) out.push('Tel: ' + j.telefono);
@@ -1361,8 +1363,11 @@ function kpi(label, n, sub, alert, icon, tone){
   const action = label === 'Da assegnare' ? ' data-act=\"open-unassigned-finder\" role=\"button\" tabindex=\"0\" title=\"Apri Finder con gli interventi da fare\" style=\"cursor:pointer\"' : '';
   return `<div class=\"kpi${alert ? ' alert' : ''}${tone ? ' k-' + tone : ''}\"${action}>${icon ? `<span class=\"kic\">${ic(icon, 19)}</span>` : ''}<div class=\"l\">${label}</div><div class=\"n\">${n}</div>${sub ? `<div class=\"s\">${sub}</div>` : ''}</div>`;
 }
+const PRIO = {normale: 'Normale', urgente: 'Urgente', urgentissimo: 'Urgentissimo – chiamato più volte'};
+const prioRank = j => j.priorita === 'urgentissimo' ? 2 : j.priorita === 'urgente' ? 1 : 0;
+const isUrg = j => prioRank(j) > 0;
 function tagsOf(j){
-  return j.priorita === 'urgente' ? `<span class="tag urgent">${ic('zap', 12)}Urgente</span>` : '';
+  return j.priorita === 'urgentissimo' ? `<span class="tag urgent xx">${ic('zap', 12)}Urgentissimo</span>` : j.priorita === 'urgente' ? `<span class="tag urgent">${ic('zap', 12)}Urgente</span>` : '';
 }
 const subline = j => [tipoText(j), j.via].filter(Boolean).map(esc).join(' · ');
 
@@ -1499,7 +1504,7 @@ function viewPanoramica(){
   }
   const al = [];
   if (un.length) al.push(['warn', 'users', `${plural(un.length, 'intervento da assegnare', 'interventi da assegnare')}`, 'Assegna']);
-  const urg = day.filter(j => j.priorita === 'urgente' && !isClosed(stOf(j))).length;
+  const urg = day.filter(j => isUrg(j) && !isClosed(stOf(j))).length;
   const nfd = day.filter(j => stOf(j) === 'non_fatto').length;
   if (canWrite) { const mm = clienti.filter(c => c.tipo === 'condominio').map(c => manutStato(c)).filter(m => m && (m.scaduta || m.vicina));
     if (mm.length) al.push([mm.some(m => m.scaduta) ? 'bad' : 'warn', 'condo', `${plural(mm.length, 'manutenzione condominio', 'manutenzioni condominio')} scadute o entro 30 giorni`, 'Anagrafica', 'anagrafica']); }
@@ -1538,7 +1543,7 @@ const laneAdd = w => (canWrite && isActive(w)) ? `<button class="btn small" data
 function fjob(j){
   return `<div class="fjob st-${stOf(j)}" role="button" tabindex="0" data-act="open-job" data-id="${esc(j.id)}"${canWrite ? ' draggable="true"' : ''}>
     <b>${esc(j.tipo || 'Intervento')}${j.durata ? ' <span>· ' + esc(fmtDur(j.durata)) + '</span>' : ''}</b>
-    <span>${esc(j.cliente)}</span><small>${esc(j.via)}</small>${j.priorita === 'urgente' ? '<em>Urgente</em>' : ''}</div>`;
+    <span>${esc(j.cliente)}</span><small>${esc(j.via)}</small>${j.priorita === 'urgentissimo' ? '<em>URGENTISSIMO</em>' : j.priorita === 'urgente' ? '<em>Urgente</em>' : ''}</div>`;
 }
 function viewFasce(lanesW, day){
   let h = `<div class="fx"><div class="fx-in">
@@ -1879,14 +1884,14 @@ function updateTipoDur(){
   if (s && n) n.textContent = tipoDurText(s.value, f ? Number(f.dataset.olddur) || 0 : 0);
 }
 /* ---- tipo di automazione, foglio "intervento da fare" da stampare, assegnazione rapida dal Finder ---- */
-const AUTOMAZIONI = ['Cancello', 'Cancello scorrevole', 'Cancello ad ante battente', 'Cancello ad ante interrato', 'Sbarra', 'Portone Sezionale', 'Serranda', 'Serranda avvolgibile', 'Serranda Basculante', 'Allarme', 'TV.cc.', 'Portone o serranda'];
+const AUTOMAZIONI = ['Cancello', 'Cancello scorrevole', 'Scorrevoli contrapposti', 'Cancello ad ante battente', 'Cancello ad ante interrato', 'Sbarra', 'Sbarre contrapposte', 'Porta automatica', 'Portone Sezionale', 'Serranda', 'Serranda avvolgibile', 'Serranda Basculante', 'Allarme', 'TV.cc.', 'Portone o serranda'];
 const IMPIANTI_CARICA = AUTOMAZIONI.filter(a => a !== 'Portone o serranda');
 function printJobOrder(j){
   const w = workerMap()[j.workerId];
   const row = (k, v, big) => v ? `<tr><th>${k}</th><td${big ? ' class="big"' : ''}>${esc(v)}</td></tr>` : '';
   const h = `<!doctype html><html lang="it"><head><meta charset="utf-8"><title>Intervento da fare</title><style>@page{size:A4;margin:0}*{box-sizing:border-box}body{margin:0;padding:15mm;font-family:Arial,Helvetica,sans-serif;color:#000;font-size:12pt}.hd{display:flex;justify-content:space-between;align-items:baseline;border-bottom:2pt solid #000;padding-bottom:3mm;margin-bottom:5mm;font-size:14pt}.dt{font-size:20pt;font-weight:700;margin:0 0 1mm}.fa{font-size:14pt;margin:0 0 6mm}.ur{display:inline-block;border:2pt solid #000;padding:0 3mm;margin-left:4mm;font-size:14pt}table{width:100%;border-collapse:collapse;margin-bottom:6mm}tr{border-bottom:.5pt solid #999}th{width:42mm;text-align:left;vertical-align:top;padding:2mm 3mm 2mm 0;font-size:10pt;text-transform:uppercase;letter-spacing:.04em;color:#333}td{padding:2mm 0;white-space:pre-wrap;word-break:break-word}.big{font-size:14pt;font-weight:700}.l{font-size:10pt;text-transform:uppercase;letter-spacing:.05em;margin:0 0 2mm}.box{height:42mm;border:.8pt solid #000;margin-bottom:8mm}.f{display:flex;gap:10mm}.f span{flex:1;border-bottom:.8pt solid #000;padding-bottom:1mm;min-height:9mm}</style></head><body>
     <div class="hd"><b>EFFEBI S.R.L.</b><span>Intervento da fare</span></div>
-    <p class="dt">${esc(j.data ? fmtLong(j.data) : fmtCreated(j.creato || new Date().toISOString()))}${j.priorita === 'urgente' ? '<span class="ur">URGENTE</span>' : ''}</p><p class="fa">${esc(j.data ? fasciaLabel(j) : 'Creato alle ' + (j.creato ? hhmm(j.creato) : hhmm(new Date().toISOString())))}</p>
+    <p class="dt">${esc(j.data ? fmtLong(j.data) : fmtCreated(j.creato || new Date().toISOString()))}${j.priorita === 'urgentissimo' ? '<span class="ur">URGENTISSIMO – CHIAMATO PIÙ VOLTE</span>' : j.priorita === 'urgente' ? '<span class="ur">URGENTE</span>' : ''}</p><p class="fa">${esc(j.data ? fasciaLabel(j) : 'Creato alle ' + (j.creato ? hhmm(j.creato) : hhmm(new Date().toISOString())))}</p>
     <table>${row('Cliente', j.cliente, true)}${row('Amministratore', j.amministratore)}${row('Indirizzo', j.via)}${row('Telefono', j.telefono)}${row('Intervento', tipoText(j))}${row('Impianto', j.automazione)}${row('Lavoratore', w ? w.nome : 'Da assegnare')}${row('Lavoro da fare', j.descrizione)}</table>
     <p class="l">Note e materiale usato</p><div class="box"></div>
     <div class="f"><span>Ore di lavoro:</span><span>Persone:</span><span>Firma del cliente:</span></div></body></html>`;
@@ -1932,7 +1937,7 @@ function jobFormHtml(v, editing){
       <label class="field"><span>Data intervento (facoltativa)</span><input type="date" name="data" id="fData" value="${esc(v.data || '')}"></label>
       <fieldset class="field fascia"><legend class="lbl">Fascia oraria</legend><div class="seg wide">
         ${FASCE.map(([val, lab]) => `<label><input type="radio" name="fascia" value="${val}"${fa === val ? ' checked' : ''}><span>${lab}</span></label>`).join('')}</div></fieldset>
-      <label class="field"><span>Priorità</span><select name="priorita">${opts([['normale', 'Normale'], ['urgente', 'Urgente']], v.priorita || 'normale')}</select></label>
+      <label class="field"><span>Priorità</span><select name="priorita">${opts(Object.entries(PRIO), v.priorita || 'normale')}</select></label>
       <div class="field"><label class="lbl" for="fCliente">Cliente</label>
         <input id="fCliente" name="cliente" list="clientiList" required autocomplete="off" placeholder="Nome o ragione sociale" value="${esc(v.cliente || '')}">
         <datalist id="clientiList">${clientiOptions()}</datalist><small id="cliHint"></small></div>
@@ -2040,7 +2045,7 @@ function saveJob(f, mode){
     cliente: cl ? nomeCliente(cl) : cliente, clienteId: cl ? cl.id : '', via,
     telefono: String(fd.get('telefono')).trim(), maps: String(fd.get('maps')).trim() || genMapsLink(via),
     descrizione: String(fd.get('descrizione')).trim(), tipo: tipoName, durata,
-    priorita: fd.get('priorita') || 'normale',
+    priorita: PRIO[fd.get('priorita')] ? fd.get('priorita') : 'normale',
     automazione: AUTOMAZIONI.includes(String(fd.get('automazione') || '')) ? String(fd.get('automazione')) : '',
     amministratore: ($('#ammWrap') && $('#ammWrap').style.display !== 'none') ? String(fd.get('amministratore') || '').trim().slice(0, 120) : '',
     workerId: old ? (old.workerId || '') : '', stato: old ? old.stato : 'da_fare'
@@ -2903,7 +2908,7 @@ function filtered(){
     (!flt.da || j.data >= flt.da) && (!flt.a || j.data <= flt.a) &&
     (!flt.stato || stOf(j) === flt.stato) &&
     (!flt.w || (flt.w === '_none' ? !wById[j.workerId] : j.workerId === flt.w)) &&
-    (!flt.automazione || (() => { const a = String(j.automazione || '').toLowerCase(), t = String(j.tipo || '').toLowerCase(), d = String(j.descrizione || '').toLowerCase(); const v = flt.automazione; if (v === 'ante') return a.includes('ante'); if (v === 'scorrevole') return a.includes('scorrevole'); if (v === 'serranda') return a.includes('serranda') || a.includes('portone o serranda'); if (v === 'sbarra') return a.includes('sbarra'); if (v === 'portone') return a.includes('portone') || a.includes('portone o serranda'); if (v === 'cancello') return a.includes('cancello'); if (v === 'allarme') return a.includes('allarme') || t.includes('allarme') || d.includes('allarme'); if (v === 'tvcc') return a.includes('tv.cc') || t.includes('tv.cc') || t.includes('tvcc') || d.includes('tv.cc') || d.includes('tvcc'); return true; })()) &&
+    (!flt.automazione || (() => { const a = String(j.automazione || '').toLowerCase(), t = String(j.tipo || '').toLowerCase(), d = String(j.descrizione || '').toLowerCase(); const v = flt.automazione; if (v === 'ante') return a.includes('ante'); if (v === 'scorrevole') return a.includes('scorrevol'); if (v === 'serranda') return a.includes('serranda') || a.includes('portone o serranda'); if (v === 'sbarra') return a.includes('sbarr'); if (v === 'porta') return a.includes('porta automatica'); if (v === 'portone') return a.includes('portone') || a.includes('portone o serranda'); if (v === 'cancello') return a.includes('cancello') || a.includes('scorrevol'); if (v === 'allarme') return a.includes('allarme') || t.includes('allarme') || d.includes('allarme'); if (v === 'tvcc') return a.includes('tv.cc') || t.includes('tv.cc') || t.includes('tvcc') || d.includes('tv.cc') || d.includes('tvcc'); return true; })()) &&
     (!q || [j.cliente, j.via, j.telefono, j.descrizione, j.tipo, j.automazione].join(' ').toLowerCase().includes(q))
   ).sort((a, b) => b.data.localeCompare(a.data) || byOra(a, b));
 }
@@ -2915,7 +2920,7 @@ function mountArchivio(){
       <label class="field"><span>Dal</span><input type="date" data-flt="da" value="${esc(flt.da)}"></label>
       <label class="field"><span>Al</span><input type="date" data-flt="a" value="${esc(flt.a)}"></label>
       <label class="field"><span>Lavoratore</span><select data-flt="w" id="fltW"></select></label>
-      <label class="field"><span>Automazione / impianto</span><select data-flt="automazione">${opts([['', 'Tutti'], ['cancello', 'Cancello (tutti)'], ['ante', 'Cancello ad ante'], ['scorrevole', 'Cancello scorrevole'], ['serranda', 'Serranda'], ['sbarra', 'Sbarra'], ['portone', 'Portone'], ['allarme', 'Allarme'], ['tvcc', 'TV.cc']], flt.automazione)}</select></label>
+      <label class="field"><span>Automazione / impianto</span><select data-flt="automazione">${opts([['', 'Tutti'], ['cancello', 'Cancello (tutti)'], ['ante', 'Cancello ad ante'], ['scorrevole', 'Cancello scorrevole'], ['serranda', 'Serranda'], ['sbarra', 'Sbarra / sbarre'], ['porta', 'Porta automatica'], ['portone', 'Portone'], ['allarme', 'Allarme'], ['tvcc', 'TV.cc']], flt.automazione)}</select></label>
     </div>
     <div class="form-actions"><button class="btn small ghost" data-act="clear-filters">Azzera filtri</button>
       ${usingDb && canWrite ? `<button class="btn small" data-act="load-archive" ${archiveLoading ? 'disabled' : ''}>${ic('search', 16)}${archiveLoading ? 'Caricamento storico…' : 'Cerca anche nello storico'}</button>` : ''}
@@ -3072,7 +3077,7 @@ function cleanJob(o){
   if (!fascia) fascia = fasciaOf({ora: str(o.ora, 5)});
   const dur = Number(o.durata) || 0;
   const j = {id, data, fascia, cliente, via, telefono: str(o.telefono, 40), maps: str(o.maps, 500), descrizione: str(o.descrizione, 2000), tipo: str(o.tipo, 80),
-    priorita: o.priorita === 'urgente' ? 'urgente' : 'normale', durata: dur > 0 && dur <= 1440 ? dur : '',
+    priorita: PRIO[o.priorita] ? o.priorita : 'normale', durata: dur > 0 && dur <= 1440 ? dur : '',
     workerId: str(o.workerId, 60).replace(/[^\w-]/g, ''), stato: STATI[o.stato] ? o.stato : 'da_fare',
     clienteId: str(o.clienteId, 60).replace(/[^\w-]/g, ''), noteFatt: str(o.noteFatt, 160), automazione: AUTOMAZIONI.includes(o.automazione) ? o.automazione : '', amministratore: str(o.amministratore, 120), preFatturaId: str(o.preFatturaId, 60).replace(/[^\w-]/g, '')};
   if (o.importo !== undefined && o.importo !== '' && o.importo !== null && isFinite(Number(o.importo))) j.importo = Math.max(0, round2(o.importo));
@@ -5487,13 +5492,13 @@ function viaOf(j){
 }
 function wRow(j){
   const st = stOf(j), c = cittaOf(j), sv = viaOf(j);
-  return `<button type="button" class="w-row st-${st}" data-act="w-open" data-id="${esc(j.id)}"><span><strong>${esc(j.cliente)}</strong>${sv ? `<small>${esc(sv)}</small>` : ''}${c ? `<small>${esc(c)}</small>` : ''}</span>${distMap[j.id] ? `<span style="text-align:right;flex:none"><b>${distMap[j.id].ap ? '~' : ''}${fkm(distMap[j.id].km)}</b>${distMap[j.id].min != null ? `<small>${distMap[j.id].min} min</small>` : ''}${j.id === distNearest() ? '<small class="stat st-fatto">più vicino</small>' : ''}</span>` : ''}<span class="stat st-${st}">${STATI[st]}</span><span class="w-go" aria-hidden="true">›</span></button>`;
+  return `<button type="button" class="w-row st-${st}" data-act="w-open" data-id="${esc(j.id)}"><span><strong>${esc(j.cliente)}</strong>${isUrg(j) && !isClosed(st) ? ' ' + tagsOf(j) : ''}${sv ? `<small>${esc(sv)}</small>` : ''}${c ? `<small>${esc(c)}</small>` : ''}</span>${distMap[j.id] ? `<span style="text-align:right;flex:none"><b>${distMap[j.id].ap ? '~' : ''}${fkm(distMap[j.id].km)}</b>${distMap[j.id].min != null ? `<small>${distMap[j.id].min} min</small>` : ''}${j.id === distNearest() ? '<small class="stat st-fatto">più vicino</small>' : ''}</span>` : ''}<span class="stat st-${st}">${STATI[st]}</span><span class="w-go" aria-hidden="true">›</span></button>`;
 }
 let wOpenId = null;
 function wSheetHtml(j){
   const st = stOf(j), href = mapsHref(j);
   return `<div class="sheet" role="dialog" aria-modal="true" aria-label="Intervento">
-    <div class="sheet-head"><div><p class="eyebrow">${esc(j.tipo || 'Intervento')}${j.durata ? ' · ' + esc(fmtDur(j.durata)) : ''}</p><h2>${esc(j.cliente)}</h2></div>
+    <div class="sheet-head"><div><p class="eyebrow">${esc(j.tipo || 'Intervento')}${j.durata ? ' · ' + esc(fmtDur(j.durata)) : ''}</p><h2>${esc(j.cliente)}</h2>${isUrg(j) ? `<div style="margin-top:6px">${tagsOf(j)}</div>` : ''}</div>
       <button class="icon-btn" data-act="w-close" aria-label="Chiudi">${ic('x', 20)}</button></div>
     ${wStatoHtml(j, st)}
     ${j.via ? `<p class="line" style="margin:12px 0 0">${ic('pin', 16)}<span>${esc(j.via)}</span></p>` : ''}
