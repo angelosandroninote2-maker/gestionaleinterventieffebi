@@ -5453,10 +5453,6 @@ function wSheetHtml(j){
       ${href ? `<a class="btn" href="${esc(href)}" target="_blank" rel="noopener">${ic('pin', 16)}Mappa</a>` : ''}</div>
     ${usingDb ? docStrip(j, {add: false, del: false}) : ''}
     ${usingDb ? fotoStrip(j, {add: true, del: true}) : ''}
-    ${j.noteLavoratore ? `<div class="wnote-sent"><span class="fl">Nota per l’ufficio · inviata</span><p>${esc(j.noteLavoratore)}</p></div>`
-      : `<label class="field" style="margin:0"><span>Nota per l’ufficio</span><textarea data-wnote="1" data-id="${esc(j.id)}" maxlength="500" placeholder="Es. materiale usato, cliente assente…"></textarea></label>
-      <div class="job-actions"><button class="btn" data-act="w-note" data-id="${esc(j.id)}">${ic('chat', 16)}Invia nota</button></div>
-      <small class="muted">Una volta inviata la nota non si può più modificare.</small>`}
   </div>`;
 }
 function wSheetRender(){
@@ -5485,10 +5481,6 @@ function wCard(j){
     ${wStatoHtml(j, st)}
     ${usingDb ? fotoStrip(j, {add: true, del: true}) : ''}
     ${usingDb ? docStrip(j, {add: false, del: false}) : ''}
-    ${j.noteLavoratore ? `<div class="wnote-sent"><span class="fl">Nota per l’ufficio · inviata</span><p>${esc(j.noteLavoratore)}</p></div>`
-      : `<label class="field" style="margin:0"><span>Nota per l’ufficio</span><textarea data-wnote="1" data-id="${esc(j.id)}" maxlength="500" placeholder="Es. materiale usato, cliente assente…"></textarea></label>
-      <div class="job-actions"><button class="btn" data-act="w-note" data-id="${esc(j.id)}">${ic('chat', 16)}Invia nota</button></div>
-      <small class="muted">Una volta inviata la nota non si può più modificare.</small>`}
   </article>`;
 }
 function viewOggi(){
