@@ -1884,8 +1884,9 @@ function updateTipoDur(){
   if (s && n) n.textContent = tipoDurText(s.value, f ? Number(f.dataset.olddur) || 0 : 0);
 }
 /* ---- tipo di automazione, foglio "intervento da fare" da stampare, assegnazione rapida dal Finder ---- */
-const AUTOMAZIONI = ['Cancello', 'Cancello scorrevole', 'Scorrevoli contrapposti', 'Cancello ad ante battente', 'Cancello ad ante interrato', 'Sbarra', 'Sbarre contrapposte', 'Porta automatica', 'Portone Sezionale', 'Serranda', 'Serranda avvolgibile', 'Serranda Basculante', 'Allarme', 'TV.cc.', 'Portone o serranda'];
-const IMPIANTI_CARICA = AUTOMAZIONI.filter(a => a !== 'Portone o serranda');
+const AUTOMAZIONI = ['Cancello', 'Cancello scorrevole', 'Scorrevoli contrapposti', 'Cancello ad ante battente', 'Cancello ad ante interrato', 'Sbarra', 'Sbarre contrapposte', 'Porta automatica', 'Portone Sezionale', 'Serranda', 'Serranda avvolgibile', 'Serranda Basculante', 'Allarme', 'TV.cc.', 'Portone o serranda'].map(a => a.toUpperCase());
+const autoNorm = v => { const u = String(v || '').trim().toUpperCase(); return AUTOMAZIONI.includes(u) ? u : ''; };
+const IMPIANTI_CARICA = AUTOMAZIONI.filter(a => a !== 'PORTONE O SERRANDA');
 function printJobOrder(j){
   const w = workerMap()[j.workerId];
   const row = (k, v, big) => v ? `<tr><th>${k}</th><td${big ? ' class="big"' : ''}>${esc(v)}</td></tr>` : '';
@@ -2046,7 +2047,7 @@ function saveJob(f, mode){
     telefono: String(fd.get('telefono')).trim(), maps: String(fd.get('maps')).trim() || genMapsLink(via),
     descrizione: String(fd.get('descrizione')).trim(), tipo: tipoName, durata,
     priorita: PRIO[fd.get('priorita')] ? fd.get('priorita') : 'normale',
-    automazione: AUTOMAZIONI.includes(String(fd.get('automazione') || '')) ? String(fd.get('automazione')) : '',
+    automazione: autoNorm(fd.get('automazione')),
     amministratore: ($('#ammWrap') && $('#ammWrap').style.display !== 'none') ? String(fd.get('amministratore') || '').trim().slice(0, 120) : '',
     workerId: old ? (old.workerId || '') : '', stato: old ? old.stato : 'da_fare'
   });
@@ -2920,7 +2921,7 @@ function mountArchivio(){
       <label class="field"><span>Dal</span><input type="date" data-flt="da" value="${esc(flt.da)}"></label>
       <label class="field"><span>Al</span><input type="date" data-flt="a" value="${esc(flt.a)}"></label>
       <label class="field"><span>Lavoratore</span><select data-flt="w" id="fltW"></select></label>
-      <label class="field"><span>Automazione / impianto</span><select data-flt="automazione">${opts([['', 'Tutti'], ['cancello', 'Cancello (tutti)'], ['ante', 'Cancello ad ante'], ['scorrevole', 'Cancello scorrevole'], ['serranda', 'Serranda'], ['sbarra', 'Sbarra / sbarre'], ['porta', 'Porta automatica'], ['portone', 'Portone'], ['allarme', 'Allarme'], ['tvcc', 'TV.cc']], flt.automazione)}</select></label>
+      <label class="field"><span>Automazione / impianto</span><select data-flt="automazione">${opts([['', 'Tutti'], ['cancello', 'CANCELLO (TUTTI)'], ['ante', 'CANCELLO AD ANTE'], ['scorrevole', 'CANCELLO SCORREVOLE'], ['serranda', 'SERRANDA'], ['sbarra', 'SBARRA / SBARRE'], ['porta', 'PORTA AUTOMATICA'], ['portone', 'PORTONE'], ['allarme', 'ALLARME'], ['tvcc', 'TV.CC']], flt.automazione)}</select></label>
     </div>
     <div class="form-actions"><button class="btn small ghost" data-act="clear-filters">Azzera filtri</button>
       ${usingDb && canWrite ? `<button class="btn small" data-act="load-archive" ${archiveLoading ? 'disabled' : ''}>${ic('search', 16)}${archiveLoading ? 'Caricamento storico…' : 'Cerca anche nello storico'}</button>` : ''}
@@ -3079,7 +3080,7 @@ function cleanJob(o){
   const j = {id, data, fascia, cliente, via, telefono: str(o.telefono, 40), maps: str(o.maps, 500), descrizione: str(o.descrizione, 2000), tipo: str(o.tipo, 80),
     priorita: PRIO[o.priorita] ? o.priorita : 'normale', durata: dur > 0 && dur <= 1440 ? dur : '',
     workerId: str(o.workerId, 60).replace(/[^\w-]/g, ''), stato: STATI[o.stato] ? o.stato : 'da_fare',
-    clienteId: str(o.clienteId, 60).replace(/[^\w-]/g, ''), noteFatt: str(o.noteFatt, 160), automazione: AUTOMAZIONI.includes(o.automazione) ? o.automazione : '', amministratore: str(o.amministratore, 120), preFatturaId: str(o.preFatturaId, 60).replace(/[^\w-]/g, '')};
+    clienteId: str(o.clienteId, 60).replace(/[^\w-]/g, ''), noteFatt: str(o.noteFatt, 160), automazione: autoNorm(o.automazione), amministratore: str(o.amministratore, 120), preFatturaId: str(o.preFatturaId, 60).replace(/[^\w-]/g, '')};
   if (o.importo !== undefined && o.importo !== '' && o.importo !== null && isFinite(Number(o.importo))) j.importo = Math.max(0, round2(o.importo));
   return j;
 }
@@ -4609,6 +4610,7 @@ function rebuildJobs(){
   cens = rawJobs.filter(x => x.rip && x.cat === 'c');
   muls = rawJobs.filter(x => x.mul);
   jobs = rawJobs.filter(x => !x.rip && !x.mul).map(j => {
+    if (j.automazione) { const an = autoNorm(j.automazione); if (an && an !== j.automazione) j = Object.assign({}, j, {automazione: an}); }
     const f = fattMap[j.id];
     if (!f) return j;
     const o = Object.assign({}, j);
