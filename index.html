@@ -2880,7 +2880,7 @@ function saveCliente(f){
   const ai = anaPageClientes.findIndex(x => x.id === c.id); if (ai >= 0) anaPageClientes[ai] = c; else anaPageClientes.unshift(c);
   if (clientiCompleti) { const ci = clientiCompleti.findIndex(x => x.id === c.id); if (ci >= 0) clientiCompleti[ci] = c; else clientiCompleti.unshift(c); }
   const cli = clienti.findIndex(x => x.id === c.id); if (cli >= 0) clienti[cli] = c; else clienti.unshift(c);
-  persist('clienti', c);
+  persist('clienti', c); clientiCacheSave();
   const n = linkJobsByName(c);
   jobs.forEach(j => { if (j.clienteId === c.id && j.cliente !== nome) { j.cliente = nome; persist('interventi', j); } });
   const w = clienteWarnings(c);
@@ -2897,7 +2897,8 @@ function deleteCliente(id){
   clienti = clienti.filter(x => x.id !== id);
   if (clientiCompleti) clientiCompleti = clientiCompleti.filter(x => x.id !== id);
   anaPageClientes = anaPageClientes.filter(x => x.id !== id);
-  unpersist('clienti', id);
+  unpersist('clienti', id); clientiCacheSave();
+  if (usingDb && fb) { const ids = (cliDel || []).filter(x => x !== id).concat([id]).slice(-1500); cliDel = ids; fb.setDoc(fb.doc(fb.db, 'impostazioni', 'clientiEliminati'), {id: 'clientiEliminati', ids}).catch(() => {}); }
   jobs.forEach(j => { if (j.clienteId === id) { j.clienteId = ''; persist('interventi', j); } });
   cliFormOpen = false; editingClienteId = null; mounted = null; render();
   toast('Cliente eliminato. Le pre-fatture già create restano invariate.');
@@ -3291,12 +3292,27 @@ function loadAnaPage(){
 function ensureClientiLoaded(){
   if (!usingDb || clientiLoaded || clientiLoading) return;
   clientiLoading = true;
-  fb.getDocs(fb.collection(fb.db, 'clienti')).then(s => {
-    clienti = s.docs.map(d => d.data());
+  const tok = subsTok;
+  (async () => {
+    const c = await cachedLoad('clienti'), m = new Map(); let ts = 0, full = Date.now();
+    if (tok !== subsTok || !usingDb) return;
+    if (c) {
+      Object.values(c.docs).forEach(x => m.set(x.id, x)); ts = c.ts || 0; full = c.full;
+      const s = await fb.getDocs(sinceQ('clienti', ts));
+      s.docs.forEach(d => { const x = plainDoc(d); m.set(x.id, x); ts = Math.max(ts, x.agg || 0); });
+      try { const dd = await fb.getDoc(fb.doc(fb.db, 'impostazioni', 'clientiEliminati')); cliDel = dd.exists() ? (dd.data().ids || []) : []; } catch(e){ cliDel = null; }
+      (cliDel || []).forEach(id => m.delete(id));
+    } else {
+      const s = await fb.getDocs(fb.collection(fb.db, 'clienti'));
+      s.docs.forEach(d => { const x = plainDoc(d); m.set(x.id, x); ts = Math.max(ts, x.agg || 0); });
+    }
+    if (tok !== subsTok || !usingDb) return;
+    clienti = Array.from(m.values());
     clientiCompleti = clienti.slice(); clientiLoaded = true; clientiLoading = false;
+    cliCacheMeta = {ts, full}; cacheSave('clienti', clientiCompleti, ts, full);
     if (view === 'anagrafica') { anaPageClientes = clientiCompleti.slice(); anaPageLoading = false; anaPageHasMore = false; refreshAnagrafica(); }
-    if (['anagrafica','carica','prefat','riparazioni','centraline','muletti'].includes(view)) render();
-  }).catch(e => { clientiLoading = false; fbSnapErr(e); toast('Impossibile caricare l’anagrafica clienti.'); });
+    else render();
+  })().catch(e => { clientiLoading = false; fbSnapErr(e); toast('Impossibile caricare l’anagrafica clienti.'); });
 }
 
 /* ---------- rendering ---------- */
@@ -4718,7 +4734,48 @@ const W_KEYS = ['stato', 'noteLavoratore', 'causale', 'inizioIl', 'esitoIl', 'es
 let srvSnap = {};   // ultima versione dall'archivio dei campi che contano (per confronti e notifiche)
 function takeSnap(s){ srvSnap = {}; s.docs.forEach(d => { const x = d.data(), o = {workerId: x.workerId || ''}; W_KEYS.forEach(k => { o[k] = x[k]; }); srvSnap[d.id] = o; }); }
 let fb = null, authState = 'loading', role = '', myWorkerId = '', me = null, fbErr = '', loginMode = 'login', migHidden = false;
-let unsubs = [], ownUnsub = null, utenti = [], rawJobs = [], fattMap = {};
+let unsubs = [], ownUnsub = null, utenti = [], rawJobs = [], fattMap = {}, subsTok = 0, cliDel = null;
+/* ---- copia locale (IndexedDB) di clienti e fatturazione: all'apertura si scaricano solo i documenti cambiati.
+   Ogni scrittura mette "agg" = ora del server; una volta a settimana si riscarica tutto per sicurezza. ---- */
+const CACHE_FULL_DAYS = 7, CACHE_MARGIN = 5 * 60000;
+let idbP = null;
+function idb(){
+  if (!idbP) idbP = new Promise(res => { try { const r = indexedDB.open('effebi-cache', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => res(null); } catch(e){ res(null); } });
+  return idbP;
+}
+async function cacheGet(k){ const d = await idb(); if (!d) return null; return new Promise(res => { try { const q = d.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => res(q.result || null); q.onerror = () => res(null); } catch(e){ res(null); } }); }
+async function cacheSet(k, v){ const d = await idb(); if (!d) return; try { d.transaction('kv', 'readwrite').objectStore('kv').put(v, k); } catch(e){} }
+const cacheKey = n => n + '|' + FIREBASE_CONFIG.projectId;
+const aggMs = x => x && typeof x.toMillis === 'function' ? x.toMillis() : (typeof x === 'number' ? x : 0);
+const plainDoc = d => { const o = d.data(); if (o.agg !== undefined) o.agg = aggMs(o.agg); return o; };
+async function cachedLoad(name){
+  const c = await cacheGet(cacheKey(name));
+  return c && c.docs && c.full && Date.now() - c.full < CACHE_FULL_DAYS * 864e5 ? c : null;
+}
+function cacheSave(name, list, ts, full){ const o = {}; list.forEach(x => { if (x && x.id) o[x.id] = x; }); cacheSet(cacheKey(name), {docs: o, ts, full}); }
+const sinceQ = (name, ts) => fb.query(fb.collection(fb.db, name), fb.where('agg', '>', fb.Timestamp.fromMillis(Math.max(0, ts - CACHE_MARGIN))));
+let cliCacheMeta = null, cliSaveT = null;
+function clientiCacheSave(){ if (!cliCacheMeta || !clientiCompleti) return; clearTimeout(cliSaveT); cliSaveT = setTimeout(() => cacheSave('clienti', clientiCompleti, cliCacheMeta.ts, cliCacheMeta.full), 1500); }
+async function fattLoad(tok){
+  const c = await cachedLoad('fatturazione'); if (tok !== subsTok || !usingDb) return;
+  const m = new Map(); let ts = 0, full = Date.now();
+  if (c) { Object.values(c.docs).forEach(x => m.set(x.id, x)); ts = c.ts || 0; full = c.full; }
+  else {
+    let s = null; try { s = await fb.getDocs(fb.collection(fb.db, 'fatturazione')); } catch(e){ fbSnapErr(e); }
+    if (!s || tok !== subsTok || !usingDb) return;
+    s.docs.forEach(d => { const x = plainDoc(d); m.set(x.id, x); ts = Math.max(ts, x.agg || 0); });
+  }
+  const apply = () => { fattMap = {}; m.forEach((x, k) => { if (!x.eliminato) fattMap[k] = x; }); rebuildJobs(); if (fetchMissingBillable) fetchMissingBillable(); render(); };
+  apply(); cacheSave('fatturazione', m, ts, full);
+  let saveT = null;
+  unsubs.push(fb.onSnapshot(sinceQ('fatturazione', ts), s => {
+    if (tok !== subsTok) return;
+    let ch = false;
+    s.docs.forEach(d => { const x = plainDoc(d); const o = m.get(x.id); if (!o || JSON.stringify(o) !== JSON.stringify(x)) { m.set(x.id, x); ch = true; } if (x.agg) ts = Math.max(ts, x.agg); });
+    if (!ch) return;
+    apply(); clearTimeout(saveT); saveT = setTimeout(() => cacheSave('fatturazione', m, ts, full), 2000);
+  }, fbSnapErr));
+}
 let archiveJobs = new Map(), archiveRanges = new Set(), archiveLoading = false, archiveLoadedCount = 0;
 let fetchMissingBillable = () => {};
 
@@ -4736,15 +4793,16 @@ async function fbWrite(coll, item){
     const base = cleanObj(item), fat = {};
     FATT_KEYS.forEach(k => { if (k in base) { fat[k] = base[k]; delete base[k]; } });
     await setDoc(doc(fb.db, 'interventi', item.id), base);
-    if (Object.keys(fat).length) await setDoc(doc(fb.db, 'fatturazione', item.id), Object.assign({id: item.id}, fat));
+    if (Object.keys(fat).length) await setDoc(doc(fb.db, 'fatturazione', item.id), Object.assign({id: item.id}, fat, {agg: fb.serverTimestamp()}));
     return;
   }
-  await setDoc(doc(fb.db, coll, item.id), cleanObj(item));
+  const o = cleanObj(item); if (coll === 'clienti') o.agg = fb.serverTimestamp();
+  await setDoc(doc(fb.db, coll, item.id), o);
 }
 async function fbRemove(coll, id){
   await fb.deleteDoc(fb.doc(fb.db, coll, id));
   if (coll === 'interventi') {
-    await fb.deleteDoc(fb.doc(fb.db, 'fatturazione', id));
+    await fb.setDoc(fb.doc(fb.db, 'fatturazione', id), {id, eliminato: true, agg: fb.serverTimestamp()});
   }
 }
 async function purgeFoto(jobId){
@@ -4802,6 +4860,7 @@ function activateLazySection(v){
 }
 
 function stopSubs(){
+  subsTok++; cliCacheMeta = null;
   stopLazySections([], true);
   fotoStop(); srvSnap = {}; notifToggle(false);
   unsubs.forEach(u => { try { u(); } catch(e){} });
@@ -4818,7 +4877,7 @@ function fbSnapErr(err){
 }
 function startSubs(){
   stopSubs();
-  usingDb = true;
+  usingDb = true; const tok = ++subsTok;
   canWrite = role === 'titolare' || role === 'ufficio';
   const col = n => fb.collection(fb.db, n);
   const sync = s => setSync(s.metadata && s.metadata.fromCache && !navigator.onLine ? 'local' : 'online');
@@ -4868,11 +4927,11 @@ function startSubs(){
     sub(fb.query(col('interventi'), fb.where('rip', '==', true)), s => {
       jobSets.riparazioni = new Map(s.docs.map(d => [d.id, d.data()])); mergeOfficeJobs(s);
     });
-    list('fatturazione', s => { fattMap = {}; s.docs.forEach(d => { fattMap[d.id] = d.data(); }); rebuildJobs(); fetchMissingBillable(); });
+    fattLoad(tok);
     // Materiale usato ancora aperto: pochi documenti, serve a scheda intervento, PDF e pre-fatture.
     sectionSub('mag-materiali', fb.query(col('materiali'), fb.where('aperto', '==', true)), s => { materiali = s.docs.map(d => d.data()); matLoaded = true; if (materiali.some(m => m.pend)) ensureMagData(); setTimeout(matConsolida, 0); render(); });
     // Condomini: pochi documenti, servono all'avviso manutenzioni della Panoramica.
-    fb.getDocs(fb.query(col('clienti'), fb.where('tipo', '==', 'condominio'))).then(sn => { if (clientiLoaded) return; const ids = new Set(clienti.map(c => c.id)); sn.docs.forEach(d => { const c = d.data(); if (!ids.has(c.id)) clienti.push(c); }); render(); }).catch(() => {});
+    cachedLoad('clienti').then(c => { if (tok !== subsTok || !usingDb) return; if (c) { ensureClientiLoaded(); return; } fb.getDocs(fb.query(col('clienti'), fb.where('tipo', '==', 'condominio'))).then(sn => { if (clientiLoaded) return; const ids = new Set(clienti.map(c => c.id)); sn.docs.forEach(d => { const c = d.data(); if (!ids.has(c.id)) clienti.push(c); }); render(); }).catch(() => {}); });
     list('tipi', s => { tipi = s.docs.map(d => d.data()); });
     // Dati azienda: un solo documento caricato all'avvio.
     fb.getDoc(fb.doc(fb.db, 'impostazioni', 'azienda')).then(s => { azienda = s.exists() ? s.data() : {}; render(); }).catch(fbSnapErr);
