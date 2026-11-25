@@ -13,7 +13,12 @@
 <link rel="apple-touch-icon" href="./apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com/">
 <link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin="">
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet"></noscript>
+<link rel="preconnect" href="https://www.gstatic.com/" crossorigin="">
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js" crossorigin="">
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js" crossorigin="">
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js" crossorigin="">
 <style>
 :root{
   --bg:#F3F5F8; --surface:#FFFFFF; --surface2:#F7F8FA; --ink:#172337; --muted:#647084; --line:#E1E6ED;
@@ -1089,8 +1094,6 @@ const initials = n => String(n).trim().split(/\s+/).slice(0, 2).map(w => w.charA
 const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
 const fmtDur = m => { m = Number(m) || 0; if (!m) return ''; const h = Math.floor(m / 60), r = m % 60; return (h ? h + ' h' : '') + (r ? (h ? ' ' : '') + r + ' min' : ''); };
 const toMin = t => { const p = String(t).split(':').map(Number); return p[0] * 60 + (p[1] || 0); };
-const fmtMin = m => pad(Math.floor(m / 60)) + ':' + pad(m % 60);
-const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
 const STATI = {da_fare:'Da fare', in_corso:'In corso', fatto:'Fatto', non_fatto:'Non fatto'};
 const NEXT = {da_fare:'in_corso', in_corso:'fatto', fatto:'da_fare', non_fatto:'da_fare'};
 const isClosed = st => st === 'fatto' || st === 'non_fatto';
@@ -1140,9 +1143,10 @@ let assMode = (window.innerWidth >= 900) ? 'fasce' : 'elenco';
 let date = todayISO();
 let datePicked = false;
 let canWrite = true;
-let usingDb = false, dbh = null;
+let usingDb = false;
 let detailId = null;
-let anaTab = 'tutti', anaQ = '', anaCity = '', anaLim = 50, anaOpen = null, anaNewTipo = 'privato', cliFormOpen = false, editingClienteId = null, cliPrefill = null;
+const ANA_SHOW = 100;
+let anaTab = 'tutti', anaQ = '', anaCity = '', anaLim = ANA_SHOW, anaOpen = null, anaNewTipo = 'privato', cliFormOpen = false, editingClienteId = null, cliPrefill = null;
 let anaPageClientes = [], anaPageCursor = null, anaPageLoading = false, anaPageHasMore = true, anaPageError = '';
 const ANA_PAGE_SIZE = 50;
 let clientiLoaded = false, clientiLoading = false, clientiCompleti = null;
@@ -1267,7 +1271,9 @@ function parseText(raw){
 const CITIES = ['Agrigento','Alessandria','Ancona','Aosta','Arezzo','Ascoli Piceno','Asti','Avellino','Bari','Barletta','Belluno','Benevento','Bergamo','Biella','Bologna','Bolzano','Brescia','Brindisi','Busto Arsizio','Cagliari','Caltanissetta','Campobasso','Caserta','Catania','Catanzaro','Cesena','Chieti','Cinisello Balsamo','Como','Cosenza','Cremona','Crotone','Cuneo','Enna','Ferrara','Firenze','Foggia','Forlì','Frosinone','Genova','Gorizia','Grosseto','Imperia','Isernia','L\'Aquila','La Spezia','Latina','Lecce','Lecco','Legnano','Livorno','Lodi','Lucca','Macerata','Mantova','Massa','Matera','Messina','Milano','Modena','Monza','Napoli','Novara','Nuoro','Oristano','Padova','Palermo','Parma','Pavia','Perugia','Pesaro','Pescara','Piacenza','Pisa','Pistoia','Pordenone','Potenza','Prato','Ragusa','Ravenna','Reggio Calabria','Reggio Emilia','Rho','Rieti','Rimini','Roma','Rovigo','Salerno','Sassari','Savona','Sesto San Giovanni','Siena','Siracusa','Sondrio','Taranto','Teramo','Terni','Torino','Trapani','Trento','Treviso','Trieste','Udine','Varese','Venezia','Verbania','Vercelli','Verona','Vibo Valentia','Vicenza','Viterbo'];
 const STREET_TYPES = ['Via','Viale','Piazza','Piazzale','Corso','Largo','Vicolo','Strada','Contrada','Località','Lungomare','Lungotevere','Borgo','Salita','Traversa','Circonvallazione'];
 const normChar = c => { const n = c.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); return n.length === 1 ? n : (c.toLowerCase().charAt(0) || c); };
-const norm = s => String(s == null ? '' : s).split('').map(normChar).join('');
+const normCache = new Map();
+const norm = s => { s = String(s == null ? '' : s); if (/^[\x00-\x7f]*$/.test(s)) return s.toLowerCase();
+  let o = ''; for (let i = 0; i < s.length; i++) { const c = s[i]; let n = normCache.get(c); if (n === undefined) { n = normChar(c); normCache.set(c, n); } o += n; } return o; };
 const genMapsLink = a => { a = String(a || '').trim(); return a ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(a) : ''; };
 let mapsAuto = true, mapsTimer = null, acItems = [], acActive = -1;
 let addrHook = null, acRemote = [], acRemoteFor = '', pickedVia = '';
@@ -1403,40 +1409,10 @@ function acPick(i){
 
 /* ---------- salvataggio ---------- */
 const LS = 'gestionale-interventi-v1';
-function loadLocal(){
-  try { const r = localStorage.getItem(LS); if (r) { const o = JSON.parse(r); workers = o.workers || []; jobs = o.jobs || []; tipi = o.tipi || []; clienti = o.clienti || []; prefatture = o.prefatture || []; azienda = o.azienda || {}; } } catch(e){}
-}
-function saveLocal(){ try { localStorage.setItem(LS, JSON.stringify({workers, jobs, tipi, clienti, prefatture, azienda})); } catch(e){} }
 const chains = new Map();
 function enqueue(key, fn){
   const p = (chains.get(key) || Promise.resolve()).then(fn).catch(() => toast('Salvataggio non riuscito. Riprova.'));
   chains.set(key, p);
-}
-function startDb(db){
-  usingDb = true; dbh = db;
-  setSync('online');
-  db.collection('lavoratori').onSnapshot(s => { workers = s.docs.map(d => d.data()); render(); }, () => setSync('local'));
-  db.collection('clienti').onSnapshot(s => { clienti = s.docs.map(d => d.data()); render(); }, () => setSync('local'));
-  db.collection('prefatture').onSnapshot(s => { prefatture = s.docs.map(d => d.data()); render(); }, () => setSync('local'));
-  db.collection('impostazioni').onSnapshot(s => { azienda = s.docs.map(d => d.data()).find(x => x.id === 'azienda') || {}; render(); }, () => setSync('local'));
-  db.collection('tipi').onSnapshot(s => { tipi = s.docs.map(d => d.data()); render(); }, () => setSync('local'));
-  db.collection('interventi').onSnapshot(s => { jobs = s.docs.map(d => d.data()); pickInitialDate(); render(); }, () => setSync('local'));
-  (async () => {
-    try {
-      const u = await window.claude.use('user');
-      if (u && typeof u.can === 'function') { const c = await u.can('data.write'); if (c === false) { canWrite = false; render(); } }
-    } catch(e){}
-  })();
-}
-async function bootDb(attempt){
-  try {
-    if (window.claude && typeof window.claude.use === 'function') {
-      const db = await window.claude.use('db');
-      if (db) { startDb(db); return; }
-      setSync('local'); return;
-    }
-  } catch(e){}
-  if (attempt < 8) setTimeout(() => bootDb(attempt + 1), 500); else setSync('local');
 }
 
 /* ---------- tema ---------- */
@@ -1539,25 +1515,32 @@ function renderMenu(){
   const day = dayJobs(date);
   const un = unassignedOf(day, wById).length;
   const nb = canWrite ? billable().length : 0;
+  const nAbb = canWrite ? daAbbinare().length : 0, nRip = rips.filter(r => ripState(r) === 'ricevuto').length, nCen = cens.filter(r => ripState(r) === 'ricevuto').length;
   const items = [
     ['panoramica', 'Panoramica', 'dashboard', ''],
     ['carica', 'Carica lavori', 'clipadd', '', true],
     ['assegna', 'Assegna', 'calcheck', un ? `<span class="pill warn" title="Da assegnare">${un}</span>` : ''],
     ['lavoratori', 'Lavoratori', 'hardhat', ''],
     ['anagrafica', 'Anagrafica', 'contactbook', '', true],
-    ['magazzino', 'Magazzino', 'warehouse', daAbbinare().length ? `<span class="pill warn" title="Codici da abbinare">${daAbbinare().length}</span>` : '', true],
+    ['magazzino', 'Magazzino', 'warehouse', nAbb ? `<span class="pill warn" title="Codici da abbinare">${nAbb}</span>` : '', true],
     ['prefat', 'Pre-fatturazione', 'receipt', nb ? `<span class="pill warn" title="Interventi da pre-fatturare">${nb}</span>` : '', true],
     ['utenti', 'Utenti', 'shielduser', (role === 'titolare' && pendingUsers()) ? `<span class="pill warn" title="In attesa di abilitazione">${pendingUsers()}</span>` : '', true],
     ['muletti', 'Muletti', 'forklift', '', true],
-    ['riparazioni', 'Motori', 'engine', rips.filter(r => ripState(r) === 'ricevuto').length ? `<span class="pill warn" title="Motori da riparare">${rips.filter(r => ripState(r) === 'ricevuto').length}</span>` : '', true],
-    ['centraline', 'Centraline', 'chip', cens.filter(r => ripState(r) === 'ricevuto').length ? `<span class="pill warn" title="Centraline da riparare">${cens.filter(r => ripState(r) === 'ricevuto').length}</span>` : '', true],
+    ['riparazioni', 'Motori', 'engine', nRip ? `<span class="pill warn" title="Motori da riparare">${nRip}</span>` : '', true],
+    ['centraline', 'Centraline', 'chip', nCen ? `<span class="pill warn" title="Centraline da riparare">${nCen}</span>` : '', true],
     ['manuali', 'Manuali', 'bookopen', '', true],
     ['archivio', 'Finder', 'search', '']
   ];
-  $('#menu').innerHTML = items.filter(i => (canWrite || !i[4]) && (i[0] !== 'da_programmare' || canWrite) && (i[0] !== 'utenti' || role === 'titolare')).map(i =>
-    `<button role="tab" data-act="go" data-view="${i[0]}" aria-selected="${view === i[0]}">${ic(i[2], 18)}${i[1]}${i[3]}</button>`).join('');
+  setMenu(items.filter(i => (canWrite || !i[4]) && (i[0] !== 'da_programmare' || canWrite) && (i[0] !== 'utenti' || role === 'titolare')).map(i =>
+    `<button role="tab" data-act="go" data-view="${i[0]}" aria-selected="${view === i[0]}">${ic(i[2], 18)}${i[1]}${i[3]}</button>`).join(''));
 }
+let menuHtml = null;
+function setMenu(h){ const m = $('#menu'); if (!m || (h === menuHtml && m.childElementCount === (h.match(/<button /g) || []).length)) return; menuHtml = h; m.innerHTML = h; }
+let renderRaf = 0;
+/* per i dati che arrivano dall'archivio: più aggiornamenti ravvicinati = un solo ridisegno */
+function renderSoon(){ if (!renderRaf) renderRaf = requestAnimationFrame(() => { renderRaf = 0; render(); }); }
 function render(){
+  if (renderRaf) { cancelAnimationFrame(renderRaf); renderRaf = 0; }
   if (gateRender()) return;
   if (!canWrite && (view === 'carica' || view === 'anagrafica' || view === 'prefat' || view === 'magazzino' || view === 'manuali' || view === 'riparazioni' || view === 'centraline' || view === 'muletti')) view = 'panoramica';
   if (view === 'utenti' && role !== 'titolare') view = 'panoramica';
@@ -2087,7 +2070,7 @@ function jobFormHtml(v, editing){
       <label class="field"><span>Priorità</span><select name="priorita">${opts(Object.entries(PRIO), v.priorita || 'normale')}</select></label>
       <div class="field"><label class="lbl" for="fCliente">Cliente</label>
         <input id="fCliente" name="cliente" list="clientiList" required autocomplete="off" placeholder="Nome o ragione sociale" value="${esc(v.cliente || '')}">
-        <datalist id="clientiList">${clientiOptions()}</datalist><small id="cliHint"></small></div>
+        <datalist id="clientiList"></datalist><small id="cliHint"></small></div>
       <label class="field"><span>Telefono cliente (più numeri: separali con " / ")</span><input type="tel" inputmode="tel" name="telefono" placeholder="Es. 333 1234567 / 0736 41670" value="${esc(v.telefono || '')}"></label>
       <div class="field"><label class="lbl" for="fTipo">Tipo di intervento</label>
         <select id="fTipo" name="tipo" required>${tipoOptions(v.tipo || '')}</select>
@@ -2153,8 +2136,11 @@ function refreshCarica(){
       ? `<p class="muted" style="margin-bottom:12px">${plural(day.length, 'intervento', 'interventi')}, ${un} da assegnare.</p><div class="rows">${day.map(j => jobRow(j, ctx, false)).join('')}</div>`
       : '<p class="muted">Nessun intervento caricato per questa data.</p>'}`;
   refreshTipiUi(false);
-  const dl = $('#clientiList'); if (dl) dl.innerHTML = clientiOptions();
+  const dl = $('#clientiList'); if (dl && dl._h !== undefined) fillClientiList();
 }
+/* l'elenco dei clienti per il completamento si prepara quando serve (al tocco sul campo Cliente), non a ogni ridisegno */
+function fillClientiList(){ const dl = $('#clientiList'); if (!dl) return; const h = clientiOptions(); if (dl._h !== h) { dl.innerHTML = h; dl._h = h; } }
+document.addEventListener('focusin', e => { if (e.target && e.target.id === 'fCliente') fillClientiList(); });
 function smartFill(){
   const ta = $('#smartText'), f = $('#jobForm');
   if (!ta || !f) return;
@@ -2350,9 +2336,13 @@ function linkJobsByName(c){
   jobs.forEach(j => { if (!j.clienteId && norm(j.cliente) === k) { j.clienteId = c.id; persist('interventi', j); n++; } });
   return n;
 }
+let cliOptMemo = null;
 function clientiOptions(){
-  return clienti.slice().sort((a, b) => nomeCliente(a).localeCompare(nomeCliente(b)))
+  const sig = clienti.map(c => nomeCliente(c) + '\u0001' + tipoLabel(c)).join('\u0002');
+  if (cliOptMemo && cliOptMemo.sig === sig) return cliOptMemo.html;
+  const html = clienti.slice().sort((a, b) => cliColl.compare(nomeCliente(a), nomeCliente(b)))
     .map(c => `<option value="${esc(nomeCliente(c))}" label="${tipoLabel(c)}"></option>`).join('');
+  cliOptMemo = {sig, html}; return html;
 }
 function updateClienteLink(autofill){
   const inp = $('#fCliente'), hint = $('#cliHint'), f = $('#jobForm');
@@ -2844,6 +2834,12 @@ function anaRow(c){
     ${n1 ? `<a class="ana-call" href="tel:${esc(digits(n1))}" aria-label="Chiama ${esc(nomeCliente(c))}">${ic('phone', 17)}</a>` : '<span class="ana-call off" aria-hidden="true"></span>'}</div>
     ${open ? `<div class="ana-det">${cliCard(c)}</div>` : ''}</div>`;
 }
+let cliCollI = null;
+const cliColl = {compare: (a, b) => (cliCollI || (cliCollI = new Intl.Collator('it'))).compare(a, b)};
+const hayC = new WeakMap(), nameC = new WeakMap();
+function cliName(c){ let n = nameC.get(c); if (n === undefined) { n = nomeCliente(c); nameC.set(c, n); } return n; }
+function cliHay(c){ let h = hayC.get(c); if (h === undefined) { h = norm([nomeCliente(c), c.piva, c.cf, c.telefono, c.email, c.citta, c.via, c.ammNome, c.refNome, c.referente].join(' ')); hayC.set(c, h); } return h; }
+let anaT = null;
 function refreshAnagrafica(){
   const source = usingDb ? anaPageClientes : clienti;
   const cnt = {tutti: source.length, privato: 0, azienda: 0, condominio: 0};
@@ -2859,12 +2855,14 @@ function refreshAnagrafica(){
     sel.innerHTML = `<option value="">Città: tutte</option>` + cities.map(k => `<option value="${esc(k)}"${k === anaCity ? ' selected' : ''}>${esc(k)} (${m[k]})</option>`).join('');
   }
   const q = norm(anaQ.trim());
-  const list = base.filter(c => (!anaCity || (c.citta || '').trim() === anaCity) &&
-    (!q || norm([nomeCliente(c), c.piva, c.cf, c.telefono, c.email, c.citta, c.via, c.ammNome, c.refNome, c.referente].join(' ')).includes(q)))
-    .sort((x, y) => nomeCliente(x).localeCompare(nomeCliente(y)));
+  const list = base.filter(c => (!anaCity || (c.citta || '').trim() === anaCity) && (!q || cliHay(c).includes(q)))
+    .sort((x, y) => cliColl.compare(cliName(x), cliName(y)));
   const el = $('#anaList'); if (!el) return;
+  if (anaOpen && list.findIndex(c => c.id === anaOpen) >= anaLim) anaLim = list.findIndex(c => c.id === anaOpen) + 1;
+  const shown = list.length > anaLim ? list.slice(0, anaLim) : list;
   el.innerHTML = list.length
-    ? `<div class="ana-list">${list.map(anaRow).join('')}</div>
+    ? `<div class="ana-list">${shown.map(anaRow).join('')}</div>
+       ${shown.length < list.length ? `<div class="ana-more">Mostrati ${f(shown.length)} di ${f(list.length)} <button class="btn small" data-act="ana-show">Mostra altri ${f(Math.min(ANA_SHOW, list.length - shown.length))}</button></div>` : ''}
        <div class="ana-more">${anaPageLoading ? 'Caricamento…' : anaPageError ? esc(anaPageError) : `${f(anaPageClientes.length)} clienti caricati${anaPageHasMore ? ` <button class="btn small" data-act="ana-more">Carica altri 50</button>` : ' · Fine elenco'}`}</div>`
     : `<div class="empty"><h3>${anaPageLoading ? 'Caricamento clienti…' : source.length && (q || anaCity) ? 'Nessun risultato nella pagina caricata' : (anaTab === 'azienda' ? 'Nessuna azienda nella pagina caricata' : anaTab === 'condominio' ? 'Nessun condominio nella pagina caricata' : anaTab === 'privato' ? 'Nessun cliente privato nella pagina caricata' : 'Nessun cliente nella pagina caricata')}</h3>
         <p>${anaPageHasMore && (q || anaCity) ? 'La ricerca e i filtri si applicano ai clienti caricati. Carica altre pagine per ampliare i risultati.' : canWrite ? 'Usa il pulsante in alto per aggiungerne uno.' : 'Non ci sono clienti in questa pagina.'}</p>${anaPageHasMore ? `<button class="btn small" data-act="ana-more">Carica altri 50</button>` : ''}</div>`;
@@ -3049,6 +3047,10 @@ function pfDelete(id){
 }
 
 /* ---------- Archivio ---------- */
+const hayJ = new WeakMap();
+function jobHay(j){ let h = hayJ.get(j); if (h === undefined) { h = [j.cliente, j.via, j.telefono, j.descrizione, j.tipo, j.automazione].join(' ').toLowerCase(); hayJ.set(j, h); } return h; }
+let fltT = null;
+function refreshArchivioSoon(){ clearTimeout(fltT); fltT = setTimeout(() => { if (view === 'archivio') refreshArchivio(); }, 120); }
 function filtered(){
   const wById = workerMap();
   const q = flt.q.trim().toLowerCase();
@@ -3057,8 +3059,8 @@ function filtered(){
     (!flt.stato || stOf(j) === flt.stato) &&
     (!flt.w || (flt.w === '_none' ? !wById[j.workerId] : j.workerId === flt.w)) &&
     (!flt.automazione || (() => { const a = String(j.automazione || '').toLowerCase(), t = String(j.tipo || '').toLowerCase(), d = String(j.descrizione || '').toLowerCase(); const v = flt.automazione; if (v === 'ante') return a.includes('ante'); if (v === 'scorrevole') return a.includes('scorrevol'); if (v === 'serranda') return a.includes('serranda') || a.includes('portone o serranda'); if (v === 'sbarra') return a.includes('sbarr'); if (v === 'porta') return a.includes('porta automatica'); if (v === 'portone') return a.includes('portone') || a.includes('portone o serranda'); if (v === 'cancello') return a.includes('cancello') || a.includes('scorrevol'); if (v === 'allarme') return a.includes('allarme') || t.includes('allarme') || d.includes('allarme'); if (v === 'tvcc') return a.includes('tv.cc') || t.includes('tv.cc') || t.includes('tvcc') || d.includes('tv.cc') || d.includes('tvcc'); return true; })()) &&
-    (!q || [j.cliente, j.via, j.telefono, j.descrizione, j.tipo, j.automazione].join(' ').toLowerCase().includes(q))
-  ).sort((a, b) => b.data.localeCompare(a.data) || byOra(a, b));
+    (!q || jobHay(j).includes(q))
+  ).sort((a, b) => { const x = a.data || '', y = b.data || ''; return x < y ? 1 : x > y ? -1 : byOra(a, b); });
 }
 function mountArchivio(){
   $('#app').innerHTML = `<section class="panel"><h2 class="page-title">Finder interventi</h2>
@@ -3268,7 +3270,7 @@ function cleanWorker(o){
 
 /* Anagrafica: paginazione Firestore reale, 50 documenti per richiesta. */
 function resetAnaPages(){
-  anaPageClientes = []; anaPageCursor = null; anaPageLoading = false; anaPageHasMore = false; anaPageError = ''; anaLim = 50;
+  anaPageClientes = []; anaPageCursor = null; anaPageLoading = false; anaPageHasMore = false; anaPageError = ''; anaLim = ANA_SHOW;
   if (usingDb) {
     if (clientiLoaded && clientiCompleti) { anaPageClientes = clientiCompleti.slice(); refreshAnagrafica(); }
     else { anaPageLoading = true; ensureClientiLoaded(); }
@@ -3311,7 +3313,7 @@ function ensureClientiLoaded(){
     clientiCompleti = clienti.slice(); clientiLoaded = true; clientiLoading = false;
     cliCacheMeta = {ts, full}; cacheSave('clienti', clientiCompleti, ts, full);
     if (view === 'anagrafica') { anaPageClientes = clientiCompleti.slice(); anaPageLoading = false; anaPageHasMore = false; refreshAnagrafica(); }
-    else render();
+    else renderSoon();
   })().catch(e => { clientiLoading = false; fbSnapErr(e); toast('Impossibile caricare l’anagrafica clienti.'); });
 }
 
@@ -3777,14 +3779,6 @@ function catResHtml(){
       ${catLoad === L.c ? `<span class="catload"><input type="number" id="catQta" min="1" max="9999" value="1" inputmode="numeric" aria-label="Pezzi"><button class="btn small primary" data-act="cat-ok" data-code="${esc(L.c)}">Carica</button><button class="btn small ghost" data-act="cat-x">×</button></span>`
         : `<button class="btn small" data-act="cat-load" data-code="${esc(L.c)}">${ic('plus', 14)}Carica pezzi</button>`}</div></div>`; }).join('') + `</div>${l.length >= 60 ? '<p class="muted">Mostro i primi 60: affina la ricerca.</p>' : ''}`;
 }
-function catalogoHtml(){
-  return `<section class="panel"><div class="split"><h2 class="panel-title" style="margin:0">Listini Somfy / BFT</h2>
-      ${role === 'titolare' ? `<label class="btn">${ic('download', 16)}Importa Excel<input type="file" id="impFile" accept=".xlsx,.csv" hidden></label>` : ''}</div>
-      <div id="catInfo" style="margin-top:10px">${catInfoHtml()}</div></section>
-    <section class="panel"><label class="field" style="margin:0"><span>Cerca nel catalogo</span><input type="search" id="catQ" value="${esc(catQ)}" placeholder="Codice o descrizione"></label>
-      <p class="muted" style="margin:8px 0 0;font-size:14px">Per i pezzi senza codice a barre: cercali qui e usa «Carica pezzi».</p>
-      <div id="catRes" style="margin-top:12px">${catResHtml()}</div></section>`;
-}
 function catCarica(code, qtaRaw){
   const L = listMap[code], qta = Math.max(1, Math.min(9999, parseInt(qtaRaw, 10) || 1)); if (!L) return;
   let a = articoli.find(x => normCode(x.codice) === code);
@@ -3804,11 +3798,6 @@ function artListinoHtml(a){
 }
 
 /* ---------- Fase 3: materiale usato negli interventi ---------- */
-function buildCatW(){
-  catArr = []; const seen = {};
-  catDocs.filter(d => Array.isArray(d.items)).sort((a, b) => (a.fonte === b.fonte ? (a.parte || 0) - (b.parte || 0) : a.fonte === 'prodotti' ? -1 : 1))
-    .forEach(d => d.items.forEach(it => { const c = normCode(it.c); if (c && !seen[c]) { seen[c] = 1; catArr.push({c, d: String(it.d || ''), m: it.m || marcaOf(c), f: d.fonte}); } }));
-}
 async function writeCatalogo(f, items){
   const CH = 1500, parts = Math.ceil(items.length / CH);
   for (let i = 0; i < parts; i++) await fb.setDoc(fb.doc(fb.db, 'catalogo', f + '-' + (i + 1)), {id: f + '-' + (i + 1), fonte: f, parte: i + 1, items: items.slice(i * CH, (i + 1) * CH)});
@@ -3846,15 +3835,6 @@ function matDaCodice(raw){   // codice letto dalla fotocamera -> voce
 }
 const matSort = l => l.slice().sort((a, b) => String(a.creato) < String(b.creato) ? -1 : 1);
 const matOf = jobId => (role === 'lavoratore' ? matW : matD)[jobId] || [];
-function matSubWorker(){
-  if (!usingDb || role !== 'lavoratore' || !myWorkerId) return;
-  const key = myWorkerId + '|' + date; if (key === matKeyW) return;
-  if (matUnsubW) { try { matUnsubW(); } catch(e){} }
-  matKeyW = key; matW = {};
-  matUnsubW = fb.onSnapshot(fb.query(fb.collection(fb.db, 'materiali'), fb.where('workerId', '==', myWorkerId), fb.where('giorno', '==', date)), snap => {
-    const m = {}; snap.docs.forEach(d => { const x = d.data(); (m[x.jobId] = m[x.jobId] || []).push(x); });
-    Object.keys(m).forEach(k => { m[k] = matSort(m[k]); }); matW = m; render(); }, fbSnapErr);
-}
 function matSubDetail(id){
   id = (id && usingDb && canWrite) ? id : '';
   if (id === matKeyD) return;
@@ -3888,13 +3868,6 @@ function matSetQta(m, v){
   const patch = {qta: v, pend: true, rev: (Number(m.rev) || 0) + 1}; Object.assign(m, patch);
   fb.updateDoc(fb.doc(fb.db, 'materiali', m.id), patch).catch(() => toast('Quantità non salvata.'));
 }
-function matVerifica(jobId){
-  const j = jobs.find(x => x.id === jobId), list = matOf(jobId).filter(m => !m.verificato && !m.preFatturaId);
-  list.forEach(m => { const patch = {verificato: true, rev: (Number(m.rev) || 0) + 1};
-    if (j && stOf(j) === 'non_fatto' && !m.pend) patch.aperto = false;   // non fatto: scaricato ma non da pre-fatturare
-    Object.assign(m, patch); fb.updateDoc(fb.doc(fb.db, 'materiali', m.id), patch).catch(() => {}); });
-  toast(list.length ? 'Materiale verificato.' : 'Niente da verificare.'); render();
-}
 /* scarico dal magazzino: lo applica il gestionale dell'ufficio, una sola volta per ogni modifica */
 async function matConsolida(){
   if (!canWrite || !usingDb || !matLoaded || !artLoaded) return;
@@ -3922,7 +3895,6 @@ async function matConsolida(){
 }
 const matPrezzo = m => (m.prezzo !== null && m.prezzo !== undefined) ? Number(m.prezzo) : ((listMap[normCode(m.codice)] || {}).p ?? null);
 const matBillable = jobId => materiali.filter(m => m.jobId === jobId && !m.annullato && !m.preFatturaId);
-const matDaVerificare = () => materiali.filter(m => !m.annullato && !m.verificato && !m.preFatturaId);
 function matRowHtml(m, opt){
   const pr = opt.prezzi ? matPrezzo(m) : null;
   return `<div class="matrow${m.annullato ? ' gone' : ''}"><span class="mat-main"><strong>${opt.editQ ? '' : esc(m.qta) + ' × '}${esc(m.descrizione || m.codice)}</strong>
@@ -3949,12 +3921,6 @@ function matResHtml(jid, res, q){
   if (!String(q || '').trim()) return '<p class="muted" style="margin:0">Scrivi almeno una parola, oppure inquadra il codice a barre.</p>';
   if (!res.length) return '<p class="muted" style="margin:0">Nessun articolo trovato.</p>';
   return res.map(v => `<button class="abbrow" data-act="mat-pick" data-id="${esc(jid)}" data-key="${esc(v.key)}"><span><strong>${esc(v.d)}</strong><small>${esc(v.codice)}${v.m ? ' · ' + esc(v.m) : ''}</small></span><span class="btn small">Scegli</span></button>`).join('');
-}
-function matStripWorker(j){
-  const l = matOf(j.id).filter(m => !m.annullato), open = !isClosed(stOf(j));
-  return `<div class="fotobox matbox"><span class="fl">Materiale usato${l.length ? ' (' + l.length + ')' : ''}</span>
-    ${l.map(m => matRowHtml(m, {del: open && !m.verificato})).join('')}
-    ${wMat[j.id] ? matPanelHtml(j) : `<button class="btn ph-add" data-act="mat-open" data-id="${esc(j.id)}">${ic('plus', 16)}Aggiungi materiale</button>`}</div>`;
 }
 function matStripOffice(j){
   const l = matOf(j.id).filter(m => !m.annullato), st = stOf(j);
@@ -4063,8 +4029,14 @@ function openStorico(cid){
 const lsGet = k => { try { return localStorage.getItem(k) || ''; } catch(e){ return ''; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch(e){} };
 let notifOpen = false;
+let notifMemo = null;
 function notifEvents(){
   if (authState !== 'ready') return [];
+  const mk = [jobs, workers, role, Math.floor(Date.now() / 60000)];
+  if (notifMemo && mk.every((v, i) => v === notifMemo.k[i])) return notifMemo.v;
+  const v = notifCalc(); notifMemo = {k: mk, v}; return v;
+}
+function notifCalc(){
   const ev = [], wById = workerMap(), now = Date.now(), since = now - 7 * 864e5, ok = t => t && Date.parse(t) > since;
   const what = j => (j.tipo || 'Intervento') + ' · ' + (j.cliente || '');
   if (role === 'lavoratore') {
@@ -4087,7 +4059,13 @@ const seenKey = () => 'gestionale-notif-seen-' + (me ? me.uid : '');
 /* letto / non letto: salvato sull'utente online (notifLette/{uid}) e in copia su questo dispositivo */
 let nlRemote = null, nlOff = false, nlTimer = null;
 const nlKey = () => 'gestionale-notif-lette-' + (me ? me.uid : '');
+let nlMemo = null;
 function nlState(){
+  const k = [nlRemote, me];
+  if (nlMemo && nlMemo.k[0] === k[0] && nlMemo.k[1] === k[1]) return {fino: nlMemo.v.fino, ids: new Set(nlMemo.v.ids)};
+  const v = nlRead(); nlMemo = {k, v}; return {fino: v.fino, ids: new Set(v.ids)};
+}
+function nlRead(){
   let loc = null; try { loc = JSON.parse(lsGet(nlKey()) || 'null'); } catch(e){}
   const a = nlRemote || {}, b = loc || {fino: lsGet(seenKey()), ids: []};
   const fa = String(a.fino || ''), fb2 = String(b.fino || '');
@@ -4188,9 +4166,10 @@ document.addEventListener('click', e => {
     case 'ass-mode': assMode = t.dataset.mode; render(); break;
     case 'set-fascia': { const j = jobs.find(x => x.id === id); if (j && canWrite) { j.fascia = t.dataset.f; j.ora = ''; persist('interventi', j); render(); } break; }
     case 'tipo-add': tipoAdd(); break;
-    case 'ana-tab': anaTab = t.dataset.tab; anaLim = 50; anaOpen = null; cliFormOpen = false; editingClienteId = null; cliPrefill = null; mounted = null; render(); break;
+    case 'ana-tab': anaTab = t.dataset.tab; anaLim = ANA_SHOW; anaOpen = null; cliFormOpen = false; editingClienteId = null; cliPrefill = null; mounted = null; render(); break;
     case 'ana-open': anaOpen = anaOpen === id ? null : id; refreshAnagrafica(); break;
     case 'ana-more': loadAnaPage(); break;
+    case 'ana-show': anaLim += ANA_SHOW; refreshAnagrafica(); break;
     case 'imp-add': { const l = $('#impList'); if (l) { l.insertAdjacentHTML('beforeend', impRowHtml({})); const r = l.lastElementChild; const s0 = r && r.querySelector('select'); if (s0) s0.focus(); } break; }
     case 'imp-del': { const r = t.closest('.imp-row'); if (r) r.remove(); break; }
     case 'amm-filter': anaQ = t.dataset.name || ''; mounted = null; render(); break;
@@ -4526,7 +4505,7 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('change', e => {
   const t = e.target;
-  if (t.dataset && t.dataset.flt) { flt[t.dataset.flt] = t.value; refreshArchivio(); return; }
+  if (t.dataset && t.dataset.flt) { if (flt[t.dataset.flt] === t.value) return; flt[t.dataset.flt] = t.value; refreshArchivio(); return; }
   if (t.id === 'dateInput') setDate(t.value);
   else if (t.id === 'magFlt') { magFlt = t.value; refreshMagazzino(); }
   else if (t.dataset && t.dataset.matqta) { const m = matOf(detailId).find(x => x.id === t.dataset.matqta); if (m) { matSetQta(m, t.value); renderDetail(); } }
@@ -4573,10 +4552,10 @@ document.addEventListener('change', e => {
 document.addEventListener('wheel', e => { const m = e.target && e.target.closest ? e.target.closest('nav.menu') : null; if (!m || m.scrollWidth <= m.clientWidth || !e.deltaY) return; m.scrollLeft += e.deltaY; e.preventDefault(); }, {passive: false});
 document.addEventListener('input', e => {
   const t = e.target;
-  if (t.dataset && t.dataset.flt) { flt[t.dataset.flt] = t.value; refreshArchivio(); return; }
+  if (t.dataset && t.dataset.flt) { flt[t.dataset.flt] = t.value; if (t.dataset.flt === 'q') refreshArchivioSoon(); else refreshArchivio(); return; }
   if (t.id === 'fCliente') { updateClienteLink(e.inputType === 'insertReplacementText'); return; }
-  if (t.id === 'anaQ') { anaQ = t.value; anaLim = 50; anaOpen = null; refreshAnagrafica(); return; }
-  if (t.id === 'anaCity') { anaCity = t.value; anaLim = 50; anaOpen = null; refreshAnagrafica(); return; }
+  if (t.id === 'anaQ') { anaQ = t.value; anaLim = ANA_SHOW; anaOpen = null; clearTimeout(anaT); anaT = setTimeout(() => { if (view === 'anagrafica') refreshAnagrafica(); }, 120); return; }
+  if (t.id === 'anaCity') { anaCity = t.value; anaLim = ANA_SHOW; anaOpen = null; refreshAnagrafica(); return; }
   if (t.id === 'magQ') { magQ = t.value; refreshMagazzino(); return; }
   if (t.dataset && t.dataset.matq) { const st = wMat[t.dataset.matq]; if (st) { st.q = t.value; const r = document.querySelector('[data-matres="' + t.dataset.matq + '"]'); if (r) r.innerHTML = matResHtml(t.dataset.matq, matCerca(st.q, 8), st.q); } return; }
   if (t.dataset && t.dataset.matser) { const st = wMat[t.dataset.matser]; if (st) st.ser = t.value; return; }
@@ -4765,7 +4744,7 @@ async function fattLoad(tok){
     if (!s || tok !== subsTok || !usingDb) return;
     s.docs.forEach(d => { const x = plainDoc(d); m.set(x.id, x); ts = Math.max(ts, x.agg || 0); });
   }
-  const apply = () => { fattMap = {}; m.forEach((x, k) => { if (!x.eliminato) fattMap[k] = x; }); rebuildJobs(); if (fetchMissingBillable) fetchMissingBillable(); render(); };
+  const apply = () => { fattMap = {}; m.forEach((x, k) => { if (!x.eliminato) fattMap[k] = x; }); rebuildJobs(); if (fetchMissingBillable) fetchMissingBillable(); renderSoon(); };
   apply(); cacheSave('fatturazione', m, ts, full);
   let saveT = null;
   unsubs.push(fb.onSnapshot(sinceQ('fatturazione', ts), s => {
@@ -4839,8 +4818,8 @@ function stopLazySections(keep, all){
 function ensureMagData(){
   if (!usingDb || !canWrite || !fb) return;
   const col = n => fb.collection(fb.db, n);
-  sectionSub('mag-articoli', col('articoli'), s => { articoli = s.docs.map(d => d.data()); buildCodeMap(); artLoaded = true; setTimeout(matConsolida, 0); render(); });
-  sectionSub('mag-listino', col('listino'), s => { listinoDocs = s.docs.map(d => d.data()); buildListino(); lstLoaded = true; render(); });
+  sectionSub('mag-articoli', col('articoli'), s => { articoli = s.docs.map(d => d.data()); buildCodeMap(); artLoaded = true; setTimeout(matConsolida, 0); renderSoon(); });
+  sectionSub('mag-listino', col('listino'), s => { listinoDocs = s.docs.map(d => d.data()); buildListino(); lstLoaded = true; renderSoon(); });
 }
 function activateLazySection(v){
   if (!usingDb || !canWrite) return;
@@ -4850,11 +4829,11 @@ function activateLazySection(v){
     stopLazySections([]);
   } else if (v === 'prefat') {
     ensureMagData();
-    sectionSub('prefat-prefatture', col('prefatture'), s => { prefatture = s.docs.map(d => d.data()); render(); });
-    sectionSub('prefat-impostazioni', col('impostazioni'), s => { azienda = s.docs.map(d => d.data()).find(x => x.id === 'azienda') || {}; render(); });
+    sectionSub('prefat-prefatture', col('prefatture'), s => { prefatture = s.docs.map(d => d.data()); renderSoon(); });
+    sectionSub('prefat-impostazioni', col('impostazioni'), s => { azienda = s.docs.map(d => d.data()).find(x => x.id === 'azienda') || {}; renderSoon(); });
     stopLazySections(['prefat-prefatture','prefat-impostazioni']);
   } else if (v === 'utenti' && role === 'titolare') {
-    sectionSub('utenti-lista', col('utenti'), s => { utenti = s.docs.map(d => Object.assign({uid: d.id}, d.data())); pendingUsersCount = utenti.filter(u => !u.ruolo).length; render(); });
+    sectionSub('utenti-lista', col('utenti'), s => { utenti = s.docs.map(d => Object.assign({uid: d.id}, d.data())); pendingUsersCount = utenti.filter(u => !u.ruolo).length; renderSoon(); });
     stopLazySections(['utenti-lista']);
   } else stopLazySections([]);
 }
@@ -4882,7 +4861,7 @@ function startSubs(){
   const col = n => fb.collection(fb.db, n);
   const sync = s => setSync(s.metadata && s.metadata.fromCache && !navigator.onLine ? 'local' : 'online');
   const sub = (ref, fn) => unsubs.push(fb.onSnapshot(ref, fn, fbSnapErr));
-  const list = (n, fn) => sub(col(n), s => { fn(s); render(); });
+  const list = (n, fn) => sub(col(n), s => { fn(s); renderSoon(); });
   if (canWrite) {
     list('lavoratori', s => { workers = s.docs.map(d => d.data()); sync(s); });
     // Ufficio: interventi degli ultimi 180 giorni + interventi ancora aperti.
@@ -4890,8 +4869,14 @@ function startSubs(){
     const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 180);
     const cutoffIso = cutoff.toISOString().slice(0, 10);
     const jobSets = {recent: new Map(), open: new Map(), muletti: new Map(), riparazioni: new Map()};
+    let mergeT = 0;
     const mergeOfficeJobs = snap => {
       snap.docs.forEach(d => { const x = d.data(); docSig[x.id] = (x.workerId || '') + '|' + x.data; });
+      sync(snap);
+      if (!mergeT) mergeT = setTimeout(mergeNow, 0);
+    };
+    const mergeNow = () => {
+      mergeT = 0; if (tok !== subsTok) return;
       const merged = new Map(archiveJobs);
       jobSets.recent.forEach((v, k) => merged.set(k, v));
       jobSets.open.forEach((v, k) => merged.set(k, v));
@@ -4900,7 +4885,7 @@ function startSubs(){
       rawJobs = Array.from(merged.values());
       // Ricostruisci lo snapshot notifiche sull'unione, non su una singola query.
       srvSnap = {}; rawJobs.forEach(x => { const o = {workerId: x.workerId || ''}; W_KEYS.forEach(k => { o[k] = x[k]; }); srvSnap[x.id] = o; });
-      rebuildJobs(); pickInitialDate(); sync(snap); setTimeout(notifyCheck, 0); render(); setTimeout(fetchMissingBillable, 0);
+      rebuildJobs(); pickInitialDate(); setTimeout(notifyCheck, 0); renderSoon(); setTimeout(fetchMissingBillable, 0);
     };
     sub(fb.query(col('interventi'), fb.where('data', '>=', cutoffIso)), s => {
       jobSets.recent = new Map(s.docs.map(d => [d.id, d.data()])); mergeOfficeJobs(s);
@@ -4929,19 +4914,19 @@ function startSubs(){
     });
     fattLoad(tok);
     // Materiale usato ancora aperto: pochi documenti, serve a scheda intervento, PDF e pre-fatture.
-    sectionSub('mag-materiali', fb.query(col('materiali'), fb.where('aperto', '==', true)), s => { materiali = s.docs.map(d => d.data()); matLoaded = true; if (materiali.some(m => m.pend)) ensureMagData(); setTimeout(matConsolida, 0); render(); });
+    sectionSub('mag-materiali', fb.query(col('materiali'), fb.where('aperto', '==', true)), s => { materiali = s.docs.map(d => d.data()); matLoaded = true; if (materiali.some(m => m.pend)) ensureMagData(); setTimeout(matConsolida, 0); renderSoon(); });
     // Condomini: pochi documenti, servono all'avviso manutenzioni della Panoramica.
-    cachedLoad('clienti').then(c => { if (tok !== subsTok || !usingDb) return; if (c) { ensureClientiLoaded(); return; } fb.getDocs(fb.query(col('clienti'), fb.where('tipo', '==', 'condominio'))).then(sn => { if (clientiLoaded) return; const ids = new Set(clienti.map(c => c.id)); sn.docs.forEach(d => { const c = d.data(); if (!ids.has(c.id)) clienti.push(c); }); render(); }).catch(() => {}); });
+    cachedLoad('clienti').then(c => { if (tok !== subsTok || !usingDb) return; if (c) { ensureClientiLoaded(); return; } fb.getDocs(fb.query(col('clienti'), fb.where('tipo', '==', 'condominio'))).then(sn => { if (clientiLoaded) return; const ids = new Set(clienti.map(c => c.id)); sn.docs.forEach(d => { const c = d.data(); if (!ids.has(c.id)) clienti.push(c); }); renderSoon(); }).catch(() => {}); });
     list('tipi', s => { tipi = s.docs.map(d => d.data()); });
     // Dati azienda: un solo documento caricato all'avvio.
-    fb.getDoc(fb.doc(fb.db, 'impostazioni', 'azienda')).then(s => { azienda = s.exists() ? s.data() : {}; render(); }).catch(fbSnapErr);
-    if (role === 'titolare') fb.getCountFromServer(fb.query(col('utenti'), fb.where('ruolo', '==', ''))).then(s => { pendingUsersCount = s.data().count || 0; render(); }).catch(() => { pendingUsersCount = 0; });
+    fb.getDoc(fb.doc(fb.db, 'impostazioni', 'azienda')).then(s => { azienda = s.exists() ? s.data() : {}; renderSoon(); }).catch(fbSnapErr);
+    if (role === 'titolare') fb.getCountFromServer(fb.query(col('utenti'), fb.where('ruolo', '==', ''))).then(s => { pendingUsersCount = s.data().count || 0; renderSoon(); }).catch(() => { pendingUsersCount = 0; });
     // Clienti: caricamento su richiesta, non listener globale permanente.
     // Dati pesanti/di sezione caricati solo all'apertura della sezione.
     // Articoli, materiali aperti e listino: Magazzino. Prefatture e azienda: Pre-fatturazione. Utenti: Titolare.
   } else {
-    sub(fb.query(col('interventi'), fb.where('workerId', '==', myWorkerId)), s => { rawJobs = s.docs.map(d => d.data()); takeSnap(s); setTimeout(notifyCheck, 0); rebuildJobs(); pickInitialDate(); sync(s); render(); });
-    sub(fb.doc(fb.db, 'lavoratori', myWorkerId), s => { workers = s.exists() ? [s.data()] : []; render(); });
+    sub(fb.query(col('interventi'), fb.where('workerId', '==', myWorkerId)), s => { rawJobs = s.docs.map(d => d.data()); takeSnap(s); setTimeout(notifyCheck, 0); rebuildJobs(); pickInitialDate(); sync(s); renderSoon(); });
+    sub(fb.doc(fb.db, 'lavoratori', myWorkerId), s => { workers = s.exists() ? [s.data()] : []; renderSoon(); });
   }
   nlRemote = null; nlOff = false;
   unsubs.push(fb.onSnapshot(fb.doc(fb.db, 'notifLette', me.uid), s => { nlRemote = s.exists() ? s.data() : null; updateBell(); }, () => { nlOff = true; updateBell(); }));
@@ -5029,7 +5014,7 @@ function gateRender(){
     if (role === 'lavoratore') { renderWorkerApp(); return true; }
     return false;
   }
-  $('#menu').innerHTML = ''; $('#overlay').hidden = true;
+  setMenu(''); $('#overlay').hidden = true;
   $('#app').innerHTML = gateHtml();
   return true;
 }
@@ -5059,7 +5044,7 @@ function fotoSubWorker(){
   fotoKeyW = key; fotoW = {};
   fotoUnsubW = fb.onSnapshot(fb.query(fb.collection(fb.db, 'foto'), fb.where('workerId', '==', myWorkerId), fb.where('giorno', '==', date)), snap => {
     const m = {}; snap.docs.forEach(d => { const f = d.data(); (m[f.jobId] = m[f.jobId] || []).push(f); });
-    Object.keys(m).forEach(k => sortFoto(m[k])); fotoW = m; render();
+    Object.keys(m).forEach(k => sortFoto(m[k])); fotoW = m; renderSoon();
   }, fbSnapErr);
 }
 function fotoSubDetail(id){
@@ -5732,20 +5717,6 @@ function wSheetRender(){
   const s = o.querySelector('.sheet'); if (s) s.scrollTop = sc;
   if (fk) { const n = o.querySelector(fk === 'c' ? 'textarea[data-causale]' : 'textarea[data-wnote]'); if (n) { n.focus({preventScroll: true}); try { n.setSelectionRange(fs, fe); } catch(e){} } }
 }
-function wCard(j){
-  const st = stOf(j), href = mapsHref(j);
-  return `<article class="w-job st-${st}" data-id="${esc(j.id)}">
-    <h3>${esc(j.tipo || 'Intervento')}${j.durata ? ` <span class="muted">· ${esc(fmtDur(j.durata))}</span>` : ''} ${tagsOf(j)}</h3>
-    <p class="w-cli"><strong>${esc(j.cliente)}</strong></p>
-    <p class="line">${ic('pin', 16)}<span>${esc(j.via)}</span></p>
-    ${j.descrizione ? `<p class="desc">${esc(j.descrizione)}</p>` : ''}
-    <div class="job-actions">${telBtns(j.telefono, 'btn', 16)}
-      ${href ? `<a class="btn" href="${esc(href)}" target="_blank" rel="noopener">${ic('pin', 16)}Mappa</a>` : ''}</div>
-    ${wStatoHtml(j, st)}
-    ${usingDb ? fotoStrip(j, {add: true, del: true}) : ''}
-    ${usingDb ? docStrip(j, {add: false, del: false}) : ''}
-  </article>`;
-}
 function viewOggi(){
   const day = jobs.filter(j => j.data === date).sort(byFascia);
   const done = day.filter(j => stOf(j) === 'fatto').length;
@@ -5767,7 +5738,7 @@ function viewOggi(){
   return h;
 }
 function renderWorkerApp(){
-  $('#menu').innerHTML = `<button role="tab" aria-selected="true" data-act="go" data-view="oggi">${ic('wrench', 18)}I miei interventi</button><button role="tab" aria-selected="false" data-act="man-open">${ic('bookopen', 18)}Manuali</button>${workers[0] && workers[0].ripara ? `<button role="tab" aria-selected="false" data-act="rip-open">${ic('engine', 18)}Motori${rips.filter(r => !r.consegnato && ripState(r) === 'ricevuto').length ? ' (' + rips.filter(r => !r.consegnato && ripState(r) === 'ricevuto').length + ')' : ''}</button>` : ''}${workers[0] && workers[0].riparaC ? `<button role="tab" aria-selected="false" data-act="cen-open">${ic('zap', 18)}Centraline${cens.filter(r => !r.consegnato && ripState(r) === 'ricevuto').length ? ' (' + cens.filter(r => !r.consegnato && ripState(r) === 'ricevuto').length + ')' : ''}</button>` : ''}${workers[0] && workers[0].ripara ? `<button role="tab" aria-selected="false" data-act="mul-wopen">${ic('forklift', 18)}Muletti</button>` : ''}`;
+  setMenu(`<button role="tab" aria-selected="true" data-act="go" data-view="oggi">${ic('wrench', 18)}I miei interventi</button><button role="tab" aria-selected="false" data-act="man-open">${ic('bookopen', 18)}Manuali</button>${workers[0] && workers[0].ripara ? `<button role="tab" aria-selected="false" data-act="rip-open">${ic('engine', 18)}Motori${rips.filter(r => !r.consegnato && ripState(r) === 'ricevuto').length ? ' (' + rips.filter(r => !r.consegnato && ripState(r) === 'ricevuto').length + ')' : ''}</button>` : ''}${workers[0] && workers[0].riparaC ? `<button role="tab" aria-selected="false" data-act="cen-open">${ic('zap', 18)}Centraline${cens.filter(r => !r.consegnato && ripState(r) === 'ricevuto').length ? ' (' + cens.filter(r => !r.consegnato && ripState(r) === 'ricevuto').length + ')' : ''}</button>` : ''}${workers[0] && workers[0].ripara ? `<button role="tab" aria-selected="false" data-act="mul-wopen">${ic('forklift', 18)}Muletti</button>` : ''}`);
   $('#overlay').hidden = true;
   fotoSubWorker();
   const a = document.activeElement, kAttr = a && a.dataset ? (a.dataset.wnote ? 'wnote' : a.dataset.causale ? 'causale' : a.dataset.matq ? 'matq' : a.dataset.matser ? 'matser' : '') : '';
@@ -5955,7 +5926,7 @@ document.addEventListener('keydown', e => {
   i.addEventListener('input', () => {
     flt.q = i.value;
     if (view !== 'archivio') { go('archivio'); i.focus(); }
-    else { const q = document.querySelector('[data-flt="q"]'); if (q) q.value = i.value; refreshArchivio(); }
+    else { const q = document.querySelector('[data-flt="q"]'); if (q) q.value = i.value; refreshArchivioSoon(); }
   });
   i.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); if (view !== 'archivio') go('archivio'); } });
   new MutationObserver(() => { clearTimeout(shellSync.t); shellSync.t = setTimeout(shellSync, 0); })
