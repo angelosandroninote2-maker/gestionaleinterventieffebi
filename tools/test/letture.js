@@ -1,0 +1,36 @@
+const puppeteer=require('puppeteer'); const {APP,AUTH,FS}=require('./mock-firebase.js');
+const w=ms=>new Promise(r=>setTimeout(r,ms)); const url=process.argv[2]; const NC=+(process.argv[3]||5000);
+const pad=n=>String(n).padStart(2,'0'); const day=k=>{const d=new Date(Date.now()-k*864e5);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());};
+const D={'utenti/u1':{email:'t@esempio.it',ruolo:'titolare'},'lavoratori/w1':{id:'w1',nome:'Mario Rossi',attivo:true,colore:0},'impostazioni/azienda':{id:'azienda',ragione:'Effebi'}};
+for(let i=0;i<NC;i++) D['clienti/c'+i]={id:'c'+i,tipo:i%10==0?'condominio':'privato',nome:'Nome'+i,cognome:'Cognome'+i,ragione:i%10==0?'Condominio '+i:'',via:'Via '+i,citta:'Ascoli'};
+for(let i=0;i<3000;i++){const k=i%400; D['interventi/j'+i]={id:'j'+i,data:day(k),cliente:'Nome'+i,clienteId:'c'+(i%NC),via:'Via',durata:60,tipo:'Riparazione',workerId:'w1',stato:k<2?'da_fare':'fatto'}; D['fatturazione/j'+i]={id:'j'+i,importo:100,prefat:k<30};}
+(async()=>{const b=await puppeteer.launch({headless:'new',args:['--no-sandbox'],executablePath:process.env.CHROME||undefined});
+ const ctx=await b.createBrowserContext(); let errs=[];
+ const open=async()=>{const p=await ctx.newPage(); await p.setViewport({width:1366,height:860}); p.on('pageerror',e=>errs.push(e.message));
+  await p.evaluateOnNewDocument(D=>{window.__mock={docs:D,user:{uid:'u1',email:'t@esempio.it'}};},D);
+  await p.setRequestInterception(true);
+  p.on('request',r=>{const u=r.url();const m=/firebase-(app|auth|firestore)\.js/.exec(u);
+   if(m) r.respond({status:200,contentType:'application/javascript',headers:{'access-control-allow-origin':'*'},body:{app:APP,auth:AUTH,firestore:FS}[m[1]]}); else if(/localhost/.test(u)) r.continue(); else r.abort();});
+  await p.setBypassServiceWorker(true); await p.goto(url); await w(2500); return p;};
+ const R=p=>p.evaluate(()=>__mock.reads);
+ const go=async(p,v)=>{await p.evaluate(v=>{const b=document.querySelector('#menu [data-view="'+v+'"]'); b&&b.click();},v); await w(1500);};
+ let p=await open(); const a0=await R(p); await go(p,'carica'); const a1=await R(p); await go(p,'anagrafica'); const a2=await R(p);
+ const ana=await p.evaluate(()=>document.getElementById('app').innerText.slice(0,300).replace(/\n/g,' | '));
+ console.log('1a apertura:',a0,'| +Carica:',a1-a0,'| +Anagrafica:',a2-a1);
+ console.log('  log:',JSON.stringify(await p.evaluate(()=>{const o={};__mock.log.forEach(([k,n])=>o[k]=(o[k]||0)+n);return Object.entries(o).filter(x=>x[1]>20);})));
+ const D2=await p.evaluate(()=>__mock.docs); Object.assign(D,D2); await p.close(); p=await open(); const b0=await R(p); await go(p,'carica'); const b1=await R(p);
+ console.log('riapertura:',b0,'| +Carica:',b1-b0);
+ console.log('  log:',JSON.stringify(await p.evaluate(()=>{const o={};__mock.log.forEach(([k,n])=>o[k]=(o[k]||0)+n);return Object.entries(o).filter(x=>x[1]>20);})));
+ 
+ const D3=await p.evaluate(()=>__mock.docs); Object.assign(D,D3); await p.close();
+ D['clienti/c5']=Object.assign({},D['clienti/c5'],{cognome:'Modificatoaltrove',agg:Date.now()});
+ D['clienti/c9999']={id:'c9999',tipo:'privato',nome:'Nuovissimo',cognome:'Cliente',agg:Date.now()};
+ delete D['clienti/c7']; D['impostazioni/clientiEliminati']={id:'clientiEliminati',ids:['c7']};
+ p=await open(); const c0=await R(p); await go(p,'anagrafica');
+ const has=async q=>p.evaluate(q=>{const i=document.querySelector('#app input[type=search], #app input[data-ana], #app .ana-search input, #app input'); return [...document.querySelectorAll('#app *')].some(e=>e.childElementCount===0 && e.textContent.includes(q));},q);
+ const setq=async q=>{await p.evaluate(q=>{const i=[...document.querySelectorAll('#app input')].find(x=>/cerca/i.test(x.placeholder||'')); i.value=q; i.dispatchEvent(new Event('input',{bubbles:true}));},q); await w(600);};
+ await setq('Modificatoaltrove'); const r1=await has('Modificatoaltrove');
+ await setq('Nuovissimo'); const r2=await has('Nuovissimo');
+ await setq('Cognome7'); const r3=await p.evaluate(()=>[...document.querySelectorAll('#app *')].some(e=>e.childElementCount===0 && /Cognome7$|Nome7 Cognome7\b/.test(e.textContent.trim()) ));
+ console.log('3a apertura dopo modifiche altrove: letture',c0,'| modificato visto',r1,'| nuovo visto',r2,'| eliminato ancora presente',r3);
+ console.log('errori',errs.slice(0,5)); await b.close();})();

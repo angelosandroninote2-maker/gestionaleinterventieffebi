@@ -1,0 +1,148 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function hasProfile() { return signedIn() && exists(/databases/$(database)/documents/utenti/$(request.auth.uid)); }
+    function profile() { return get(/databases/$(database)/documents/utenti/$(request.auth.uid)).data; }
+    function role() { return hasProfile() ? profile().ruolo : ''; }
+    function isOwner() { return role() == 'titolare'; }
+    function isOffice() { return role() == 'titolare' || role() == 'ufficio'; }
+    function isWorker() { return role() == 'lavoratore' && profile().workerId is string && profile().workerId != ''; }
+    function myWorker() { return profile().workerId; }
+
+    // Utenti: ognuno crea il proprio profilo "in attesa"; solo il titolare assegna i ruoli.
+    match /utenti/{uid} {
+      allow get: if signedIn() && (request.auth.uid == uid || isOwner());
+      allow list: if isOwner();
+      allow create: if signedIn() && request.auth.uid == uid
+                    && request.resource.data.keys().hasOnly(['email', 'ruolo', 'creato'])
+                    && request.resource.data.ruolo == '';
+      allow update, delete: if isOwner();
+    }
+
+    // Lavoratori: l'ufficio gestisce l'elenco, il lavoratore legge solo la propria scheda.
+    match /lavoratori/{id} {
+      allow read, write: if isOffice();
+      allow get: if isWorker() && id == myWorker();
+    }
+
+    // Interventi: l'ufficio gestisce tutto; il lavoratore vede solo i propri.
+    // Il lavoratore può cambiare stato, nota e motivo finché l'intervento è aperto;
+    // una volta "Fatto" o "Non fatto" (con motivo obbligatorio) può solo aggiungere la nota, se non l'ha già inviata.
+    // Un intervento chiuso lo riapre solo il titolare. Gli importi NON sono qui (vedi "fatturazione").
+    function closedSt(st) { return st == 'fatto' || st == 'non_fatto'; }
+    function statoPrima() { return resource.data.get('stato', 'da_fare'); }
+    function statoDopo() { return request.resource.data.get('stato', 'da_fare'); }
+    // La nota del lavoratore si scrive una volta sola: se c'è già, il lavoratore non la cambia.
+    function notaOk(keys) {
+      return !keys.hasAny(['noteLavoratore'])
+        || (resource.data.get('noteLavoratore', '') == '' && request.resource.data.get('noteLavoratore', '') != '');
+    }
+    function workerUpdateOk() {
+      let keys = request.resource.data.diff(resource.data).affectedKeys();
+      return notaOk(keys) && (closedSt(statoPrima())
+        ? keys.hasOnly(['noteLavoratore'])
+        : keys.hasOnly(['stato', 'noteLavoratore', 'causale', 'inizioIl', 'esitoIl', 'esitoDa', 'firmaIl', 'firmaNome', 'firmaRuolo'])
+          && statoDopo() in ['da_fare', 'in_corso', 'fatto', 'non_fatto']
+          && (statoDopo() != 'non_fatto'
+              || (request.resource.data.get('causale', '') is string && request.resource.data.get('causale', '').size() >= 3)));
+    }
+    // Riparazioni motori in laboratorio (rip): chi ripara può salvare e risalvare nota ed esito
+    // (Ricevuto, Riparato e provato, Non riparato, e rimetterlo da riparare) finché non è consegnato.
+    function ripWorkerOk() {
+      let keys = request.resource.data.diff(resource.data).affectedKeys();
+      return resource.data.get('consegnato', false) != true
+        && keys.hasOnly(['stato', 'noteLavoratore', 'causale', 'esitoIl', 'esitoDa'])
+        && statoDopo() in ['da_fare', 'fatto', 'non_fatto'];
+    }
+    // Lista dei motori muletto (mul): chi ripara può aggiornarla quante volte vuole.
+    function mulWorkerOk() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['noteLavoratore', 'esitoIl', 'esitoDa']);
+    }
+    match /interventi/{id} {
+      allow read: if isOffice() || (isWorker() && resource.data.workerId == myWorker());
+      allow create, delete: if isOffice();
+      allow update: if isOwner()
+                    || (isOffice() && (!closedSt(statoPrima()) || statoDopo() == statoPrima()))
+                    || (isWorker() && resource.data.workerId == myWorker()
+                        && request.resource.data.get('workerId', '') == myWorker()
+                        && (resource.data.get('rip', false) == true ? ripWorkerOk()
+                            : resource.data.get('mul', false) == true ? mulWorkerOk()
+                            : workerUpdateOk()));
+    }
+
+    // Foto dei lavori: il lavoratore aggiunge e vede solo le foto dei propri interventi
+    // (compresse, max ~900 KB l'una); l'ufficio le vede e può eliminarle.
+    match /foto/{id} {
+      allow read: if isOffice() || (isWorker() && resource.data.workerId == myWorker());
+      allow create: if isOffice()
+                    || (isWorker()
+                        && request.resource.data.workerId == myWorker()
+                        && request.resource.data.keys().hasOnly(['id', 'jobId', 'workerId', 'giorno', 'creato', 'w', 'h', 'data'])
+                        && request.resource.data.data is string
+                        && request.resource.data.data.size() < 900000
+                        && get(/databases/$(database)/documents/interventi/$(request.resource.data.jobId)).data.workerId == myWorker());
+      allow delete: if isOffice() || (isWorker() && resource.data.workerId == myWorker());
+      allow update: if false;
+    }
+
+    // Magazzino: articoli e movimenti solo per titolare e ufficio.
+    // Le correzioni di giacenza (rettifiche) le registra solo il titolare; i movimenti non si modificano.
+    // Listini Somfy/BFT: li legge l'ufficio, li importa solo il titolare.
+    match /listino/{id}   { allow read: if isOffice(); allow write: if isOwner(); }
+    // Magazzino: tutto interno, solo titolare e ufficio. I lavoratori non vedono né toccano nulla.
+    match /articoli/{id}  { allow read, write: if isOffice(); }
+    // Materiale usato negli interventi: lo registra l'ufficio. Ogni modifica aumenta "rev",
+    // così lo scarico dal magazzino non viene mai contato due volte.
+    match /materiali/{id} {
+      allow read: if isOffice();
+      allow create: if isOffice()
+                    && request.resource.data.keys().hasOnly(['id', 'jobId', 'workerId', 'clienteId', 'giorno', 'codice', 'articoloId', 'descrizione', 'marca', 'qta', 'seriale', 'creato', 'da', 'applicato', 'rev', 'pend', 'aperto', 'verificato', 'annullato', 'preFatturaId', 'prezzo'])
+                    && request.resource.data.qta is int && request.resource.data.qta >= 1 && request.resource.data.qta <= 999
+                    && request.resource.data.applicato == 0 && request.resource.data.rev == 0
+                    && request.resource.data.pend == true && request.resource.data.aperto == true
+                    && request.resource.data.annullato == false && request.resource.data.preFatturaId == '';
+      allow update: if isOffice() && request.resource.data.rev == resource.data.rev + 1
+                    && request.resource.data.jobId == resource.data.jobId;
+      allow delete: if false;
+    }
+    match /movimenti/{id} {
+      allow read: if isOffice();
+      allow create: if isOffice() && (request.resource.data.tipo != 'rettifica' || isOwner());
+      allow delete: if isOffice() && resource.data.tipo == 'carico';
+      allow update: if false;
+    }
+
+    // Firma del cliente (una per intervento): la mette chi chiude l'intervento, poi non si modifica.
+    // Solo il titolare può eliminarla. Il lavoratore la scrive ma non la rilegge.
+    match /firme/{id} {
+      allow read: if isOffice();
+      allow create: if request.resource.data.jobId == id
+                    && request.resource.data.keys().hasOnly(['id', 'jobId', 'workerId', 'giorno', 'nome', 'ruolo', 'quando', 'da', 'w', 'h', 'data'])
+                    && request.resource.data.data is string && request.resource.data.data.size() < 400000
+                    && (isOffice() || (isWorker() && get(/databases/$(database)/documents/interventi/$(id)).data.workerId == myWorker()));
+      allow update: if false;
+      allow delete: if isOwner();
+    }
+
+    // Dati economici e anagrafici: solo titolare e ufficio.
+    match /fatturazione/{id}  { allow read, write: if isOffice(); }
+    match /clienti/{id}       { allow read, write: if isOffice(); }
+    match /prefatture/{id}    { allow read, write: if isOffice(); }
+    match /tipi/{id}          { allow read, write: if isOffice(); }
+    match /impostazioni/{id}  { allow read, write: if isOffice(); }
+
+    // Notifiche lette (centro notifiche): ognuno legge e scrive solo il proprio documento.
+    match /notifLette/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['fino','ids','agg'])
+        && request.resource.data.fino is string && request.resource.data.fino.size() <= 40
+        && request.resource.data.ids is list && request.resource.data.ids.size() <= 300;
+    }
+
+    // Tutto il resto è vietato.
+    match /{document=**} { allow read, write: if false; }
+  }
+}

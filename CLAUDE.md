@@ -36,3 +36,9 @@ Rispondi sempre in italiano, in modo semplice (l'utente non è programmatore). P
 
 ## Test
 Non c'è una suite nel repo. Per verificare: aprire `index.html` con un server locale e controllare la console; per prove serie usare puppeteer con un finto SDK Firebase che intercetta le richieste a `firebasejs/12.7.0/*`.
+
+## Altri documenti
+- `docs/STORIA_E_DECISIONI.md`: cosa è stato fatto, decisioni prese, proposte in sospeso. Leggilo prima di lavori importanti.
+- `docs/firestore.rules`: copia di riferimento delle regole (la versione vera è nella console Firebase).
+- `tools/test/`: finto Firebase e test con puppeteer.
+- Non inventare: se un dato (prezzi, regole pubblicate, scelte dell'utente) non è nei file, chiedi.
