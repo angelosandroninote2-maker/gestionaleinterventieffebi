@@ -196,7 +196,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14.5px;min-width:560px}
 .progress .p{background:var(--brand)}
 .dotw{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--wc,var(--muted));flex:none}
 .tag{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;border-radius:999px;padding:1px 8px;margin:0 6px 0 0;vertical-align:middle;background:var(--surface2);color:var(--muted)}
-.tag.urgent{background:var(--bad-tint);color:var(--bad-text)}
+.tag.urgent{background:var(--warn,#E8A317);color:#2B1700;font-weight:700}
 .tag.urgent.xx{background:var(--bad,#C81E1E);color:#fff;font-weight:800}
 .tag.late{background:var(--warn-tint);color:var(--warn-text)}
 .tag.type{background:var(--brand-tint);color:var(--brand-text)}
@@ -213,6 +213,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14.5px;min-width:560px}
 .row-time{font:600 15px/1.5 var(--font-mono);min-width:56px}
 .row-main{flex:1 1 220px;min-width:0}
 .row-main small{display:block;color:var(--muted);font-size:13.5px}
+.row-main > .tag{align-self:flex-start;justify-self:start;width:max-content}
 .row .acts{display:flex;gap:8px;flex-wrap:wrap}
 
 /* Assegna */
@@ -348,6 +349,7 @@ legend.lbl{padding:0;margin-bottom:5px}
 .fjob b{font-weight:600}.fjob b span{font-weight:500;color:var(--muted)}
 .fjob small{color:var(--muted);font-size:12.5px}
 .fjob em{font-style:normal;font-size:11.5px;font-weight:700;color:var(--bad-text)}
+.fjob em.u1{color:var(--warn-text)}
 .fjob.st-in_corso{box-shadow:inset 0 -3px 0 var(--brand)}
 .fjob.st-fatto{opacity:.6;box-shadow:inset 0 -3px 0 var(--ok)}
 .fgroup{padding:7px 14px;background:var(--surface2);border-top:1px solid var(--line);font-size:12.5px;font-weight:700;color:var(--muted)}
@@ -1154,7 +1156,7 @@ const MAX_FOTO = 8;
 const APP_URL = location.origin + location.pathname.replace(/[^\/]*$/, '');
 let wzWorker = '', wzDate = todayISO(), wzOther = false, wzSel = new Set();
 let editingJobId = null, draftJob = null, editingWorkerId = null;
-const flt = {q:'', da:'', a:'', stato:'', w:'', automazione:''};
+const flt = {q:'', da:'', a:'', stato:'', w:'', automazione:'', urgenza:''};
 
 const workerMap = () => Object.fromEntries(workers.map(w => [w.id, w]));
 const dayJobs = d => jobs.filter(j => j.data === d).sort(byOra);
@@ -1239,7 +1241,7 @@ function parseText(raw){
     const n = p.replace(/\D/g, '');
     if (n.length >= 8 && n.length <= 13) { out.telefono = p.trim().replace(/\s+/g, ' '); s = s.replace(p, ' '); break; }
   }
-  if (/urgentissim|chiamat\w* pi[uù] volte/i.test(s)) { out.priorita = 'urgentissimo'; s = s.replace(/\burgent\w*/ig, ' ').replace(/\bchiamat\w* pi[uù] volte/ig, ' '); }
+  if (/urgentissim|molto urgent|chiamat\w* pi[uù] volte/i.test(s)) { out.priorita = 'urgentissimo'; s = s.replace(/\bmolto urgent\w*/ig, ' ').replace(/\burgent\w*/ig, ' ').replace(/\bchiamat\w* pi[uù] volte/ig, ' '); }
   else if (/urgent/i.test(s)) { out.priorita = 'urgente'; s = s.replace(/\burgent\w*/ig, ' '); }
   m = s.match(/\b(?:via|viale|piazza|piazzale|corso|largo|vicolo|strada|contrada|località)\s+[^\n]+/i);
   if (m) {
@@ -1468,13 +1470,14 @@ function waHref(w, list){
   if (n.startsWith('+')) n = n.slice(1); else if (n.startsWith('00')) n = n.slice(2); else n = '39' + n;
   const out = ['Ciao ' + w.nome + ', ecco i tuoi interventi di ' + fmtLong(date) + ':', ''];
   let last = null, i = 0;
-  list.slice().sort(byFascia).forEach(j => {
+  list.slice().sort(byFasciaPrio).forEach(j => {
     const f = fasciaOf(j);
     if (f !== last) { out.push('*' + (FASCIA_LABEL[f] || 'Senza fascia oraria').toUpperCase() + '*'); last = f; }
     i++;
     const dur = fmtDur(j.durata);
-    out.push(i + ') ' + (j.tipo || 'Intervento') + (dur ? ' (' + dur + ')' : '') + (j.priorita === 'urgentissimo' ? ' - URGENTISSIMO' : j.priorita === 'urgente' ? ' - URGENTE' : ''));
+    out.push(i + ') ' + (j.tipo || 'Intervento') + (dur ? ' (' + dur + ')' : '') + (j.priorita === 'urgentissimo' ? ' - MOLTO URGENTE' : j.priorita === 'urgente' ? ' - URGENTE' : ''));
     out.push('Cliente: ' + j.cliente);
+    if (impiantiOf(j).length) out.push('Impianto: ' + impiantiOf(j).join(' + '));
     out.push(j.via);
     if (j.telefono) out.push('Tel: ' + j.telefono);
     out.push('Mappa: ' + mapsHref(j));
@@ -1509,11 +1512,15 @@ function kpi(label, n, sub, alert, icon, tone){
   const action = label === 'Da assegnare' ? ' data-act=\"open-unassigned-finder\" role=\"button\" tabindex=\"0\" title=\"Apri Finder con gli interventi da fare\" style=\"cursor:pointer\"' : '';
   return `<div class=\"kpi${alert ? ' alert' : ''}${tone ? ' k-' + tone : ''}\"${action}>${icon ? `<span class=\"kic\">${ic(icon, 19)}</span>` : ''}<div class=\"l\">${label}</div><div class=\"n\">${n}</div>${sub ? `<div class=\"s\">${sub}</div>` : ''}</div>`;
 }
-const PRIO = {normale: 'Normale', urgente: 'Urgente', urgentissimo: 'Urgentissimo – chiamato più volte'};
+const PRIO = {normale: 'Normale', urgente: 'Urgente', urgentissimo: 'Molto urgente'};
 const prioRank = j => j.priorita === 'urgentissimo' ? 2 : j.priorita === 'urgente' ? 1 : 0;
 const isUrg = j => prioRank(j) > 0;
+/* stessa fascia: prima i più urgenti */
+const byFasciaPrio = (a, b) => FASCIA_ORD[fasciaOf(a)] - FASCIA_ORD[fasciaOf(b)] || prioRank(b) - prioRank(a) || (a.cliente || '').localeCompare(b.cliente || '');
+/* impianti dell'intervento (il secondo è facoltativo) */
+const impiantiOf = j => [j.automazione, j.automazione2].filter(Boolean);
 function tagsOf(j){
-  return j.priorita === 'urgentissimo' ? `<span class="tag urgent xx">${ic('zap', 12)}Urgentissimo</span>` : j.priorita === 'urgente' ? `<span class="tag urgent">${ic('zap', 12)}Urgente</span>` : '';
+  return j.priorita === 'urgentissimo' ? `<span class="tag urgent xx">${ic('zap', 12)}Molto urgente</span>` : j.priorita === 'urgente' ? `<span class="tag urgent">${ic('zap', 12)}Urgente</span>` : '';
 }
 const subline = j => [tipoText(j), j.via].filter(Boolean).map(esc).join(' · ');
 
@@ -1689,7 +1696,7 @@ const laneAdd = w => (canWrite && isActive(w)) ? `<button class="btn small" data
 function fjob(j){
   return `<div class="fjob st-${stOf(j)}" role="button" tabindex="0" data-act="open-job" data-id="${esc(j.id)}"${canWrite ? ' draggable="true"' : ''}>
     <b>${esc(j.tipo || 'Intervento')}${j.durata ? ' <span>· ' + esc(fmtDur(j.durata)) + '</span>' : ''}</b>
-    <span>${esc(j.cliente)}</span><small>${esc(j.via)}</small>${j.priorita === 'urgentissimo' ? '<em>URGENTISSIMO</em>' : j.priorita === 'urgente' ? '<em>Urgente</em>' : ''}</div>`;
+    <span>${esc(j.cliente)}</span><small>${esc(j.via)}</small>${j.priorita === 'urgentissimo' ? '<em>MOLTO URGENTE</em>' : j.priorita === 'urgente' ? '<em class="u1">Urgente</em>' : ''}</div>`;
 }
 function viewFasce(lanesW, day){
   let h = `<div class="fx"><div class="fx-in">
@@ -1698,11 +1705,11 @@ function viewFasce(lanesW, day){
   lanesW.forEach(w => {
     const list = day.filter(j => j.workerId === w.id);
     const cell = f => {
-      const l = list.filter(j => fasciaOf(j) === f);
+      const l = list.filter(j => fasciaOf(j) === f).sort(byFasciaPrio);
       const mins = l.reduce((s, j) => s + durOf(j), 0);
       return `<div class="fx-cell" data-drop="${esc(w.id)}" data-fascia="${f}">${mins ? `<div class="fx-sum">${esc(fmtDur(mins))}</div>` : ''}${l.map(fjob).join('') || '<span class="fx-empty">—</span>'}</div>`;
     };
-    const nof = list.filter(j => !fasciaOf(j));
+    const nof = list.filter(j => !fasciaOf(j)).sort(byFasciaPrio);
     const add = laneAdd(w);
     h += `<div class="fx-row ${cls(w)}"><div class="fx-label" data-drop="${esc(w.id)}">
         <div class="tl-id"><div class="av sm" aria-hidden="true">${esc(initials(w.nome))}</div>
@@ -1716,7 +1723,7 @@ function viewFasce(lanesW, day){
 }
 function viewElenco(lanesW, day){
   return `<div class="lanes">` + lanesW.map(w => {
-    const l = day.filter(j => j.workerId === w.id).sort(byFascia);
+    const l = day.filter(j => j.workerId === w.id).sort(byFasciaPrio);
     let body = '', last = null;
     l.forEach(j => {
       const f = fasciaOf(j), st = stOf(j);
@@ -1769,7 +1776,7 @@ function viewGiornata(){
 }
 /* ---------- invio della giornata ai lavoratori (WhatsApp, un tocco ciascuno) ---------- */
 const WA_KEY = 'gestionale-wa-sent-v1';
-function waSig(l){ return l.map(j => [j.id, fasciaOf(j), j.tipo, j.via, j.durata, j.descrizione].join('~')).join('|'); }
+function waSig(l){ return l.slice().sort(byFascia).map(j => [j.id, fasciaOf(j), j.tipo, j.via, j.durata, j.descrizione].join('~')).join('|'); }
 function waSentGet(){ try { return JSON.parse(localStorage.getItem(WA_KEY) || '{}'); } catch(e){ return {}; } }
 function waSentSet(k, v){ const m = waSentGet(); m[k] = v; try { localStorage.setItem(WA_KEY, JSON.stringify(m)); } catch(e){} }
 function sendPanel(lanesW, day){
@@ -1923,10 +1930,11 @@ function renderDetail(){
   sh.innerHTML = `<div class="sheet-head"><div><p class="eyebrow">${j.data ? esc(fmtShort(j.data)) : 'Da programmare'} · ${esc(fasciaLabel(j))}</p><h2>${esc(j.cliente)}</h2></div>
       <button class="icon-btn" id="sheetClose" data-act="close-detail" aria-label="Chiudi">${ic('x', 20)}</button></div>
     ${heads}
-    <div class="tags">${tagsOf(j)}<span class="stat st-${st}">${STATI[st]}</span></div>
+    <div class="tags">${tagsOf(j) || '<span class="tag">Normale</span>'}<span class="stat st-${st}">${STATI[st]}</span></div>
     <dl class="info">
       <div><dt>Intervento</dt><dd>${esc(tipoText(j) || 'Non indicato')}</dd></div>
       ${j.automazione ? `<div><dt>Impianto</dt><dd>${esc(j.automazione)}</dd></div>` : ''}
+      ${j.automazione2 ? `<div><dt>Impianto 2</dt><dd>${esc(j.automazione2)}</dd></div>` : ''}
       ${j.amministratore ? `<div><dt>Amministratore</dt><dd>${esc(j.amministratore)}</dd></div>` : ''}
       <div><dt>Indirizzo</dt><dd>${esc(j.via)}</dd></div>
       ${j.telefono ? `<div><dt>Telefono</dt><dd>${esc(j.telefono)}</dd></div>` : ''}
@@ -2039,8 +2047,8 @@ function printJobOrder(j){
   const row = (k, v, big) => v ? `<tr><th>${k}</th><td${big ? ' class="big"' : ''}>${esc(v)}</td></tr>` : '';
   const h = `<!doctype html><html lang="it"><head><meta charset="utf-8"><title>Intervento da fare</title><style>@page{size:A4;margin:0}*{box-sizing:border-box}body{margin:0;padding:15mm;font-family:Arial,Helvetica,sans-serif;color:#000;font-size:12pt}.hd{display:flex;justify-content:space-between;align-items:baseline;border-bottom:2pt solid #000;padding-bottom:3mm;margin-bottom:5mm;font-size:14pt}.dt{font-size:20pt;font-weight:700;margin:0 0 1mm}.fa{font-size:14pt;margin:0 0 6mm}.ur{display:inline-block;border:2pt solid #000;padding:0 3mm;margin-left:4mm;font-size:14pt}table{width:100%;border-collapse:collapse;margin-bottom:6mm}tr{border-bottom:.5pt solid #999}th{width:42mm;text-align:left;vertical-align:top;padding:2mm 3mm 2mm 0;font-size:10pt;text-transform:uppercase;letter-spacing:.04em;color:#333}td{padding:2mm 0;white-space:pre-wrap;word-break:break-word}.big{font-size:14pt;font-weight:700}.l{font-size:10pt;text-transform:uppercase;letter-spacing:.05em;margin:0 0 2mm}.box{height:42mm;border:.8pt solid #000;margin-bottom:8mm}.f{display:flex;gap:10mm}.f span{flex:1;border-bottom:.8pt solid #000;padding-bottom:1mm;min-height:9mm}</style></head><body>
     <div class="hd"><b>EFFEBI S.R.L.</b><span>Intervento da fare</span></div>
-    <p class="dt">${esc(j.data ? fmtLong(j.data) : fmtCreated(j.creato || new Date().toISOString()))}${j.priorita === 'urgentissimo' ? '<span class="ur">URGENTISSIMO – CHIAMATO PIÙ VOLTE</span>' : j.priorita === 'urgente' ? '<span class="ur">URGENTE</span>' : ''}</p><p class="fa">${esc(j.data ? fasciaLabel(j) : 'Creato alle ' + (j.creato ? hhmm(j.creato) : hhmm(new Date().toISOString())))}</p>
-    <table>${row('Cliente', j.cliente, true)}${row('Amministratore', j.amministratore)}${row('Indirizzo', j.via)}${row('Telefono', j.telefono)}${row('Intervento', tipoText(j))}${row('Impianto', j.automazione)}${row('Lavoratore', w ? w.nome : 'Da assegnare')}${row('Lavoro da fare', j.descrizione)}</table>
+    <p class="dt">${esc(j.data ? fmtLong(j.data) : fmtCreated(j.creato || new Date().toISOString()))}${j.priorita === 'urgentissimo' ? '<span class="ur">MOLTO URGENTE</span>' : j.priorita === 'urgente' ? '<span class="ur">URGENTE</span>' : ''}</p><p class="fa">${esc(j.data ? fasciaLabel(j) : 'Creato alle ' + (j.creato ? hhmm(j.creato) : hhmm(new Date().toISOString())))}</p>
+    <table>${row('Cliente', j.cliente, true)}${row('Amministratore', j.amministratore)}${row('Indirizzo', j.via)}${row('Telefono', j.telefono)}${row('Intervento', tipoText(j))}${row('Impianto', j.automazione)}${row('Impianto 2', j.automazione2)}${row('Lavoratore', w ? w.nome : 'Da assegnare')}${row('Lavoro da fare', j.descrizione)}</table>
     <p class="l">Note e materiale usato</p><div class="box"></div>
     <div class="f"><span>Ore di lavoro:</span><span>Persone:</span><span>Firma del cliente:</span></div></body></html>`;
   printHtml(h);
@@ -2079,13 +2087,13 @@ function jobFormHtml(v, editing){
     <details class="smart"><summary>${ic('sparkles', 20)}Compila da un messaggio del cliente</summary>
       <div class="inner"><label class="field"><span>Incolla qui il testo (WhatsApp, SMS, email)</span>
         <textarea id="smartText" placeholder="Es. Mario Rossi, via Garibaldi 12 Milano, 333 1234567, domani mattina, sopralluogo, urgente"></textarea>
-        <small>Riconosco nome, via, telefono, data, fascia oraria, tipo di intervento, priorità e link di Google Maps. Controlla sempre i campi prima di salvare.</small></label>
+        <small>Riconosco nome, via, telefono, data, fascia oraria, tipo di intervento, urgenza e link di Google Maps. Controlla sempre i campi prima di salvare.</small></label>
       <button class="btn small" type="button" data-act="smart-fill">${ic('sparkles', 16)}Compila i campi</button></div></details>`}
     <div class="fgrid cols3">
       <label class="field"><span>Data intervento (facoltativa)</span><input type="date" name="data" id="fData" value="${esc(v.data || '')}"></label>
       <fieldset class="field fascia"><legend class="lbl">Fascia oraria</legend><div class="seg wide">
         ${FASCE.map(([val, lab]) => `<label><input type="radio" name="fascia" value="${val}"${fa === val ? ' checked' : ''}><span>${lab}</span></label>`).join('')}</div></fieldset>
-      <label class="field"><span>Priorità</span><select name="priorita">${opts(Object.entries(PRIO), v.priorita || 'normale')}</select></label>
+      <label class="field"><span>Urgenza</span><select name="priorita">${opts(Object.entries(PRIO), v.priorita || 'normale')}</select></label>
       <div class="field"><label class="lbl" for="fCliente">Cliente</label>
         <input id="fCliente" name="cliente" list="clientiList" required autocomplete="off" placeholder="Nome o ragione sociale" value="${esc(v.cliente || '')}">
         <datalist id="clientiList">${clientiOptions()}</datalist><small id="cliHint"></small></div>
@@ -2094,6 +2102,7 @@ function jobFormHtml(v, editing){
         <select id="fTipo" name="tipo" required>${tipoOptions(v.tipo || '')}</select>
         <small id="tipoDur">${esc(tipoDurText(v.tipo || '', Number(v.durata) || 0))}</small></div>
       <label class="field"><span>Tipo di impianto</span><select name="automazione">${opts([['', '— scegli —']].concat(IMPIANTI_CARICA.concat(v.automazione && !IMPIANTI_CARICA.includes(v.automazione) && AUTOMAZIONI.includes(v.automazione) ? [v.automazione] : []).map(a => [a, a])), v.automazione || '')}</select></label>
+      <label class="field"><span>Tipo di impianto 2</span><select name="automazione2">${opts([['', 'Nessuno']].concat(IMPIANTI_CARICA.concat(v.automazione2 && !IMPIANTI_CARICA.includes(v.automazione2) && AUTOMAZIONI.includes(v.automazione2) ? [v.automazione2] : []).map(a => [a, a])), v.automazione2 || '')}</select></label>
       <label class="field span2" id="ammWrap" style="display:none"><span>Nome amministratore</span><input name="amministratore" maxlength="120" autocomplete="off" placeholder="Nome dell’amministratore di condominio" value="${esc(v.amministratore || '')}"></label>
       <div class="field span2"><label class="lbl" for="fVia">Via e città</label>
         <div class="ac"><input id="fVia" name="via" required role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="acList" autocomplete="off" autocapitalize="words" placeholder="Inizia a scrivere: Via Roma 12, Milano" value="${esc(v.via || '')}">
@@ -2168,7 +2177,7 @@ function smartFill(){
     if (el && val != null && val !== '') { el.value = val; if (label) found.push(label); }
   };
   set('cliente', r.cliente, 'nome'); set('via', r.via, 'via'); set('telefono', r.telefono, 'telefono');
-  set('maps', r.maps, 'mappa'); set('data', r.data, 'data'); set('priorita', r.priorita, 'priorità'); set('descrizione', r.descrizione, '');
+  set('maps', r.maps, 'mappa'); set('data', r.data, 'data'); set('priorita', r.priorita, 'urgenza'); set('descrizione', r.descrizione, '');
   if (r.fascia && f.elements.fascia) { f.elements.fascia.value = r.fascia; found.push('fascia oraria'); }
   if (r.tipo) { set('tipo', r.tipo, 'tipo'); updateTipoDur(); }
   updateClienteLink(true);
@@ -2201,7 +2210,7 @@ function saveJob(f, mode){
     telefono: String(fd.get('telefono')).trim(), maps: String(fd.get('maps')).trim() || genMapsLink(via),
     descrizione: String(fd.get('descrizione')).trim(), tipo: tipoName, durata,
     priorita: PRIO[fd.get('priorita')] ? fd.get('priorita') : 'normale',
-    automazione: autoNorm(fd.get('automazione')),
+    automazione: autoNorm(fd.get('automazione')), automazione2: autoNorm(fd.get('automazione2')),
     amministratore: ($('#ammWrap') && $('#ammWrap').style.display !== 'none') ? String(fd.get('amministratore') || '').trim().slice(0, 120) : '',
     workerId: old ? (old.workerId || '') : '', stato: old ? old.stato : 'da_fare',
     notePrec: fd.has('notePrec') ? String(fd.get('notePrec') || '').trim().slice(0, 3000) : (old ? (old.notePrec || '') : '')
@@ -2638,7 +2647,9 @@ function buildJobPdf(j, mats, az, firma){
   const rows = [['Intervento', tipoText(j) || j.tipo || '—'], ['Fascia oraria', fasciaLabel(j)], ['Lavoratore', w ? w.nome : 'Non assegnato'],
     ['Esito', STATI[st] + (j.esitoIl ? ' · ' + abs(j.esitoIl) : '')]];
   if (j.automazione) rows.splice(1, 0, ['Impianto', j.automazione]);
-  if (j.amministratore) rows.splice(j.automazione ? 2 : 1, 0, ['Amministratore', j.amministratore]);
+  if (j.automazione2) rows.splice(j.automazione ? 2 : 1, 0, ['Impianto 2', j.automazione2]);
+  if (j.amministratore) rows.splice(1 + (j.automazione ? 1 : 0) + (j.automazione2 ? 1 : 0), 0, ['Amministratore', j.amministratore]);
+  if (isUrg(j)) rows.push(['Urgenza', PRIO[j.priorita]]);
   if (j.inizioIl) rows.push(['Iniziato', abs(j.inizioIl)]);
   { const hh = st === 'fatto' ? hoursOf(j) : null; if (hh) rows.push(['Ore di lavoro', fmtOre(hh.ore)], ['Persone al lavoro', String(hh.pers)]); }
   if (st === 'non_fatto' && j.causale) rows.push(['Motivo (non fatto)', j.causale]);
@@ -2942,7 +2953,7 @@ function pfGroupHtml(g){
       <button class="btn small primary" data-act="pf-newcli" data-tipo="privato" data-name="${esc(g.nome)}">Crea come privato</button>
       <button class="btn small" data-act="pf-newcli" data-tipo="azienda" data-name="${esc(g.nome)}">Crea come azienda</button></div></div>`}
     <div class="pf-rows">${g.jobs.map(j => `<label class="pf-row"><input type="checkbox" data-act="pf-sel" data-id="${esc(j.id)}"${pfOff.has(j.id) ? '' : ' checked'}>
-      <div class="pf-main"><strong>${esc(j.tipo || 'Intervento')}</strong><small>${esc(dmy(j.data))} · ${esc(j.via)}${j.noteFatt ? ' · ' + esc(j.noteFatt) : ''}</small></div>
+      <div class="pf-main"><strong>${esc(j.tipo || 'Intervento')}</strong> ${tagsOf(j)}<small>${esc(dmy(j.data))} · ${esc(j.via)}${impiantiOf(j).length ? ' · ' + esc(impiantiOf(j).join(' + ')) : ''}${j.noteFatt ? ' · ' + esc(j.noteFatt) : ''}</small></div>
       <div class="pf-imp">${importoOf(j) === 0 ? '<span class="tag late">Importo mancante</span>' : ''}${esc(fmtEur(importoOf(j)))}</div></label>
       <div class="pf-mats">${matBillable(j.id).map(m => { const pr = matPrezzo(m); return `<div class="pf-mat"><span>${esc(m.qta)} × ${esc(m.descrizione || m.codice)} <small class="muted">${esc(m.codice)}</small>${pr === null ? ' <span class="tag late">Prezzo mancante</span>' : ''}</span><span>${esc(fmtEur((Number(m.qta) || 0) * (pr || 0)))}</span></div>`; }).join('')}
         <div class="pf-acts"><button class="btn small ghost pf-addmat" data-act="pf-mat" data-id="${esc(j.id)}">${ic('plus', 14)}${matBillable(j.id).length ? 'Modifica materiale' : 'Materiale usato'}</button>
@@ -3054,8 +3065,9 @@ function filtered(){
     (!flt.da || j.data >= flt.da) && (!flt.a || j.data <= flt.a) &&
     (!flt.stato || stOf(j) === flt.stato) &&
     (!flt.w || (flt.w === '_none' ? !wById[j.workerId] : j.workerId === flt.w)) &&
-    (!flt.automazione || (() => { const a = String(j.automazione || '').toLowerCase(), t = String(j.tipo || '').toLowerCase(), d = String(j.descrizione || '').toLowerCase(); const v = flt.automazione; if (v === 'ante') return a.includes('ante'); if (v === 'scorrevole') return a.includes('scorrevol'); if (v === 'serranda') return a.includes('serranda') || a.includes('portone o serranda'); if (v === 'sbarra') return a.includes('sbarr'); if (v === 'porta') return a.includes('porta automatica'); if (v === 'rapida') return a.includes('porta rapida'); if (v === 'tapparella') return a.includes('tapparell'); if (v === 'portone') return a.includes('portone') || a.includes('portone o serranda'); if (v === 'cancello') return a.includes('cancello') || a.includes('scorrevol'); if (v === 'allarme') return a.includes('allarme') || t.includes('allarme') || d.includes('allarme'); if (v === 'tvcc') return a.includes('tv.cc') || t.includes('tv.cc') || t.includes('tvcc') || d.includes('tv.cc') || d.includes('tvcc'); return true; })()) &&
-    (!q || [j.cliente, j.via, j.telefono, j.descrizione, j.tipo, j.automazione].join(' ').toLowerCase().includes(q))
+    (!flt.automazione || (() => { const a = impiantiOf(j).join(' ').toLowerCase(), t = String(j.tipo || '').toLowerCase(), d = String(j.descrizione || '').toLowerCase(); const v = flt.automazione; if (v === 'ante') return a.includes('ante'); if (v === 'scorrevole') return a.includes('scorrevol'); if (v === 'serranda') return a.includes('serranda') || a.includes('portone o serranda'); if (v === 'sbarra') return a.includes('sbarr'); if (v === 'porta') return a.includes('porta automatica'); if (v === 'rapida') return a.includes('porta rapida'); if (v === 'tapparella') return a.includes('tapparell'); if (v === 'portone') return a.includes('portone') || a.includes('portone o serranda'); if (v === 'cancello') return a.includes('cancello') || a.includes('scorrevol'); if (v === 'allarme') return a.includes('allarme') || t.includes('allarme') || d.includes('allarme'); if (v === 'tvcc') return a.includes('tv.cc') || t.includes('tv.cc') || t.includes('tvcc') || d.includes('tv.cc') || d.includes('tvcc'); return true; })()) &&
+    (!flt.urgenza || (flt.urgenza === 'normale' ? prioRank(j) === 0 : j.priorita === flt.urgenza)) &&
+    (!q || [j.cliente, j.via, j.telefono, j.descrizione, j.tipo, j.automazione, j.automazione2].join(' ').toLowerCase().includes(q))
   ).sort((a, b) => b.data.localeCompare(a.data) || byOra(a, b));
 }
 function mountArchivio(){
@@ -3067,6 +3079,7 @@ function mountArchivio(){
       <label class="field"><span>Al</span><input type="date" data-flt="a" value="${esc(flt.a)}"></label>
       <label class="field"><span>Lavoratore</span><select data-flt="w" id="fltW"></select></label>
       <label class="field"><span>Automazione / impianto</span><select data-flt="automazione">${opts([['', 'Tutti'], ['cancello', 'CANCELLO (TUTTI)'], ['ante', 'CANCELLO AD ANTE'], ['scorrevole', 'CANCELLO SCORREVOLE'], ['serranda', 'SERRANDA'], ['sbarra', 'SBARRA / SBARRE'], ['porta', 'PORTA AUTOMATICA'], ['rapida', 'PORTA RAPIDA'], ['tapparella', 'TAPPARELLA'], ['portone', 'PORTONE'], ['allarme', 'ALLARME'], ['tvcc', 'TV.CC']], flt.automazione)}</select></label>
+      <label class="field"><span>Urgenza</span><select data-flt="urgenza">${opts([['', 'Tutte'], ['normale', 'Normale'], ['urgente', 'Urgente'], ['urgentissimo', 'Molto urgente']], flt.urgenza)}</select></label>
     </div>
     <div class="form-actions"><button class="btn small ghost" data-act="clear-filters">Azzera filtri</button>
       ${usingDb && canWrite ? `<button class="btn small" data-act="load-archive" ${archiveLoading ? 'disabled' : ''}>${ic('search', 16)}${archiveLoading ? 'Caricamento storico…' : 'Cerca anche nello storico'}</button>` : ''}
@@ -3150,7 +3163,7 @@ async function exportCsv(){
   const list = filtered();
   if (!list.length) { toast('Nessun intervento da esportare.'); return; }
   const wById = workerMap();
-  const head = ['Data', 'Fascia oraria', 'Cliente', 'Via', 'Telefono', 'Maps', 'Tipo di intervento', 'Automazione', 'Amministratore', 'Priorità', 'Durata (min)', 'Lavoro', 'Lavoratore', 'Stato'].concat(canWrite ? ['Importo (€)', 'Pre-fattura'] : []);
+  const head = ['Data', 'Fascia oraria', 'Cliente', 'Via', 'Telefono', 'Maps', 'Tipo di intervento', 'Automazione', 'Amministratore', 'Urgenza', 'Durata (min)', 'Lavoro', 'Lavoratore', 'Stato'].concat(canWrite ? ['Importo (€)', 'Pre-fattura'] : []);
   const rows = list.map(j => [j.data, FASCIA_LABEL[fasciaOf(j)] || '', j.cliente, j.via, j.telefono, j.maps, j.tipo, j.automazione || '', j.amministratore || '', j.priorita || 'normale', j.durata,
     j.descrizione, wById[j.workerId] ? wById[j.workerId].nome : '', STATI[stOf(j)]].concat(canWrite ? [
     stOf(j) === 'fatto' ? fmtNum(importoOf(j)) : '', ((prefatture.find(p => p.id === j.preFatturaId) || {}).numero) || ''] : []));
@@ -3225,7 +3238,7 @@ function cleanJob(o){
   const j = {id, data, fascia, cliente, via, telefono: str(o.telefono, 40), maps: str(o.maps, 500), descrizione: str(o.descrizione, 2000), tipo: str(o.tipo, 80),
     priorita: PRIO[o.priorita] ? o.priorita : 'normale', durata: dur > 0 && dur <= 1440 ? dur : '',
     workerId: str(o.workerId, 60).replace(/[^\w-]/g, ''), stato: STATI[o.stato] ? o.stato : 'da_fare',
-    clienteId: str(o.clienteId, 60).replace(/[^\w-]/g, ''), noteFatt: str(o.noteFatt, 160), automazione: autoNorm(o.automazione), notePrec: str(o.notePrec, 3000), amministratore: str(o.amministratore, 120), preFatturaId: str(o.preFatturaId, 60).replace(/[^\w-]/g, '')};
+    clienteId: str(o.clienteId, 60).replace(/[^\w-]/g, ''), noteFatt: str(o.noteFatt, 160), automazione: autoNorm(o.automazione), automazione2: autoNorm(o.automazione2), notePrec: str(o.notePrec, 3000), amministratore: str(o.amministratore, 120), preFatturaId: str(o.preFatturaId, 60).replace(/[^\w-]/g, '')};
   if (o.importo !== undefined && o.importo !== '' && o.importo !== null && isFinite(Number(o.importo))) j.importo = Math.max(0, round2(o.importo));
   return j;
 }
@@ -4176,7 +4189,7 @@ document.addEventListener('click', e => {
   const id = t.dataset.id;
   switch (t.dataset.act) {
     case 'go': go(t.dataset.view); break;
-    case 'open-unassigned-finder': flt.q = ''; flt.da = ''; flt.a = ''; flt.stato = 'da_fare'; flt.w = '_none'; flt.automazione = ''; go('archivio'); break;
+    case 'open-unassigned-finder': flt.q = ''; flt.da = ''; flt.a = ''; flt.stato = 'da_fare'; flt.w = '_none'; flt.automazione = ''; flt.urgenza = ''; go('archivio'); break;
     case 'prev': setDate(shift(date, -1)); break;
     case 'next': setDate(shift(date, 1)); break;
     case 'oggi': setDate(todayISO()); break;
@@ -4516,7 +4529,7 @@ document.addEventListener('click', e => {
       if (t.dataset.armed !== '1') { t.dataset.armed = '1'; t.textContent = 'Tocca ancora per eliminare'; }
       else { removeWorker(id); editingWorkerId = null; mounted = null; render(); toast('Lavoratore eliminato.'); }
       break;
-    case 'clear-filters': Object.assign(flt, {q:'', da:'', a:'', stato:'', w:'', automazione:''}); mounted = null; render(); break;
+    case 'clear-filters': Object.assign(flt, {q:'', da:'', a:'', stato:'', w:'', automazione:'', urgenza:''}); mounted = null; render(); break;
     case 'load-archive': loadArchive(); break;
     case 'export': exportCsv(); break;
     case 'export-json': exportJson(); break;
@@ -4814,6 +4827,7 @@ function rebuildJobs(){
   muls = rawJobs.filter(x => x.mul);
   jobs = rawJobs.filter(x => !x.rip && !x.mul).map(j => {
     if (j.automazione) { const an = autoNorm(j.automazione); if (an && an !== j.automazione) j = Object.assign({}, j, {automazione: an}); }
+    if (j.automazione2) { const an = autoNorm(j.automazione2); if (an && an !== j.automazione2) j = Object.assign({}, j, {automazione2: an}); }
     const f = fattMap[j.id];
     if (!f) return j;
     const o = Object.assign({}, j);
@@ -5709,6 +5723,7 @@ function wSheetHtml(j){
     ${wStatoHtml(j, st)}
     ${j.via ? `<p class="line" style="margin:12px 0 0">${ic('pin', 16)}<span>${esc(j.via)}</span></p>` : ''}
     ${j.automazione ? `<p class="line" style="margin:6px 0 0"><b>Impianto:</b>&nbsp;${esc(j.automazione)}</p>` : ''}
+    ${j.automazione2 ? `<p class="line" style="margin:6px 0 0"><b>Impianto 2:</b>&nbsp;${esc(j.automazione2)}</p>` : ''}
     ${j.amministratore ? `<p class="line" style="margin:6px 0 0"><b>Amministratore:</b>&nbsp;${esc(j.amministratore)}</p>` : ''}
     ${j.descrizione ? `<p class="desc" style="margin:10px 0">${esc(j.descrizione)}</p>` : ''}
     ${j.notePrec ? `<div class="wnote-sent" style="margin:10px 0"><span class="fl">Note dei giorni precedenti</span><p>${esc(j.notePrec)}</p></div>` : ''}
@@ -5747,7 +5762,7 @@ function wCard(j){
   </article>`;
 }
 function viewOggi(){
-  const day = jobs.filter(j => j.data === date).sort(byFascia);
+  const day = jobs.filter(j => j.data === date).sort(byFasciaPrio);
   const done = day.filter(j => stOf(j) === 'fatto').length;
   const w = workers[0];
   let h = `<div class="pagehead"><div><h2>${w ? 'Ciao ' + esc(String(w.nome).split(' ')[0]) : 'I tuoi interventi'}</h2><p class="sub">${esc(fmtLong(date))}</p></div>${dateBar()}</div>

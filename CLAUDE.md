@@ -19,7 +19,7 @@ Rispondi sempre in italiano, in modo semplice (l'utente non è programmatore). P
 - `lavoratore` (con `workerId`): vede solo i propri interventi; può cambiare solo stato, noteLavoratore, causale, inizioIl, esitoIl, esitoDa, firma* (vedi `W_KEYS`). Aggiungere campi scritti dal lavoratore richiede di cambiare le regole.
 
 ## Dati principali
-- `interventi`: data (YYYY-MM-DD o vuota = "Da programmare"), fascia, cliente/clienteId, via, tipo, durata, stato (da_fare/in_corso/fatto/non_fatto), priorita (normale/urgente/urgentissimo, vedi `PRIO`), automazione (tipo impianto, MAIUSCOLO, lista `AUTOMAZIONI`, normalizzato con `autoNorm`), noteLavoratore, causale (per i "fatto" contiene `ORE=x;PERS=y`), notePrec (note dei giorni precedenti, vedi `notePrecDi`). `rip:true` = motori/centraline, `mul:true` = muletti.
+- `interventi`: data (YYYY-MM-DD o vuota = "Da programmare"), fascia, cliente/clienteId, via, tipo, durata, stato (da_fare/in_corso/fatto/non_fatto), priorita (= urgenza: normale/urgente/urgentissimo, mostrate come Normale/Urgente/Molto urgente, vedi `PRIO`; mancante = normale), automazione e automazione2 (tipo impianto e "Tipo di impianto 2" facoltativo, MAIUSCOLO, lista `AUTOMAZIONI`, normalizzati con `autoNorm`, vedi `impiantiOf`), noteLavoratore, causale (per i "fatto" contiene `ORE=x;PERS=y`), notePrec (note dei giorni precedenti, vedi `notePrecDi`). `rip:true` = motori/centraline, `mul:true` = muletti.
 - `fatturazione/{idIntervento}`: importo, prefat, preFatturaId, noteFatt (separati dagli interventi per i permessi).
 - `clienti`, `prefatture`, `articoli`, `listino`, `materiali`, `movimenti`, `foto`, `firme`, `tipi`, `impostazioni` (doc `azienda`, `clientiEliminati`), `notifLette`, `lavoratori`, `utenti`, `catalogo`.
 

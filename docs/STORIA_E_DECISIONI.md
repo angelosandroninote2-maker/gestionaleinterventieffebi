@@ -5,7 +5,7 @@ Questo file sostituisce la vecchia conversazione con Claude. Contiene solo fatti
 ## Chi e come
 - Utente: titolare/gestore di Effebi (automazioni: cancelli, sbarre, serrande, portoni, porte automatiche, tapparelle, allarmi, TVCC). Parla italiano, non è programmatore.
 - Preferisce: spiegazioni semplici, anteprime (immagini) prima di cambi grafici, conferma con "procedi". Vuole risparmiare token: modifiche mirate, niente riscritture complete.
-- Pubblicazione: GitHub Pages dal ramo `main` di `angelosandroninote2-maker/gestionaleinterventieffebi`. Dopo ogni modifica: alzare `VERSION` in `sw.js` (al 26/11 era `v19`).
+- Pubblicazione: GitHub Pages dal ramo `main` di `angelosandroninote2-maker/gestionaleinterventieffebi`. Dopo ogni modifica: alzare `VERSION` in `sw.js` (al 26/11 era `v20`).
 - Firebase: piano gratuito Spark (50.000 letture/giorno, 20.000 scritture/giorno). Consigliato in passato: passare a Blaze con avviso di budget 5 € (lo deve fare l'utente con la carta; non risulta fatto).
 
 ## Regole Firestore
@@ -24,6 +24,7 @@ Questo file sostituisce la vecchia conversazione con Claude. Contiene solo fatti
 9. Grafica 24/11 (fatta dall'utente con altro strumento): palette blu notte (#172337) + rosso (#C8102E); corrette colonna Stato tagliata in Panoramica e Esci fuori schermo.
 10. Letture ridotte (25/11): copia locale IndexedDB di clienti e fatturazione con campo `agg`; prima: ~10.000 letture per apertura + Carica lavori (simulazione 5.000 clienti / 3.000 interventi), dopo: ~1.500.
 11. 26/11: aggiunti TAPPARELLA e PORTA RAPIDA; rapporto PDF senza manodopera/materiale; note dei giorni precedenti (`notePrec`) con «Continua un altro giorno» e con lo spostamento di data di un intervento non finito.
+12. 26/11 (v20): "Tipo di impianto 2" facoltativo (campo `automazione2`, stesse voci, vuoto = "Nessuno" e non mostrato) in Carica/modifica, scheda, lavoratore, WhatsApp ("Impianto: A + B"), stampa, PDF rapporto, pre-fatturazione, ricerca e filtro impianto del Finder. Urgenza = campo `priorita` esistente (valori salvati invariati, nessuna conversione): "Urgentissimo – chiamato più volte" rinominato "Molto urgente"; etichette Urgente arancione, Molto urgente rosso pieno, Normale grigia solo in scheda (nelle liste solo le urgenti); Assegna, messaggio WhatsApp e lista del lavoratore: nella stessa fascia prima i più urgenti (la firma `waSig` resta indipendente dall'ordine); campo "Priorità" rinominato "Urgenza" in tutto ciò che si vede (nel database resta `priorita`); Finder: filtro Urgenza (solo dati già caricati); PDF rapporto: riga Urgenza solo se urgente.
 
 ## Cose note ma NON fatte (proposte in sospeso)
 - Ridurre ancora le letture degli interventi degli ultimi 180 giorni (~1.500 per apertura): servirebbe `agg` anche sugli interventi, quindi cambiare le regole (il lavoratore può scrivere solo `W_KEYS`).
