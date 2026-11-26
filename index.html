@@ -2176,6 +2176,12 @@ function smartFill(){
   updateMapsHint(); acClose();
   toast(found.length ? 'Compilati: ' + found.join(', ') + '. Controlla e correggi.' : 'Non ho riconosciuto dati: compila a mano.');
 }
+function notePrecDi(j){   // note dei giorni precedenti + quelle del giorno di j
+  const wn = (workers.find(x => x.id === j.workerId) || {}).nome || '', hh = hoursOf(j);
+  const parts = [j.noteLavoratore, stOf(j) === 'non_fatto' && j.causale ? 'Non fatto: ' + j.causale : '', hh ? 'Ore: ' + hoursTxt(hh) : ''].filter(Boolean);
+  const riga = parts.length ? (j.data ? fmtShort(j.data) : 'Giorno precedente') + (wn ? ' – ' + wn : '') + ': ' + parts.join(' · ') : '';
+  return [j.notePrec, riga].filter(Boolean).join('\n').slice(-3000);
+}
 function saveJob(f, mode){
   const fd = new FormData(f);
   if (mode === 'assign' && !String(fd.get('data') || '').trim()) { toast('Per assegnare l’intervento, scegli prima una data.'); return; }
@@ -2200,6 +2206,11 @@ function saveJob(f, mode){
     workerId: old ? (old.workerId || '') : '', stato: old ? old.stato : 'da_fare',
     notePrec: fd.has('notePrec') ? String(fd.get('notePrec') || '').trim().slice(0, 3000) : (old ? (old.notePrec || '') : '')
   });
+  if (old && old.data && j.data !== old.data && stOf(old) !== 'fatto' && (old.noteLavoratore || old.causale)) {
+    // intervento spostato a un altro giorno: le note del lavoratore passano nelle note dei giorni precedenti
+    const np = notePrecDi(old); if (np && !String(j.notePrec || '').includes(np.split('\n').pop())) j.notePrec = np;
+    if (role === 'titolare' || stOf(old) !== 'non_fatto') { j.stato = 'da_fare'; ['noteLavoratore', 'causale', 'inizioIl', 'esitoIl', 'esitoDa'].forEach(k => { j[k] = ''; }); }
+  }
   if (!j.notePrec) delete j.notePrec;
   const i = jobs.findIndex(x => x.id === j.id);
   if (i >= 0) jobs[i] = j; else jobs.push(j);
@@ -4476,10 +4487,7 @@ document.addEventListener('click', e => {
     case 'edit-job': if (canWrite) { detailId = null; editingJobId = id; draftJob = null; view = 'carica'; mounted = null; render(); window.scrollTo(0, 0); } break;
     case 'dup-job': {
       const j = jobs.find(x => x.id === id); if (!j) break;
-      const wn = (workers.find(x => x.id === j.workerId) || {}).nome || '', hh = hoursOf(j);
-      const parts = [j.noteLavoratore, stOf(j) === 'non_fatto' && j.causale ? 'Non fatto: ' + j.causale : '', hh ? 'Ore: ' + hoursTxt(hh) : ''].filter(Boolean);
-      const riga = parts.length ? (j.data ? fmtShort(j.data) : 'Giorno precedente') + (wn ? ' – ' + wn : '') + ': ' + parts.join(' · ') : '';
-      const np = [j.notePrec, riga].filter(Boolean).join('\n').slice(-3000);
+      const np = notePrecDi(j);
       draftJob = Object.assign({}, j, {id: '', data: shift(j.data, 1), stato: 'da_fare', workerId: '', notePrec: np});
       detailId = null; editingJobId = null; view = 'carica'; mounted = null; render(); window.scrollTo(0, 0);
       toast(draftJob.notePrec ? 'Copia pronta con le note dei giorni precedenti: controlla la data e salva.' : 'Copia pronta: controlla la data e salva.'); break;
