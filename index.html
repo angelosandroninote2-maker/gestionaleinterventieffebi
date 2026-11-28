@@ -207,6 +207,14 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14.5px;min-width:560px}
 
 /* righe compatte (Carica lavori, Archivio) */
 .rows{display:grid;gap:8px}
+/* Controllo e pulizia */
+.ctl-fn{display:flex;flex-wrap:wrap;gap:8px}
+.ctl-chip{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;padding:6px 10px;border-radius:999px;font-size:13.5px;background:var(--ok-tint);color:var(--ok-text)}
+.ctl-chip.warn{background:var(--warn-tint);color:var(--warn-text)}
+.ctl-chip.bad{background:var(--bad-tint);color:var(--bad-text);border-radius:10px}
+.ctl-chip small{flex-basis:100%;font-size:12px}
+.ctl-res.bad{border-left:4px solid var(--bad-text)}
+.ctl-res.warn{border-left:4px solid var(--warn-text)}
 .row{position:relative;display:flex;flex-wrap:wrap;gap:8px 14px;align-items:flex-start;padding:10px 14px 10px 18px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
 .row::before{content:"";position:absolute;left:0;top:10px;bottom:10px;width:4px;border-radius:0 4px 4px 0;background:var(--wc,var(--line))}
 .row.st-fatto{opacity:.72}
@@ -1021,6 +1029,7 @@ const LOGO_BIG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAPAAAADwCAMAAAAJ
 
 /* ---------- icone ---------- */
 const ICONS = {
+  shieldcheck:'<path d="M12 3 4 6v6c0 5 3.4 8.2 8 9 4.6-.8 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/>',
   dashboard:'<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>',
   clipadd:'<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11v6M9 14h6"/>',
   calcheck:'<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/><path d="m9 15 2 2 4-4"/>',
@@ -1409,9 +1418,18 @@ function loadLocal(){
   try { const r = localStorage.getItem(LS); if (r) { const o = JSON.parse(r); workers = o.workers || []; jobs = o.jobs || []; tipi = o.tipi || []; clienti = o.clienti || []; prefatture = o.prefatture || []; azienda = o.azienda || {}; } } catch(e){}
 }
 function saveLocal(){ try { localStorage.setItem(LS, JSON.stringify({workers, jobs, tipi, clienti, prefatture, azienda})); } catch(e){} }
+/* registro errori di questo dispositivo (ultimi 40), visibile in Controllo */
+const ERR_KEY = 'effebi-errori';
+function logErr(msg, where){
+  try { const l = JSON.parse(localStorage.getItem(ERR_KEY) || '[]'), m = String(msg || 'Errore').slice(0, 300), q = new Date().toISOString(), u = l[l.length - 1];
+    if (u && u.m === m) { u.n = (u.n || 1) + 1; u.q = q; } else l.push({q, m, w: String(where || '').slice(0, 120), n: 1});
+    localStorage.setItem(ERR_KEY, JSON.stringify(l.slice(-40))); } catch(e){}
+}
+window.addEventListener('error', e => { if (e && e.message) logErr(e.message, String(e.filename || '').split('/').pop() + (e.lineno ? ':' + e.lineno : '')); });
+window.addEventListener('unhandledrejection', e => { const r = e && e.reason; if (r && r.name === 'AbortError') return; logErr((r && (r.code || r.message)) || String(r), 'operazione in sospeso'); });
 const chains = new Map();
 function enqueue(key, fn){
-  const p = (chains.get(key) || Promise.resolve()).then(fn).catch(() => toast('Salvataggio non riuscito. Riprova.'));
+  const p = (chains.get(key) || Promise.resolve()).then(fn).catch(err => { logErr('Salvataggio non riuscito (' + key.split('/')[0] + '): ' + ((err && (err.code || err.message)) || err), 'salvataggio'); toast('Salvataggio non riuscito. Riprova.'); });
   chains.set(key, p);
 }
 function startDb(db){
@@ -1559,15 +1577,16 @@ function renderMenu(){
     ['riparazioni', 'Motori', 'engine', rips.filter(r => ripState(r) === 'ricevuto').length ? `<span class="pill warn" title="Motori da riparare">${rips.filter(r => ripState(r) === 'ricevuto').length}</span>` : '', true],
     ['centraline', 'Centraline', 'chip', cens.filter(r => ripState(r) === 'ricevuto').length ? `<span class="pill warn" title="Centraline da riparare">${cens.filter(r => ripState(r) === 'ricevuto').length}</span>` : '', true],
     ['manuali', 'Manuali', 'bookopen', '', true],
-    ['archivio', 'Finder', 'search', '']
+    ['archivio', 'Finder', 'search', ''],
+    ['controllo', 'Controllo', 'shieldcheck', '', true]
   ];
-  $('#menu').innerHTML = items.filter(i => (canWrite || !i[4]) && (i[0] !== 'da_programmare' || canWrite) && (i[0] !== 'utenti' || role === 'titolare')).map(i =>
+  $('#menu').innerHTML = items.filter(i => (canWrite || !i[4]) && (i[0] !== 'da_programmare' || canWrite) && (i[0] !== 'utenti' || role === 'titolare') && (i[0] !== 'controllo' || role === 'titolare')).map(i =>
     `<button role="tab" data-act="go" data-view="${i[0]}" aria-selected="${view === i[0]}">${ic(i[2], 18)}${i[1]}${i[3]}</button>`).join('');
 }
 function render(){
   if (gateRender()) return;
   if (!canWrite && (view === 'carica' || view === 'anagrafica' || view === 'prefat' || view === 'magazzino' || view === 'manuali' || view === 'riparazioni' || view === 'centraline' || view === 'muletti')) view = 'panoramica';
-  if (view === 'utenti' && role !== 'titolare') view = 'panoramica';
+  if ((view === 'utenti' || view === 'controllo') && role !== 'titolare') view = 'panoramica';
   if (view === 'da_programmare' && !canWrite) view = 'panoramica';
   renderMenu();
   if (view === 'carica') { if (mounted !== 'carica') { mountCarica(); mounted = 'carica'; } refreshCarica(); }
@@ -1576,6 +1595,7 @@ function render(){
   else if (view === 'magazzino') { if (mounted !== 'magazzino') { mountMagazzino(); mounted = 'magazzino'; } refreshMagazzino(); }
   else if (view === 'prefat') { if (mounted !== 'prefat') { mountPrefat(); mounted = 'prefat'; } refreshPrefat(); }
   else if (view === 'utenti') { mounted = null; $('#app').innerHTML = viewUtenti(); }
+  else if (view === 'controllo') { mounted = null; $('#app').innerHTML = viewControllo(); }
   else if (view === 'muletti') { mounted = null; const a = document.activeElement, fid = a && a.id && /^mul[A-Za-z]+$/.test(a.id) ? a.id : '', fs = fid && a.type !== 'date' && a.type !== 'number' ? a.selectionStart : null; $('#app').innerHTML = viewMuletti(); if (fid) { const n = document.getElementById(fid); if (n) { n.focus({preventScroll: true}); try { if (fs !== null) n.setSelectionRange(fs, fs); } catch(e){} } } }
   else if (view === 'riparazioni') { mounted = null; const a = document.activeElement, fid = a && a.id && /^rip[A-Za-z]+$/.test(a.id) ? a.id : '', fs = fid ? a.selectionStart : 0; $('#app').innerHTML = viewRiparazioni(); if (fid) { const n = document.getElementById(fid); if (n) { n.focus({preventScroll: true}); try { n.setSelectionRange(fs, fs); } catch(e){} } } }
   else if (view === 'centraline') { mounted = null; const a = document.activeElement, fid = a && a.id && /^cen[A-Za-z]+$/.test(a.id) ? a.id : '', fs = fid ? a.selectionStart : 0; $('#app').innerHTML = viewCentraline(); if (fid) { const n = document.getElementById(fid); if (n) { n.focus({preventScroll: true}); try { n.setSelectionRange(fs, fs); } catch(e){} } } }
@@ -3335,6 +3355,7 @@ function go(v){
   if (v === 'carica') { editingJobId = null; draftJob = null; }
   if (v === 'lavoratori') editingWorkerId = null;
   if (v === 'assegna') assSub = 'giornata';
+  if (v === 'controllo') ctlOpenView();
   if (v === 'magazzino') { magTab = 'carico'; artId = null; }
   if (v === 'anagrafica') { cliFormOpen = false; editingClienteId = null; cliPrefill = null; }
   render(); window.scrollTo(0, 0);
@@ -4885,6 +4906,7 @@ function stopSubs(){
   workers = []; jobs = []; rips = []; cens = []; muls = []; rawJobs = []; fattMap = {}; tipi = []; clienti = []; clientiCompleti = null; anaPageClientes = []; anaPageCursor = null; anaPageLoading = false; anaPageHasMore = true; prefatture = []; azienda = {}; utenti = []; pendingUsersCount = 0; clientiLoaded = false; clientiLoading = false;
 }
 function fbSnapErr(err){
+  logErr('Archivio: ' + ((err && (err.code || err.message)) || err), 'lettura');
   if (err && err.code === 'permission-denied') toast('Permesso negato dall’archivio: controlla il ruolo assegnato.');
   setSync('local');
 }
@@ -5859,7 +5881,7 @@ const SHELL_GROUPS = [
   ['Giornata', ['oggi', 'panoramica', 'carica', 'assegna']],
   ['Officina', ['riparazioni', 'rip-open', 'centraline', 'muletti']],
   ['Ufficio', ['anagrafica', 'prefat', 'magazzino']],
-  ['Gestione', ['lavoratori', 'utenti', 'manuali', 'man-open']]
+  ['Gestione', ['lavoratori', 'utenti', 'manuali', 'man-open', 'controllo']]
 ];
 const TAB_LABEL = {panoramica: 'Oggi', carica: 'Carica', assegna: 'Assegna', archivio: 'Cerca', oggi: 'Interventi', 'man-open': 'Manuali', 'rip-open': 'Motori'};
 const shellKey = b => b.dataset.view || b.dataset.act;
@@ -5988,6 +6010,281 @@ applyTheme(savedTheme);
 invLoad();
 render();
 bootFirebase();
+/* ---------- Controllo e pulizia (solo titolare): si lancia a mano, controlla funzioni e dati, corregge solo dove è sicuro ---------- */
+const CTL_KEY = 'effebi-controllo';
+let ctl = {busy: false, step: '', res: null, letture: 0, foto: false, fn: null, dev: null, open: {}, errOpen: false};
+const ctlGg = n => { const d = new Date(); d.setDate(d.getDate() - n); return iso(d); };
+const ctlLast = () => { try { return JSON.parse(localStorage.getItem(CTL_KEY) || 'null'); } catch(e){ return null; } };
+const ctlBytes = n => !n ? '0 KB' : n > 1048576 ? (n / 1048576).toFixed(1).replace('.', ',') + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
+function errList(){ try { return JSON.parse(localStorage.getItem(ERR_KEY) || '[]'); } catch(e){ return []; } }
+function ctlOpenView(){ ctl.fn = ctlFunzioni(); ctl.dev = null; ctlDevice().then(d => { ctl.dev = d; if (view === 'controllo') render(); }); }
+
+/* 1) Funzioni dell'app: prova a costruire le schermate e i documenti con i dati già caricati (nessuna lettura dall'archivio) */
+function ctlFunzioni(){
+  const out = [];
+  const t = (nome, fn) => {
+    try { const r = fn(); out.push({nome, liv: r === false ? 'warn' : 'ok', nota: typeof r === 'string' ? r : ''}); }
+    catch(e){ const m = String((e && e.message) || e).slice(0, 160); out.push({nome, liv: 'bad', nota: m}); logErr('Controllo funzioni – ' + nome + ': ' + m, 'controllo'); }
+  };
+  t('Panoramica', () => { viewPanoramica(); });
+  t('Assegna', () => { viewAssegna(); });
+  t('Da programmare', () => { viewDaProgrammare(); });
+  t('Utenti', () => { viewUtenti(); });
+  t('Manuali', () => { viewManuali(); });
+  t('Motori', () => { viewRiparazioni(); });
+  t('Centraline', () => { viewCentraline(); });
+  t('Muletti', () => { viewMuletti(); });
+  t('Rapporto di intervento (PDF)', () => { const j = jobs.find(x => stOf(x) === 'fatto') || jobs[0]; if (!j) return 'nessun intervento su cui provare'; return buildJobPdf(j, [], azienda, null) ? '' : false; });
+  t('Messaggio WhatsApp della giornata', () => { const w = workers.find(x => isActive(x) && x.telefono); if (!w) return 'nessun lavoratore con telefono'; waHref(w, jobs.filter(j => j.workerId === w.id && j.data === date)); });
+  return out;
+}
+
+/* 2) Questo dispositivo: versione, spazio, copia locale, errori registrati */
+async function ctlDevice(){
+  const d = {online: navigator.onLine, sw: !!(navigator.serviceWorker && navigator.serviceWorker.controller)};
+  try { d.ver = (await caches.keys()).filter(k => k.startsWith('shell-')).map(k => k.slice(6)).join(', '); } catch(e){ d.ver = ''; }
+  try { const e = await navigator.storage.estimate(); d.usato = e.usage; d.quota = e.quota; } catch(e){}
+  for (const n of ['clienti', 'fatturazione']) { try { const c = await cacheGet(cacheKey(n)); d[n] = c ? {n: Object.keys(c.docs || {}).length, full: c.full} : null; } catch(e){ d[n] = null; } }
+  try { let s = 0; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); s += k.length + (localStorage.getItem(k) || '').length; } d.ls = s * 2; } catch(e){}
+  return d;
+}
+async function ctlRiscarica(){
+  if (!confirm('La copia locale di clienti e fatturazione verrà cancellata da questo dispositivo e riscaricata da zero dall’archivio (qualche migliaio di letture). Continuare?')) return;
+  const db = await idb();
+  if (db) await new Promise(res => { try { const tx = db.transaction('kv', 'readwrite'); ['clienti', 'fatturazione'].forEach(n => tx.objectStore('kv').delete(cacheKey(n))); tx.oncomplete = res; tx.onerror = res; } catch(e){ res(); } });
+  location.reload();
+}
+
+/* 3) Controllo dati: legge tutto l'archivio una volta (prima mostra quante letture servono) */
+async function ctlSoloCampi(n){   // foto e firme: solo pochi campi, senza scaricare le immagini
+  const u = fb.auth && fb.auth.currentUser; if (!u) throw new Error('non collegato');
+  const tok = await u.getIdToken();
+  const r = await fetch('https://firestore.googleapis.com/v1/projects/' + FIREBASE_CONFIG.projectId + '/databases/(default)/documents:runQuery', {method: 'POST',
+    headers: {'Content-Type': 'application/json', Authorization: 'Bearer ' + tok},
+    body: JSON.stringify({structuredQuery: {from: [{collectionId: n}], select: {fields: ['jobId', 'doc', 'creato', 'giorno'].map(f => ({fieldPath: f}))}}})});
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const arr = await r.json();
+  return arr.filter(x => x.document).map(x => { const f = x.document.fields || {}, v = k => f[k] ? (f[k].stringValue !== undefined ? f[k].stringValue : '') : '';
+    return {id: x.document.name.split('/').pop(), jobId: v('jobId'), doc: !!(f.doc && f.doc.booleanValue), creato: v('creato'), giorno: v('giorno')}; });
+}
+async function ctlAvvia(){
+  if (ctl.busy || !usingDb || role !== 'titolare') return;
+  const col = n => fb.collection(fb.db, n);
+  const nomi = ['interventi', 'materiali', 'articoli', 'prefatture', 'utenti', 'lavoratori'].concat(ctl.foto ? ['foto', 'firme'] : []);
+  ctl.busy = true; ctl.step = 'Conto i documenti…'; render();
+  const cnt = {};
+  await Promise.all(nomi.map(async n => { try { cnt[n] = (await fb.getCountFromServer(col(n))).data().count; } catch(e){ cnt[n] = 0; } }));
+  const tot = Object.values(cnt).reduce((a, b) => a + b, 0) + (clientiLoaded ? 0 : (clienti.length || 0));
+  ctl.busy = false; render();
+  if (!confirm('Il controllo leggerà circa ' + tot.toLocaleString('it-IT') + ' documenti dall’archivio (limite gratuito: 50.000 al giorno, cioè circa il ' + Math.max(1, Math.round(tot / 500)) + '%).\n\nNon cambia niente da solo: le correzioni le scegli tu dopo. Continuare?')) return;
+  ctl.busy = true; ctl.res = null; ctl.open = {}; ctl.letture = tot;
+  try {
+    const D = {};
+    for (const n of nomi) {
+      ctl.step = 'Leggo ' + n + '…'; render();
+      if (n === 'foto' || n === 'firme') { try { D[n] = await ctlSoloCampi(n); } catch(e){ D[n] = null; logErr('Controllo: lettura ' + n + ' non riuscita (' + e.message + ')', 'controllo'); } }
+      else { const s = await fb.getDocs(col(n)); D[n] = s.docs.map(d => Object.assign({id: d.id}, d.data())); }
+    }
+    ctl.step = 'Leggo l’anagrafica clienti…'; render();
+    ensureClientiLoaded();
+    for (let i = 0; i < 240 && !clientiLoaded; i++) await new Promise(r => setTimeout(r, 250));
+    ctl.step = 'Controllo i dati…'; render();
+    ctl.res = ctlAnalizza(D);
+    const c = l => ctl.res.filter(x => x.liv === l).reduce((a, x) => a + x.items.length, 0);
+    try { localStorage.setItem(CTL_KEY, JSON.stringify({quando: new Date().toISOString(), bad: c('bad'), warn: c('warn'), info: c('info'), letture: tot})); } catch(e){}
+  } catch(e){
+    const m = (e && (e.code || e.message)) || String(e); logErr('Controllo dati: ' + m, 'controllo');
+    toast(e && e.code === 'permission-denied' ? 'Permesso negato dall’archivio durante il controllo.' : 'Controllo non riuscito: controlla la connessione e riprova.');
+  }
+  ctl.busy = false; ctl.step = ''; render();
+}
+
+function ctlAnalizza(D){
+  const R = [], add = o => { if (o.items.length) R.push(o); };
+  const all = D.interventi, ids = new Set(all.map(x => x.id));
+  ctlDocs = new Map(all.map(x => [x.id, x]));
+  const fatt = id => fattMap[id] || {};
+  const J = all.filter(x => !x.rip && !x.mul).map(j => Object.assign({}, j, fatt(j.id)));
+  const W = D.lavoratori, wIds = new Set(W.map(w => w.id)), wOff = new Set(W.filter(w => !isActive(w)).map(w => w.id));
+  const C = clientiLoaded ? (clientiCompleti || clienti) : null, cIds = C ? new Set(C.map(c => c.id)) : null;
+  const pIds = new Set(D.prefatture.map(p => p.id));
+  const oggi = todayISO(), g7 = ctlGg(7), g30 = ctlGg(30);
+  const aperto = j => !isClosed(stOf(j));
+  const jIt = (j, x) => Object.assign({t: j.cliente || 'Senza nome', s: [j.data ? dmy(j.data) : 'Da programmare', j.tipo, j.via, STATI[stOf(j)]].filter(Boolean).join(' · '), job: j.id}, x || {});
+  const upd = (coll, id, data) => ['upd', coll, id, data];
+
+  // --- interventi ---
+  add({id: 'aperti-vecchi', liv: 'warn', titolo: 'Interventi rimasti aperti da più di 7 giorni', spiega: 'Probabilmente sono stati fatti ma non chiusi, oppure vanno spostati a un altro giorno.',
+    items: J.filter(j => aperto(j) && j.data && j.data < g7).sort((a, b) => a.data.localeCompare(b.data)).map(j => jIt(j))});
+  add({id: 'in-corso', liv: 'warn', titolo: 'Interventi «In corso» di giorni passati', spiega: 'Il lavoratore ha iniziato ma non ha chiuso con Fatto o Non fatto.',
+    items: J.filter(j => stOf(j) === 'in_corso' && j.data && j.data < oggi && j.data >= g7).map(j => jIt(j))});
+  add({id: 'lav-mancante', liv: 'bad', titolo: 'Interventi aperti assegnati a un lavoratore che non esiste più', spiega: 'Nessuno li vede nel telefono. La correzione li rimette «Da assegnare».',
+    items: J.filter(j => aperto(j) && j.workerId && !wIds.has(j.workerId)).map(j => jIt(j, {fix: upd('interventi', j.id, {workerId: ''})})),
+    fix: {label: 'Rimetti da assegnare', conferma: '{n} interventi torneranno «Da assegnare». Continuare?'}});
+  add({id: 'lav-disattivo', liv: 'warn', titolo: 'Interventi aperti di lavoratori disattivati', spiega: 'Vanno assegnati a un altro lavoratore (apri la scheda e cambia lavoratore).',
+    items: J.filter(j => aperto(j) && wOff.has(j.workerId)).map(j => jIt(j, {s: (W.find(w => w.id === j.workerId) || {}).nome + ' · ' + jIt(j).s}))});
+  if (cIds) add({id: 'cli-mancante', liv: 'warn', titolo: 'Interventi collegati a un cliente cancellato dall’anagrafica', spiega: 'Il nome del cliente resta scritto nell’intervento; la correzione toglie solo il collegamento rotto.',
+    items: J.filter(j => j.clienteId && !cIds.has(j.clienteId)).map(j => jIt(j, {fix: upd('interventi', j.id, {clienteId: ''})})),
+    fix: {label: 'Togli il collegamento rotto', conferma: 'Tolgo il collegamento al cliente cancellato da {n} interventi (il nome resta). Continuare?'}});
+  const valori = [];
+  J.forEach(j => {
+    const p = {}, note = [];
+    if (j.stato && !STATI[j.stato]) { p.stato = 'da_fare'; note.push('stato «' + j.stato + '»'); }
+    if (j.priorita && !PRIO[j.priorita]) { p.priorita = 'normale'; note.push('urgenza «' + j.priorita + '»'); }
+    ['automazione', 'automazione2'].forEach(k => { const v = j[k]; if (!v) return; const a = autoNorm(v); if (a && a !== v) p[k] = a; else if (!a) note.push('impianto «' + v + '» non in elenco'); });
+    if (Object.keys(p).length || note.length) valori.push(jIt(j, {s: (note.join(', ') || 'impianto da scrivere in maiuscolo') + ' · ' + jIt(j).s, fix: Object.keys(p).length ? upd('interventi', j.id, p) : null}));
+  });
+  add({id: 'valori', liv: 'info', titolo: 'Valori scritti in modo non standard', spiega: 'Stato, urgenza o impianto scritti a mano o da versioni vecchie. La correzione li riporta ai valori standard (gli impianti fuori elenco vanno sistemati a mano).',
+    items: valori, fix: valori.some(i => i.fix) ? {label: 'Riporta ai valori standard', conferma: 'Correggo {n} interventi con i valori standard. Continuare?'} : null});
+  const dop = {};
+  J.filter(j => j.data && !j.mul && !j.rip).forEach(j => { const k = [j.data, norm(j.cliente).trim(), norm(j.via).trim(), norm(j.tipo).trim()].join('|'); (dop[k] = dop[k] || []).push(j); });
+  add({id: 'doppioni', liv: 'warn', titolo: 'Possibili interventi doppi', spiega: 'Stesso giorno, cliente, indirizzo e tipo di lavoro: forse caricati due volte. Controlla e cancella quello in più.',
+    items: Object.values(dop).filter(l => l.length > 1).flatMap(l => l.map((j, i) => jIt(j, {s: 'Gruppo di ' + l.length + ' · ' + jIt(j).s})))});
+  add({id: 'incompleti', liv: 'info', titolo: 'Interventi aperti senza cliente o senza indirizzo', spiega: 'Il lavoratore non sa dove andare: completa la scheda.',
+    items: J.filter(j => aperto(j) && (!String(j.cliente || '').trim() || !String(j.via || '').trim())).map(j => jIt(j))});
+  add({id: 'dp-vecchi', liv: 'info', titolo: '«Da programmare» da più di 30 giorni', spiega: 'Interventi senza data creati più di un mese fa: da programmare o da cancellare.',
+    items: J.filter(j => !j.data && aperto(j) && j.creato && String(j.creato).slice(0, 10) < g30).map(j => jIt(j, {s: 'Creato il ' + dmy(String(j.creato).slice(0, 10)) + ' · ' + (j.tipo || '')}))});
+  add({id: 'senza-ore', liv: 'info', titolo: 'Chiusi dal lavoratore senza ore e persone', spiega: 'Mancano ore di lavoro o persone: servono per la pre-fattura.',
+    items: J.filter(j => stOf(j) === 'fatto' && j.esitoDa === 'lavoratore' && !/ORE=/.test(j.causale || '') && j.data >= ctlGg(180)).map(j => jIt(j))});
+
+  // --- pre-fatturazione ---
+  add({id: 'da-mandare', liv: 'warn', titolo: 'Fatti da più di 30 giorni e mai mandati in pre-fatturazione', spiega: 'Lavori fatti che rischiano di non essere fatturati (icona verde nella scheda per mandarli).',
+    items: J.filter(j => stOf(j) === 'fatto' && j.data && j.data < g30 && j.prefat !== true && !j.preFatturaId).sort((a, b) => b.data.localeCompare(a.data)).map(j => jIt(j))});
+  add({id: 'prefat-ferma', liv: 'info', titolo: 'In pre-fatturazione da più di 30 giorni', spiega: 'Mandati in pre-fatturazione ma non ancora messi in una pre-fattura.',
+    items: J.filter(j => stOf(j) === 'fatto' && j.prefat === true && !j.preFatturaId && j.data && j.data < g30).map(j => jIt(j))});
+  add({id: 'pf-mancante', liv: 'bad', titolo: 'Interventi legati a una pre-fattura che non esiste più', spiega: 'Restano bloccati e non si possono rifatturare. La correzione li rimette tra quelli da pre-fatturare.',
+    items: Object.values(fattMap).filter(f => f.preFatturaId && !pIds.has(f.preFatturaId) && ids.has(f.id)).map(f => { const j = J.find(x => x.id === f.id) || {id: f.id, cliente: f.id}; return jIt(j, {fix: upd('fatturazione', f.id, {preFatturaId: '', agg: fb.serverTimestamp()})}); }),
+    fix: {label: 'Rimetti da pre-fatturare', conferma: '{n} interventi torneranno tra quelli da pre-fatturare. Continuare?'}});
+  add({id: 'fatt-orfani', liv: 'info', titolo: 'Importi di interventi già cancellati', spiega: 'Dati di fatturazione rimasti senza intervento: occupano spazio e letture. Pulizia sicura.',
+    items: Object.values(fattMap).filter(f => !ids.has(f.id)).map(f => ({t: 'Intervento cancellato', s: 'Codice ' + f.id + (f.importo ? ' · ' + fmtNum(f.importo) + ' €' : ''), fix: ['set', 'fatturazione', f.id, {id: f.id, eliminato: true, agg: fb.serverTimestamp()}]})),
+    fix: {label: 'Pulisci', conferma: 'Pulisco {n} dati di fatturazione di interventi cancellati. Continuare?'}});
+  add({id: 'mat-pf', liv: 'bad', titolo: 'Materiale legato a una pre-fattura che non esiste più', spiega: 'Il materiale non comparirebbe più in nessuna pre-fattura. La correzione lo rimette disponibile.',
+    items: D.materiali.filter(m => m.preFatturaId && !pIds.has(m.preFatturaId)).map(m => ({t: (m.qta || 1) + ' × ' + (m.descrizione || m.codice || 'materiale'), s: m.giorno ? dmy(m.giorno) : '', job: ids.has(m.jobId) ? m.jobId : '', fix: upd('materiali', m.id, {preFatturaId: '', aperto: true, rev: (Number(m.rev) || 0) + 1})})),
+    fix: {label: 'Rimetti disponibile', conferma: 'Rimetto disponibile {n} righe di materiale. Continuare?'}});
+
+  // --- anagrafica ---
+  if (C) {
+    const grp = {}, put = (k, why, c) => { if (!k) return; (grp[k] = grp[k] || {why, l: []}).l.push(c); };
+    C.forEach(c => {
+      const pi = String(c.piva || '').replace(/\D/g, ''), cf = String(c.cf || '').trim().toUpperCase();
+      if (pi.length === 11 && !/^0+$/.test(pi)) put('p' + pi, 'stessa P.IVA ' + pi, c);
+      if (cf.length === 16) put('c' + cf, 'stesso codice fiscale', c);
+      const n = norm(nomeCliente(c)).replace(/\s+/g, ' ').trim(), v = norm(c.via).replace(/\s+/g, ' ').trim();
+      if (n && v) put('n' + n + '|' + v, 'stesso nome e indirizzo', c);
+    });
+    const seen = new Set(), items = [];
+    Object.values(grp).filter(g => g.l.length > 1).forEach(g => { const k = g.l.map(c => c.id).sort().join(','); if (seen.has(k)) return; seen.add(k);
+      g.l.forEach(c => items.push({t: nomeCliente(c), s: g.why + ' (' + g.l.length + ' schede) · ' + [c.via, c.citta].filter(Boolean).join(', '), cli: c.id})); });
+    add({id: 'cli-doppi', liv: 'warn', titolo: 'Clienti doppi in anagrafica', spiega: 'Stessa partita IVA, codice fiscale o stesso nome e indirizzo. Tieni la scheda più completa e cancella l’altra.', items});
+  }
+
+  // --- utenti e lavoratori ---
+  add({id: 'utenti-lav', liv: 'bad', titolo: 'Account lavoratore collegati a un lavoratore inesistente', spiega: 'Chi entra con questi account non vede nessun intervento: collegali al lavoratore giusto in Utenti.',
+    items: D.utenti.filter(u => u.ruolo === 'lavoratore' && (!u.workerId || !wIds.has(u.workerId))).map(u => ({t: u.email || u.id, s: 'Ruolo lavoratore', go: 'utenti'}))});
+  add({id: 'utenti-attesa', liv: 'info', titolo: 'Account in attesa di abilitazione', spiega: 'Si sono registrati ma non hanno ancora un ruolo.',
+    items: D.utenti.filter(u => !u.ruolo).map(u => ({t: u.email || u.id, s: u.creato ? 'Registrato il ' + dmy(u.creato) : '', go: 'utenti'}))});
+  add({id: 'lav-tel', liv: 'info', titolo: 'Lavoratori attivi senza numero di telefono', spiega: 'Senza numero non si può mandare la giornata su WhatsApp.',
+    items: W.filter(w => isActive(w) && !String(w.telefono || '').trim()).map(w => ({t: w.nome || w.id, s: '', go: 'lavoratori'}))});
+
+  // --- magazzino ---
+  add({id: 'giac-neg', liv: 'warn', titolo: 'Articoli con giacenza negativa', spiega: 'È uscito più materiale di quello caricato: fai un conteggio o una correzione di giacenza.',
+    items: D.articoli.filter(a => qtaOf(a) < 0).map(a => ({t: a.descrizione || a.codice || (a.codici || [])[0] || a.id, s: 'Giacenza ' + qtaOf(a) + (a.codice ? ' · ' + a.codice : ''), art: a.id}))});
+  const cod = {};
+  D.articoli.forEach(a => new Set((a.codici || []).concat(a.codice ? [a.codice] : []).map(normCode).filter(Boolean)).forEach(k => (cod[k] = cod[k] || []).push(a)));
+  add({id: 'cod-doppi', liv: 'warn', titolo: 'Stesso codice a barre su più articoli', spiega: 'Sparando il codice la pistola carica solo uno dei due: unisci gli articoli o togli il codice sbagliato.',
+    items: Object.entries(cod).filter(([k, l]) => l.length > 1).flatMap(([k, l]) => l.map(a => ({t: a.descrizione || a.codice || a.id, s: 'Codice ' + k + ' su ' + l.length + ' articoli · giacenza ' + qtaOf(a), art: a.id})))});
+  add({id: 'mat-orfani', liv: 'warn', titolo: 'Materiale aperto di interventi cancellati', spiega: 'Materiale segnato come usato in interventi che non esistono più: controlla la giacenza degli articoli.',
+    items: D.materiali.filter(m => m.aperto && !m.annullato && m.jobId && !ids.has(m.jobId)).map(m => ({t: (m.qta || 1) + ' × ' + (m.descrizione || m.codice || 'materiale'), s: m.giorno ? dmy(m.giorno) : '', art: m.articoloId || ''}))});
+  add({id: 'mat-pend', liv: 'info', titolo: 'Scarichi dal magazzino in sospeso da più di 3 giorni', spiega: 'Materiale usato non ancora tolto dalla giacenza. Di solito si sistema da solo aprendo Magazzino.',
+    items: D.materiali.filter(m => m.pend && !m.annullato && String(m.creato || '').slice(0, 10) < ctlGg(3)).map(m => ({t: (m.qta || 1) + ' × ' + (m.descrizione || m.codice || 'materiale'), s: m.giorno ? dmy(m.giorno) : '', job: ids.has(m.jobId) ? m.jobId : '', go: ids.has(m.jobId) ? '' : 'magazzino'}))});
+
+  // --- foto e firme (facoltativo) ---
+  if (D.foto) add({id: 'foto-orfane', liv: 'info', titolo: 'Foto e documenti di interventi cancellati', spiega: 'Occupano spazio nell’archivio e non si vedono più da nessuna parte. L’eliminazione è definitiva.',
+    items: D.foto.filter(f => f.jobId && !ids.has(f.jobId)).map(f => ({t: f.doc ? 'Documento' : 'Foto', s: (f.giorno ? dmy(f.giorno) : '') + ' · intervento ' + f.jobId, fix: ['del', 'foto', f.id]})),
+    fix: {label: 'Elimina definitivamente', conferma: 'Elimino DEFINITIVAMENTE {n} foto/documenti di interventi cancellati. Non si possono recuperare. Continuare?'}});
+  if (D.firme) add({id: 'firme-orfane', liv: 'info', titolo: 'Firme di interventi cancellati', spiega: 'Firme rimaste senza intervento. L’eliminazione è definitiva.',
+    items: D.firme.filter(f => !ids.has(f.jobId || f.id)).map(f => ({t: 'Firma', s: (f.giorno ? dmy(f.giorno) : '') + ' · intervento ' + (f.jobId || f.id), fix: ['del', 'firme', f.id]})),
+    fix: {label: 'Elimina definitivamente', conferma: 'Elimino DEFINITIVAMENTE {n} firme di interventi cancellati. Continuare?'}});
+  if (ctl.foto && (!D.foto || !D.firme)) R.push({id: 'foto-ko', liv: 'info', titolo: 'Foto e firme non controllate', spiega: 'Non sono riuscito a leggerle (vedi errori registrati qui sopra).', items: []});
+
+  const ord = {bad: 0, warn: 1, info: 2};
+  return R.sort((a, b) => ord[a.liv] - ord[b.liv]);
+}
+
+async function ctlFix(cid){
+  const c = ctl.res && ctl.res.find(x => x.id === cid); if (!c || !c.fix || ctl.busy) return;
+  const items = c.items.filter(i => i.fix); if (!items.length) return;
+  if (!confirm(c.fix.conferma.replace('{n}', items.length))) return;
+  ctl.busy = true; let ok = 0, ko = 0;
+  for (let i = 0; i < items.length; i += 20) {
+    ctl.step = c.fix.label + '… ' + i + ' di ' + items.length; render();
+    const res = await Promise.allSettled(items.slice(i, i + 20).map(it => { const [op, coll, id, data] = it.fix, r = fb.doc(fb.db, coll, id);
+      return (op === 'del' ? fb.deleteDoc(r) : op === 'set' ? fb.setDoc(r, data) : fb.updateDoc(r, data)).then(() => { it.done = true; }); }));
+    res.forEach(r => { if (r.status === 'fulfilled') ok++; else { ko++; logErr('Correzione «' + c.titolo + '»: ' + ((r.reason && (r.reason.code || r.reason.message)) || r.reason), 'controllo'); } });
+  }
+  c.items = c.items.filter(i => !i.done);
+  c.esito = ok + ' sistemati' + (ko ? ', ' + ko + ' non riusciti (vedi errori registrati)' : '');
+  ctl.busy = false; ctl.step = ''; render();
+  toast(ko ? 'Fatto in parte: ' + c.esito + '.' : 'Fatto: ' + c.esito + '.');
+}
+
+function viewControllo(){
+  const L = {ok: ['ok', 'check', 'OK'], warn: ['warn', 'alert', 'Da guardare'], bad: ['bad', 'alert', 'Da sistemare'], info: ['ok', 'sparkles', 'Pulizia']};
+  const fn = ctl.fn || [], fnKo = fn.filter(x => x.liv !== 'ok').length, last = ctlLast(), d = ctl.dev, errs = errList();
+  let h = `<div class="pagehead"><div><h2>Controllo e pulizia</h2><p class="sub">Lancialo quando vuoi: controlla che tutto funzioni e che i dati siano in ordine</p></div></div>`;
+  // funzioni
+  h += `<section class="panel"><div class="split"><h2 class="panel-title" style="margin:0">Funzioni dell’app</h2><button class="btn small" data-act="ctl-fn">${ic('check', 16)}Riprova</button></div>
+    <p class="muted" style="margin:6px 0 10px">${fnKo ? fnKo + ' funzioni con problemi' : 'Tutte le funzioni provate rispondono'} · prova fatta con i dati già caricati, senza letture dall’archivio.</p>
+    <div class="ctl-fn">${fn.map(x => `<span class="ctl-chip ${x.liv}" title="${esc(x.nota)}">${ic(x.liv === 'ok' ? 'check' : 'alert', 14)}${esc(x.nome)}${x.nota && x.liv !== 'ok' ? `<small>${esc(x.nota)}</small>` : ''}</span>`).join('')}</div></section>`;
+  // dispositivo
+  const age = c => c && c.full ? Math.floor((Date.now() - c.full) / 864e5) : null;
+  h += `<section class="panel"><h2 class="panel-title">Questo dispositivo</h2>${!d ? '<p class="muted">Controllo in corso…</p>' : `<div class="alerts">
+    <div class="alert ${d.online ? 'ok' : 'warn'}"><div class="ico">${ic(d.online ? 'check' : 'alert', 18)}</div><div class="msg">${d.online ? 'Collegato a internet' : 'Senza rete: i dati si salvano e partono appena torna la connessione'} · app versione ${esc(d.ver || '—')}${d.sw ? '' : ' (aggiornamento automatico non attivo su questa pagina)'}</div></div>
+    <div class="alert ok"><div class="ico">${ic('archive', 18)}</div><div class="msg">Copia locale: clienti ${d.clienti ? d.clienti.n.toLocaleString('it-IT') + ' (riscaricati ' + (age(d.clienti) ? age(d.clienti) + ' giorni fa' : 'oggi') + ')' : 'non ancora salvata'}, fatturazione ${d.fatturazione ? d.fatturazione.n.toLocaleString('it-IT') : '—'} · spazio usato ${ctlBytes(d.usato)}</div><button class="btn small" data-act="ctl-cache">Riscarica da zero</button></div>
+    <div class="alert ${errs.length ? 'warn' : 'ok'}"><div class="ico">${ic(errs.length ? 'alert' : 'check', 18)}</div><div class="msg">${errs.length ? errs.length + ' errori registrati su questo dispositivo (ultimo ' + esc(whenTxt(errs[errs.length - 1].q)) + ')' : 'Nessun errore registrato su questo dispositivo'}</div>${errs.length ? `<button class="btn small" data-act="ctl-err">${ctl.errOpen ? 'Nascondi' : 'Mostra'}</button><button class="btn small" data-act="ctl-err-clear">Svuota</button>` : ''}</div></div>
+    ${ctl.errOpen && errs.length ? `<div class="rows" style="margin-top:10px">${errs.slice().reverse().map(e => `<div class="row"><div class="row-main"><strong>${esc(e.m)}</strong><small>${esc(whenTxt(e.q))}${e.n > 1 ? ' · ' + e.n + ' volte' : ''}${e.w ? ' · ' + esc(e.w) : ''}</small></div></div>`).join('')}</div>` : ''}`}</section>`;
+  // dati
+  h += `<section class="panel"><div class="split"><div><h2 class="panel-title" style="margin:0">Controllo dei dati</h2><p class="muted" style="margin:4px 0 0">${last ? 'Ultimo controllo ' + esc(whenTxt(last.quando)) + ' · ' + last.bad + ' da sistemare, ' + last.warn + ' da guardare, ' + last.info + ' di pulizia' : 'Mai fatto finora'}. Legge tutto l’archivio una volta: prima ti dice quante letture servono, e non cambia niente senza il tuo OK.</p></div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><label style="display:flex;gap:8px;align-items:center;font-size:14px;white-space:nowrap;cursor:pointer"><input type="checkbox" style="width:18px;height:18px;min-height:0;min-width:0;margin:0;padding:0;flex:none;accent-color:var(--brand,#C8102E)" data-act="ctl-foto" ${ctl.foto ? 'checked' : ''}>Anche foto e firme</label>
+    <button class="btn primary" data-act="ctl-run" ${ctl.busy ? 'disabled' : ''}>${ic('search', 16)}${ctl.busy ? esc(ctl.step || 'Attendi…') : 'Avvia controllo'}</button></div></div></section>`;
+  if (ctl.res) {
+    const n = l => ctl.res.filter(x => x.liv === l).reduce((a, x) => a + x.items.length, 0);
+    h += `<div class="statline"><span><b>${n('bad')}</b>da sistemare</span><span><b>${n('warn')}</b>da guardare</span><span><b>${n('info')}</b>di pulizia</span></div>`;
+    if (!ctl.res.some(x => x.items.length)) h += `<section class="panel"><div class="empty"><h3>Tutto in ordine</h3><p>Nessun problema trovato nei dati.</p></div></section>`;
+    ctl.res.forEach(c => {
+      const nf = c.items.filter(i => i.fix).length, all = ctl.open[c.id], vis = all ? c.items : c.items.slice(0, 8);
+      h += `<section class="panel ctl-res ${c.liv}"><div class="split"><div><h2 class="panel-title" style="margin:0"><span class="tag ${c.liv === 'bad' ? 'urgent xx' : c.liv === 'warn' ? 'urgent' : 'type'}">${L[c.liv][2]}</span> ${esc(c.titolo)} <span class="muted">(${c.items.length})</span></h2>
+        <p class="muted" style="margin:4px 0 0">${esc(c.spiega)}${c.esito ? ` <b>Ultima correzione: ${esc(c.esito)}.</b>` : ''}</p></div>
+        ${c.fix && nf ? `<button class="btn small${c.liv === 'bad' ? ' primary' : ''}" data-act="ctl-fix" data-id="${esc(c.id)}" ${ctl.busy ? 'disabled' : ''}>${esc(c.fix.label)} (${nf})</button>` : ''}</div>
+        ${c.items.length ? `<div class="rows" style="margin-top:10px">${vis.map(i => `<div class="row"><div class="row-main"><strong>${esc(i.t)}</strong><small>${esc(i.s || '')}</small></div>
+          ${i.job ? `<button class="btn small" data-act="ctl-job" data-id="${esc(i.job)}">Apri</button>` : i.cli ? `<button class="btn small" data-act="ctl-cli" data-id="${esc(i.cli)}">Apri</button>` : i.art ? `<button class="btn small" data-act="ctl-art" data-id="${esc(i.art)}">Apri</button>` : i.go ? `<button class="btn small" data-act="go" data-view="${esc(i.go)}">Vai</button>` : ''}</div>`).join('')}</div>
+          ${c.items.length > vis.length ? `<button class="btn small" style="margin-top:8px" data-act="ctl-more" data-id="${esc(c.id)}">Mostra tutti (${c.items.length})</button>` : ''}` : ''}</section>`;
+    });
+  }
+  return h;
+}
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-act^="ctl-"]'); if (!t || role !== 'titolare') return;
+  const id = t.dataset.id, a = t.dataset.act;
+  if (a === 'ctl-run') ctlAvvia();
+  else if (a === 'ctl-foto') { ctl.foto = t.checked; }
+  else if (a === 'ctl-fn') { ctl.fn = ctlFunzioni(); render(); toast('Prova delle funzioni ripetuta.'); }
+  else if (a === 'ctl-cache') ctlRiscarica();
+  else if (a === 'ctl-err') { ctl.errOpen = !ctl.errOpen; render(); }
+  else if (a === 'ctl-err-clear') { try { localStorage.removeItem(ERR_KEY); } catch(x){} ctl.errOpen = false; render(); }
+  else if (a === 'ctl-fix') ctlFix(id);
+  else if (a === 'ctl-more') { ctl.open[id] = true; render(); }
+  else if (a === 'ctl-job') {
+    if (!jobs.some(j => j.id === id)) { const x = ctlDoc(id); if (x) { rawJobs.push(x); rebuildJobs(); } }
+    if (!jobs.some(j => j.id === id)) { toast('Intervento non più presente.'); return; }
+    detailId = id; ensureMagData(); renderDetail();
+  }
+  else if (a === 'ctl-cli') { const c = (clientiCompleti || clienti).find(x => x.id === id); if (!c) { toast('Cliente non più presente.'); return; } go('anagrafica'); anaTab = 'tutti'; anaQ = nomeCliente(c); anaOpen = id; mounted = null; render(); }
+  else if (a === 'ctl-art') { go('magazzino'); if (!id) return; let n = 0; const apri = () => { if (artLoaded) { artId = id; renderArt(); } else if (n++ < 40) setTimeout(apri, 300); }; apri(); }
+});
+let ctlDocs = new Map();
+const ctlDoc = id => ctlDocs.get(id);
+
 /* ---------- app installabile (Android) ---------- */
 (() => {
   let ev = null; const b = document.getElementById('installBtn'); if (!b) return;
