@@ -48,7 +48,7 @@ M.touch = () => M.subs.forEach(s => s.fire());
 const put = (k, v, merge) => { const cur = M.docs[k] || {}; const o = merge ? Object.assign({}, cur) : {}; Object.keys(v).forEach(f => { const x = v[f]; o[f] = x && x.__inc !== undefined ? (Number(cur[f]) || 0) + x.__inc : x && x.__ts ? Date.now() : x; }); M.docs[k] = o; };
 const later = () => { setTimeout(M.touch, 0); return Promise.resolve(); };
 export const setDoc = (r, v, opt) => { put(r.c + '/' + r.id, v, opt && opt.merge); return later(); };
-export const updateDoc = (r, v) => { put(r.c + '/' + r.id, v, true); return later(); };
+export const updateDoc = (r, v) => { if ((M.deny || []).includes(r.c)) return Promise.reject({code: 'permission-denied'}); put(r.c + '/' + r.id, v, true); return later(); };
 export const deleteDoc = r => { delete M.docs[r.c + '/' + r.id]; return later(); };
 export const writeBatch = () => { const ops = []; return {set: (r, v) => ops.push(() => put(r.c + '/' + r.id, v)), update: (r, v) => ops.push(() => put(r.c + '/' + r.id, v, true)), delete: r => ops.push(() => delete M.docs[r.c + '/' + r.id]), commit: () => { ops.forEach(f => f()); return later(); }}; };
 `;

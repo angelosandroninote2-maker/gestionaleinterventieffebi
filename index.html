@@ -5208,7 +5208,17 @@ function docsFollow(j){
   if (!usingDb || !canWrite || !fb || !j || !j.id) return;
   const s = (j.workerId || '') + '|' + j.data; if (docSig[j.id] === undefined || docSig[j.id] === s) return; docSig[j.id] = s;
   fb.getDocs(fb.query(fb.collection(fb.db, 'foto'), fb.where('jobId', '==', j.id))).then(sn => sn.docs.forEach(d => { const x = d.data();
-    if (x.doc && ((x.workerId || '') !== (j.workerId || '') || x.giorno !== j.data)) fb.updateDoc(fb.doc(fb.db, 'foto', x.id), {workerId: j.workerId || '', giorno: j.data}).catch(() => {}); })).catch(() => {});
+    if (x.doc && ((x.workerId || '') !== (j.workerId || '') || x.giorno !== j.data)) docMove(x, {workerId: j.workerId || '', giorno: j.data}); })).catch(e => logErr('Documenti allegati: lettura non riuscita (' + ((e && (e.code || e.message)) || e) + ')', 'documenti'));
+}
+/* le regole dell'archivio possono vietare di modificare una foto/documento: in quel caso si crea la copia aggiornata e poi si toglie la vecchia */
+async function docMove(x, patch){
+  try { await fb.updateDoc(fb.doc(fb.db, 'foto', x.id), patch); return; }
+  catch(e){ if (!e || e.code !== 'permission-denied') { logErr('Documento allegato non aggiornato: ' + ((e && (e.code || e.message)) || e), 'documenti'); return; } }
+  const nid = newId('f');
+  try { await fb.setDoc(fb.doc(fb.db, 'foto', nid), Object.assign({}, x, patch, {id: nid})); }
+  catch(e){ logErr('Documento allegato non spostato (copia non riuscita): ' + ((e && (e.code || e.message)) || e), 'documenti'); return; }
+  try { await fb.deleteDoc(fb.doc(fb.db, 'foto', x.id)); }
+  catch(e){ logErr('Documento allegato: copia fatta, vecchia versione non tolta (' + ((e && (e.code || e.message)) || e) + ')', 'documenti'); }
 }
 function showLightbox(src){
   let lb = document.getElementById('lightbox');
