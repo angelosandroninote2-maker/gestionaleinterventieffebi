@@ -45,7 +45,9 @@ export const onSnapshot = (r, fn, err) => {
       if (s.last && !ch) return; s.last = sig; cnt(s.lastFired ? ch : res.length, 'snap ' + r.c + JSON.stringify(r.w)); s.lastFired = true; fn(snapQ(res)); } };
   s.fire = fire; M.subs.add(s); setTimeout(fire, 0); return () => M.subs.delete(s); };
 M.touch = () => M.subs.forEach(s => s.fire());
-const put = (k, v, merge) => { const cur = M.docs[k] || {}; const o = merge ? Object.assign({}, cur) : {}; Object.keys(v).forEach(f => { const x = v[f]; o[f] = x && x.__inc !== undefined ? (Number(cur[f]) || 0) + x.__inc : x && x.__ts ? Date.now() : x; }); M.docs[k] = o; };
+const plain = x => x && typeof x === 'object' && !Array.isArray(x) && x.__inc === undefined && !x.__ts;
+const mrg = (cur, v, merge) => { const o = merge ? Object.assign({}, cur) : {}; Object.keys(v).forEach(f => { const x = v[f]; o[f] = x && x.__inc !== undefined ? (Number(cur[f]) || 0) + x.__inc : x && x.__ts ? Date.now() : merge && plain(x) ? mrg(plain(cur[f]) ? cur[f] : {}, x, true) : x; }); return o; };
+const put = (k, v, merge) => { M.docs[k] = mrg(M.docs[k] || {}, v, merge); };
 const later = () => { setTimeout(M.touch, 0); return Promise.resolve(); };
 export const setDoc = (r, v, opt) => { put(r.c + '/' + r.id, v, opt && opt.merge); return later(); };
 export const updateDoc = (r, v) => { if ((M.deny || []).includes(r.c)) return Promise.reject({code: 'permission-denied'}); put(r.c + '/' + r.id, v, true); return later(); };

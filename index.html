@@ -213,6 +213,16 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14.5px;min-width:560px}
 .ctl-chip.warn{background:var(--warn-tint);color:var(--warn-text)}
 .ctl-chip.bad{background:var(--bad-tint);color:var(--bad-text);border-radius:10px}
 .ctl-chip small{flex-basis:100%;font-size:12px}
+.let-head{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin:10px 0}
+.let-big{font:700 30px/1 var(--font-mono,inherit);font-variant-numeric:tabular-nums}.let-big small{font-family:var(--font-body);font-size:14px;font-weight:500;color:var(--muted)}
+.let-meter{height:8px;border-radius:99px;background:var(--surface2);overflow:hidden;margin-bottom:12px}.let-meter i{display:block;height:100%;border-radius:99px;background:var(--ok-text)}
+.let-meter.warn i{background:var(--warn-text)}.let-meter.bad i{background:var(--bad-text)}
+.let-svg{width:100%;height:auto;display:block;max-width:760px}
+.let-grid{stroke:var(--line);stroke-width:1}.let-base{stroke:var(--muted);stroke-width:1}
+.let-ax{fill:var(--muted);font-size:12px}.let-ax.b{fill:var(--ink);font-weight:600}.let-val{fill:var(--ink);font-size:12.5px;font-weight:600}
+.let-lim{stroke:var(--bad-text);stroke-width:1.5;stroke-dasharray:5 4}.let-limt{fill:var(--bad-text);font-size:12px;font-weight:600}
+.let-bar path{fill:var(--muted);opacity:.45}.let-bar.oggi path{fill:var(--ink);opacity:1}.let-bar:hover path{opacity:.8}
+.let-bar.warn path{fill:var(--warn-text);opacity:.8}.let-bar.bad path{fill:var(--bad-text);opacity:.9}
 .ctl-res.bad{border-left:4px solid var(--bad-text)}
 .ctl-res.warn{border-left:4px solid var(--warn-text)}
 .row{position:relative;display:flex;flex-wrap:wrap;gap:8px 14px;align-items:flex-start;padding:10px 14px 10px 18px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
@@ -1578,7 +1588,7 @@ function renderMenu(){
     ['centraline', 'Centraline', 'chip', cens.filter(r => ripState(r) === 'ricevuto').length ? `<span class="pill warn" title="Centraline da riparare">${cens.filter(r => ripState(r) === 'ricevuto').length}</span>` : '', true],
     ['manuali', 'Manuali', 'bookopen', '', true],
     ['archivio', 'Finder', 'search', ''],
-    ['controllo', 'Controllo', 'shieldcheck', '', true]
+    ['controllo', 'Controllo', 'shieldcheck', (letOggi() || 0) >= LET_LIMITE * .6 ? `<span class="pill warn" title="Letture di oggi">${Math.round(letOggi() / LET_LIMITE * 100)}%</span>` : '', true]
   ];
   $('#menu').innerHTML = items.filter(i => (canWrite || !i[4]) && (i[0] !== 'da_programmare' || canWrite) && (i[0] !== 'utenti' || role === 'titolare') && (i[0] !== 'controllo' || role === 'titolare')).map(i =>
     `<button role="tab" data-act="go" data-view="${i[0]}" aria-selected="${view === i[0]}">${ic(i[2], 18)}${i[1]}${i[3]}</button>`).join('');
@@ -5005,6 +5015,7 @@ async function bootFirebase(){
   try {
     const [a, au, fs] = await Promise.all([import(FB_BASE + 'firebase-app.js'), import(FB_BASE + 'firebase-auth.js'), import(FB_BASE + 'firebase-firestore.js')]);
     fb = Object.assign({}, a, au, fs);
+    letWrap();
     const app = fb.initializeApp(FIREBASE_CONFIG);
     fb.auth = fb.getAuth(app);
     try { fb.db = fb.initializeFirestore(app, {localCache: fb.persistentLocalCache({tabManager: fb.persistentMultipleTabManager()})}); }
@@ -6020,6 +6031,92 @@ applyTheme(savedTheme);
 invLoad();
 render();
 bootFirebase();
+/* ---------- Letture dell'archivio: stima contata su ogni dispositivo di titolare e ufficio, sommata in impostazioni/letture ----------
+   Si contano i documenti arrivati dal server (non quelli dalla copia locale). Il limite gratuito si azzera a mezzanotte in California (le 9 in Italia). */
+const LET_LIMITE = 50000, LET_GIORNI = 7;
+const LET = {pend: 0, doc: null, quando: 0};
+const letDay = d => new Intl.DateTimeFormat('en-CA', {timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit'}).format(d || new Date());
+const letConta = n => { if (n > 0) LET.pend += n; };
+const letServer = s => !(s && s.metadata && s.metadata.fromCache);
+function letWrap(){
+  const gd = fb.getDocs, g1 = fb.getDoc, gc = fb.getCountFromServer, os = fb.onSnapshot;
+  fb.getDocs = async q => { const s = await gd(q); if (letServer(s)) letConta(Math.max(1, s.size || 0)); return s; };
+  fb.getDoc = async r => { const s = await g1(r); if (letServer(s)) letConta(1); return s; };
+  if (gc) fb.getCountFromServer = async q => { const s = await gc(q); letConta(Math.max(1, Math.ceil(((s.data() || {}).count || 0) / 1000))); return s; };
+  fb.onSnapshot = (ref, next, err) => os(ref, s => {
+    if (letServer(s)) { if (typeof s.docChanges === 'function') letConta(s.docChanges().length); else letConta(s.docs ? Math.max(1, s.docs.length) : 1); }
+    return next(s);
+  }, err);
+}
+function letChi(){ const e = String(chiSono() || '').split('@')[0]; return ((ROLE_LABEL[role] || 'Dispositivo') + (e ? ' ' + e : '')).replace(/[.~*/\[\]`]/g, ' ').slice(0, 60); }
+async function letFlush(){
+  if (!usingDb || !canWrite || !fb || LET.pend <= 0) return;
+  const n = LET.pend, d = letDay(); LET.pend = 0;
+  try { await fb.setDoc(fb.doc(fb.db, 'impostazioni', 'letture'), {id: 'letture', giorni: {[d]: {tot: fb.increment(n), [letChi()]: fb.increment(n)}}}, {merge: true}); }
+  catch(e){ LET.pend += n; }
+}
+setInterval(letFlush, 180000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') letFlush(); });
+async function letCarica(){
+  if (!usingDb || !canWrite) return;
+  await letFlush();
+  try {
+    const s = await fb.getDoc(fb.doc(fb.db, 'impostazioni', 'letture'));
+    LET.doc = s.exists() ? s.data() : {giorni: {}}; LET.quando = Date.now();
+    // tiene solo gli ultimi 35 giorni (una volta al giorno al massimo, la fa il titolare)
+    const g = LET.doc.giorni || {}, lim = letDay(new Date(Date.now() - 35 * 864e5)), vecchi = Object.keys(g).filter(k => k < lim);
+    if (vecchi.length && role === 'titolare') { const ng = {}; Object.keys(g).filter(k => k >= lim).forEach(k => { ng[k] = g[k]; }); await fb.setDoc(fb.doc(fb.db, 'impostazioni', 'letture'), {id: 'letture', giorni: ng}); LET.doc.giorni = ng; }
+  } catch(e){ logErr('Letture: conteggio non leggibile (' + ((e && (e.code || e.message)) || e) + ')', 'letture'); }
+  render();
+}
+function letSerie(){
+  const g = (LET.doc && LET.doc.giorni) || {}, oggi = letDay(), out = [];
+  for (let i = LET_GIORNI - 1; i >= 0; i--) {
+    const k = letDay(new Date(Date.now() - i * 864e5)), x = g[k] || {};
+    out.push({k, n: (Number(x.tot) || 0) + (k === oggi ? LET.pend : 0), per: x, oggi: k === oggi});
+  }
+  return out;
+}
+const letOggi = () => LET.doc ? letSerie()[LET_GIORNI - 1].n : null;
+const letLiv = n => n >= LET_LIMITE * .85 ? 'bad' : n >= LET_LIMITE * .6 ? 'warn' : 'ok';
+const letFmt = n => Math.round(n).toLocaleString('it-IT');
+function letRitorno(){ // prossimo azzeramento in ora italiana
+  const now = new Date(); for (let h = 1; h <= 25; h++) { const t = new Date(Math.ceil(now.getTime() / 3600000) * 3600000 + (h - 1) * 3600000); if (letDay(t) !== letDay(now)) return t.toLocaleTimeString('it-IT', {hour: '2-digit', minute: '2-digit'}); } return '09:00';
+}
+function letGrafico(serie){
+  const W = 640, H = 220, L = 52, R = 12, T = 16, B = 34, pw = W - L - R, ph = H - T - B;
+  const max = Math.max(LET_LIMITE, ...serie.map(x => x.n)) * 1.05, y = v => T + ph - v / max * ph;
+  const bw = Math.min(56, pw / serie.length - 14), step = pw / serie.length;
+  const giorno = k => { const [a, m, d] = k.split('-').map(Number); return new Date(a, m - 1, d).toLocaleDateString('it-IT', {weekday: 'short', day: 'numeric'}); };
+  const ticks = [0, 10000, 20000, 30000, 40000, 50000].filter(v => v <= max);
+  let s = `<svg class="let-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Letture degli ultimi ${serie.length} giorni">`;
+  ticks.forEach(v => { s += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" class="let-grid"/><text x="${L - 8}" y="${y(v) + 4}" text-anchor="end" class="let-ax">${v ? v / 1000 + 'k' : '0'}</text>`; });
+  serie.forEach((x, i) => {
+    const cx = L + step * i + step / 2, h = Math.max(x.n ? 2 : 0, ph - (y(x.n) - T)), top = T + ph - h, r = Math.min(4, h / 2);
+    const tip = giorno(x.k) + ': ' + letFmt(x.n) + ' letture (' + Math.round(x.n / LET_LIMITE * 100) + '% del limite)';
+    s += `<g class="let-bar${x.oggi ? ' oggi' : ''} ${letLiv(x.n)}"><title>${esc(tip)}</title><rect x="${cx - step / 2}" y="${T}" width="${step}" height="${ph}" fill="transparent"/>`;
+    if (h > 0) s += `<path d="M${cx - bw / 2},${T + ph} V${top + r} Q${cx - bw / 2},${top} ${cx - bw / 2 + r},${top} H${cx + bw / 2 - r} Q${cx + bw / 2},${top} ${cx + bw / 2},${top + r} V${T + ph} Z"/>`;
+    s += `<text x="${cx}" y="${H - 12}" text-anchor="middle" class="let-ax${x.oggi ? ' b' : ''}">${esc(x.oggi ? 'oggi' : giorno(x.k))}</text></g>`;
+    if (x.oggi && x.n) s += `<text x="${cx}" y="${top - 6}" text-anchor="middle" class="let-val">${letFmt(x.n)}</text>`;
+  });
+  s += `<line x1="${L}" x2="${W - R}" y1="${y(LET_LIMITE)}" y2="${y(LET_LIMITE)}" class="let-lim"/><text x="${W - R}" y="${y(LET_LIMITE) - 6}" text-anchor="end" class="let-limt">limite gratuito 50.000</text>`;
+  return s + `<line x1="${L}" x2="${W - R}" y1="${T + ph}" y2="${T + ph}" class="let-base"/></svg>`;
+}
+function letPanel(){
+  if (!LET.doc) return `<section class="panel"><h2 class="panel-title">Letture dell’archivio</h2><p class="muted">Carico il conteggio…</p></section>`;
+  const serie = letSerie(), o = serie[serie.length - 1], pct = Math.round(o.n / LET_LIMITE * 100), lv = letLiv(o.n);
+  const media = Math.round(serie.slice(0, -1).reduce((a, x) => a + x.n, 0) / Math.max(1, serie.length - 1));
+  const per = Object.entries(o.per).filter(([k]) => k !== 'tot').sort((a, b) => b[1] - a[1]);
+  const msg = {ok: 'Tutto tranquillo', warn: 'Oltre metà del limite: evita oggi i controlli completi e le copie dati', bad: 'Vicino al limite: se si supera, l’app smette di leggere fino all’azzeramento'}[lv];
+  return `<section class="panel"><div class="split"><h2 class="panel-title" style="margin:0">Letture dell’archivio</h2><button class="btn small" data-act="ctl-let">Aggiorna</button></div>
+    <div class="let-head"><div class="let-big">${letFmt(o.n)}<small> / 50.000 oggi</small></div>
+      <div class="alert ${lv === 'ok' ? 'ok' : lv}" style="flex:1;min-width:240px"><div class="ico">${ic(lv === 'ok' ? 'check' : 'alert', 18)}</div><div class="msg"><b>${o.n && pct < 1 ? 'meno dell’1%' : pct + '%'} del limite</b> · ${esc(msg)}. Si azzera alle ${letRitorno()}.</div></div></div>
+    <div class="let-meter ${lv}" role="img" aria-label="${pct}% del limite giornaliero"><i style="width:${Math.min(100, pct)}%"></i></div>
+    ${letGrafico(serie)}
+    <p class="muted" style="margin:6px 0 0">Media degli ultimi ${serie.length - 1} giorni: ${letFmt(media)} al giorno.${per.length ? ' Oggi per dispositivo: ' + per.map(([k, n]) => esc(k) + ' ' + letFmt(n)).join(', ') + '.' : ''}</p>
+    <p class="muted" style="margin:4px 0 0;font-size:13px">È una stima contata sui computer e telefoni di titolare e ufficio (si aggiorna ogni 3 minuti); i telefoni dei lavoratori leggono poco e non sono contati. Il numero esatto è nella console Firebase → Firestore → Utilizzo.</p></section>`;
+}
+
 /* ---------- Controllo e pulizia (solo titolare): si lancia a mano, controlla funzioni e dati, corregge solo dove è sicuro ---------- */
 const CTL_KEY = 'effebi-controllo';
 let ctl = {busy: false, step: '', res: null, letture: 0, foto: false, fn: null, dev: null, open: {}, errOpen: false};
@@ -6027,7 +6124,7 @@ const ctlGg = n => { const d = new Date(); d.setDate(d.getDate() - n); return is
 const ctlLast = () => { try { return JSON.parse(localStorage.getItem(CTL_KEY) || 'null'); } catch(e){ return null; } };
 const ctlBytes = n => !n ? '0 KB' : n > 1048576 ? (n / 1048576).toFixed(1).replace('.', ',') + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
 function errList(){ try { return JSON.parse(localStorage.getItem(ERR_KEY) || '[]'); } catch(e){ return []; } }
-function ctlOpenView(){ ctl.fn = ctlFunzioni(); ctl.dev = null; ctlDevice().then(d => { ctl.dev = d; if (view === 'controllo') render(); }); }
+function ctlOpenView(){ letCarica(); ctl.fn = ctlFunzioni(); ctl.dev = null; ctlDevice().then(d => { ctl.dev = d; if (view === 'controllo') render(); }); }
 
 /* 1) Funzioni dell'app: prova a costruire le schermate e i documenti con i dati già caricati (nessuna lettura dall'archivio) */
 function ctlFunzioni(){
@@ -6073,7 +6170,7 @@ async function ctlSoloCampi(n){   // foto e firme: solo pochi campi, senza scari
     headers: {'Content-Type': 'application/json', Authorization: 'Bearer ' + tok},
     body: JSON.stringify({structuredQuery: {from: [{collectionId: n}], select: {fields: ['jobId', 'doc', 'creato', 'giorno'].map(f => ({fieldPath: f}))}}})});
   if (!r.ok) throw new Error('HTTP ' + r.status);
-  const arr = await r.json();
+  const arr = await r.json(); letConta(Math.max(1, arr.filter(x => x.document).length));
   return arr.filter(x => x.document).map(x => { const f = x.document.fields || {}, v = k => f[k] ? (f[k].stringValue !== undefined ? f[k].stringValue : '') : '';
     return {id: x.document.name.split('/').pop(), jobId: v('jobId'), doc: !!(f.doc && f.doc.booleanValue), creato: v('creato'), giorno: v('giorno')}; });
 }
@@ -6241,7 +6338,7 @@ async function ctlFix(cid){
 function viewControllo(){
   const L = {ok: ['ok', 'check', 'OK'], warn: ['warn', 'alert', 'Da guardare'], bad: ['bad', 'alert', 'Da sistemare'], info: ['ok', 'sparkles', 'Pulizia']};
   const fn = ctl.fn || [], fnKo = fn.filter(x => x.liv !== 'ok').length, last = ctlLast(), d = ctl.dev, errs = errList();
-  let h = `<div class="pagehead"><div><h2>Controllo e pulizia</h2><p class="sub">Lancialo quando vuoi: controlla che tutto funzioni e che i dati siano in ordine</p></div></div>`;
+  let h = `<div class="pagehead"><div><h2>Controllo e pulizia</h2><p class="sub">Lancialo quando vuoi: controlla che tutto funzioni e che i dati siano in ordine</p></div></div>` + letPanel();
   // funzioni
   h += `<section class="panel"><div class="split"><h2 class="panel-title" style="margin:0">Funzioni dell’app</h2><button class="btn small" data-act="ctl-fn">${ic('check', 16)}Riprova</button></div>
     <p class="muted" style="margin:6px 0 10px">${fnKo ? fnKo + ' funzioni con problemi' : 'Tutte le funzioni provate rispondono'} · prova fatta con i dati già caricati, senza letture dall’archivio.</p>
@@ -6276,6 +6373,7 @@ function viewControllo(){
 document.addEventListener('click', e => {
   const t = e.target.closest('[data-act^="ctl-"]'); if (!t || role !== 'titolare') return;
   const id = t.dataset.id, a = t.dataset.act;
+    if (a === 'ctl-let') { LET.doc = LET.doc || null; letCarica(); return; }
   if (a === 'ctl-run') ctlAvvia();
   else if (a === 'ctl-foto') { ctl.foto = t.checked; }
   else if (a === 'ctl-fn') { ctl.fn = ctlFunzioni(); render(); toast('Prova delle funzioni ripetuta.'); }

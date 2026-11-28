@@ -26,6 +26,8 @@ J('j8', {stato: 'fatto', data: day(50)});                   // mai mandato in pr
 J('j9', {data: day(0), cliente: 'Doppio', via: 'Via D'}); J('j10', {data: day(0), cliente: 'Doppio', via: 'Via D'}); // doppioni
 D['fatturazione/jGone'] = {id: 'jGone', importo: 50};       // fatturazione orfana (fix)
 D['materiali/m1'] = {id: 'm1', jobId: 'jGone2', qta: 1, descrizione: 'Fotocellula', aperto: true, annullato: false, pend: false, preFatturaId: 'pGone', rev: 0, creato: new Date().toISOString()};
+const pt = k => new Intl.DateTimeFormat('en-CA', {timeZone: 'America/Los_Angeles'}).format(new Date(Date.now() - k * 864e5));
+D['impostazioni/letture'] = {id: 'letture', giorni: {[pt(1)]: {tot: 12000}, [pt(2)]: {tot: 31000}, [pt(3)]: {tot: 44500}, [pt(5)]: {tot: 8000}, [pt(40)]: {tot: 999}}};
 let CH = null, seq = 0; const pend = new Map(), ev = [];
 const send = (method, params = {}) => new Promise(res => { const id = ++seq; pend.set(id, res); CH.send(JSON.stringify({id, method, params})); });
 const ev$ = async (expr) => { const r = await send('Runtime.evaluate', {expression: expr, awaitPromise: true, returnByValue: true}); if (r.exceptionDetails) throw new Error(JSON.stringify(r.exceptionDetails).slice(0, 400)); return r.result.value; };
@@ -50,6 +52,10 @@ const ev$ = async (expr) => { const r = await send('Runtime.evaluate', {expressi
   await ev$(`document.querySelector('#menu [data-view="controllo"]').click()`); await w(1200);
   const fn = await ev$(`[...document.querySelectorAll('.ctl-chip')].map(e=>e.className+' '+e.textContent)`);
   ok('prova funzioni: tutte OK', fn.length >= 8 && fn.every(x => / ok /.test(x)), JSON.stringify(fn));
+  const lt = await ev$(`document.getElementById('app').innerText`);
+  ok('pannello letture con grafico', /Letture dell’archivio/.test(lt) && /\/ 50.000 oggi/.test(lt) && await ev$(`document.querySelectorAll('.let-svg .let-bar').length`) === 7, lt.slice(0, 400));
+  ok('giorni vecchi ripuliti', await ev$(`!Object.keys(__mock.docs['impostazioni/letture'].giorni).includes('${pt(40)}')`));
+  ok('letture di oggi salvate nell’archivio', await ev$(`(__mock.docs['impostazioni/letture'].giorni['${pt(0)}']||{}).tot > 0`));
   ok('pannello dispositivo', /Copia locale/.test(await ev$(`document.getElementById('app').innerText`)));
   const r0 = await ev$(`__mock.reads`);
   await ev$(`document.querySelector('[data-act="ctl-run"]').click()`); await w(3500);
