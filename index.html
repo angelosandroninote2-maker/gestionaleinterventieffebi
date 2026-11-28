@@ -1590,13 +1590,14 @@ function renderMenu(){
     ['archivio', 'Finder', 'search', ''],
     ['controllo', 'Controllo', 'shieldcheck', (letOggi() || 0) >= LET_LIMITE * .6 ? `<span class="pill warn" title="Letture di oggi">${Math.round(letOggi() / LET_LIMITE * 100)}%</span>` : '', true]
   ];
-  $('#menu').innerHTML = items.filter(i => (canWrite || !i[4]) && (i[0] !== 'da_programmare' || canWrite) && (i[0] !== 'utenti' || role === 'titolare') && (i[0] !== 'controllo' || role === 'titolare')).map(i =>
+  $('#menu').innerHTML = items.filter(i => (canWrite || !i[4]) && (i[0] !== 'da_programmare' || canWrite) && (i[0] !== 'utenti' || role === 'titolare')).map(i =>
     `<button role="tab" data-act="go" data-view="${i[0]}" aria-selected="${view === i[0]}">${ic(i[2], 18)}${i[1]}${i[3]}</button>`).join('');
 }
 function render(){
   if (gateRender()) return;
   if (!canWrite && (view === 'carica' || view === 'anagrafica' || view === 'prefat' || view === 'magazzino' || view === 'manuali' || view === 'riparazioni' || view === 'centraline' || view === 'muletti')) view = 'panoramica';
-  if ((view === 'utenti' || view === 'controllo') && role !== 'titolare') view = 'panoramica';
+  if (view === 'utenti' && role !== 'titolare') view = 'panoramica';
+  if (view === 'controllo' && !canWrite) view = 'panoramica';
   if (view === 'da_programmare' && !canWrite) view = 'panoramica';
   renderMenu();
   if (view === 'carica') { if (mounted !== 'carica') { mountCarica(); mounted = 'carica'; } refreshCarica(); }
@@ -6063,9 +6064,9 @@ async function letCarica(){
   try {
     const s = await fb.getDoc(fb.doc(fb.db, 'impostazioni', 'letture'));
     LET.doc = s.exists() ? s.data() : {giorni: {}}; LET.quando = Date.now();
-    // tiene solo gli ultimi 35 giorni (una volta al giorno al massimo, la fa il titolare)
+    // tiene solo gli ultimi 35 giorni (pulizia al massimo una volta al giorno)
     const g = LET.doc.giorni || {}, lim = letDay(new Date(Date.now() - 35 * 864e5)), vecchi = Object.keys(g).filter(k => k < lim);
-    if (vecchi.length && role === 'titolare') { const ng = {}; Object.keys(g).filter(k => k >= lim).forEach(k => { ng[k] = g[k]; }); await fb.setDoc(fb.doc(fb.db, 'impostazioni', 'letture'), {id: 'letture', giorni: ng}); LET.doc.giorni = ng; }
+    if (vecchi.length) { const ng = {}; Object.keys(g).filter(k => k >= lim).forEach(k => { ng[k] = g[k]; }); await fb.setDoc(fb.doc(fb.db, 'impostazioni', 'letture'), {id: 'letture', giorni: ng}); LET.doc.giorni = ng; }
   } catch(e){ logErr('Letture: conteggio non leggibile (' + ((e && (e.code || e.message)) || e) + ')', 'letture'); }
   render();
 }
@@ -6136,7 +6137,7 @@ function ctlFunzioni(){
   t('Panoramica', () => { viewPanoramica(); });
   t('Assegna', () => { viewAssegna(); });
   t('Da programmare', () => { viewDaProgrammare(); });
-  t('Utenti', () => { viewUtenti(); });
+  if (role === 'titolare') t('Utenti', () => { viewUtenti(); });
   t('Manuali', () => { viewManuali(); });
   t('Motori', () => { viewRiparazioni(); });
   t('Centraline', () => { viewCentraline(); });
@@ -6175,9 +6176,9 @@ async function ctlSoloCampi(n){   // foto e firme: solo pochi campi, senza scari
     return {id: x.document.name.split('/').pop(), jobId: v('jobId'), doc: !!(f.doc && f.doc.booleanValue), creato: v('creato'), giorno: v('giorno')}; });
 }
 async function ctlAvvia(){
-  if (ctl.busy || !usingDb || role !== 'titolare') return;
+  if (ctl.busy || !usingDb || !canWrite) return;
   const col = n => fb.collection(fb.db, n);
-  const nomi = ['interventi', 'materiali', 'articoli', 'prefatture', 'utenti', 'lavoratori'].concat(ctl.foto ? ['foto', 'firme'] : []);
+  const nomi = ['interventi', 'materiali', 'articoli', 'prefatture', 'lavoratori'].concat(role === 'titolare' ? ['utenti'] : [], ctl.foto ? ['foto', 'firme'] : []);
   ctl.busy = true; ctl.step = 'Conto i documenti…'; render();
   const cnt = {};
   await Promise.all(nomi.map(async n => { try { cnt[n] = (await fb.getCountFromServer(col(n))).data().count; } catch(e){ cnt[n] = 0; } }));
@@ -6286,9 +6287,9 @@ function ctlAnalizza(D){
   }
 
   // --- utenti e lavoratori ---
-  add({id: 'utenti-lav', liv: 'bad', titolo: 'Account lavoratore collegati a un lavoratore inesistente', spiega: 'Chi entra con questi account non vede nessun intervento: collegali al lavoratore giusto in Utenti.',
+  if (D.utenti) add({id: 'utenti-lav', liv: 'bad', titolo: 'Account lavoratore collegati a un lavoratore inesistente', spiega: 'Chi entra con questi account non vede nessun intervento: collegali al lavoratore giusto in Utenti.',
     items: D.utenti.filter(u => u.ruolo === 'lavoratore' && (!u.workerId || !wIds.has(u.workerId))).map(u => ({t: u.email || u.id, s: 'Ruolo lavoratore', go: 'utenti'}))});
-  add({id: 'utenti-attesa', liv: 'info', titolo: 'Account in attesa di abilitazione', spiega: 'Si sono registrati ma non hanno ancora un ruolo.',
+  if (D.utenti) add({id: 'utenti-attesa', liv: 'info', titolo: 'Account in attesa di abilitazione', spiega: 'Si sono registrati ma non hanno ancora un ruolo.',
     items: D.utenti.filter(u => !u.ruolo).map(u => ({t: u.email || u.id, s: u.creato ? 'Registrato il ' + dmy(u.creato) : '', go: 'utenti'}))});
   add({id: 'lav-tel', liv: 'info', titolo: 'Lavoratori attivi senza numero di telefono', spiega: 'Senza numero non si può mandare la giornata su WhatsApp.',
     items: W.filter(w => isActive(w) && !String(w.telefono || '').trim()).map(w => ({t: w.nome || w.id, s: '', go: 'lavoratori'}))});
@@ -6309,9 +6310,9 @@ function ctlAnalizza(D){
   if (D.foto) add({id: 'foto-orfane', liv: 'info', titolo: 'Foto e documenti di interventi cancellati', spiega: 'Occupano spazio nell’archivio e non si vedono più da nessuna parte. L’eliminazione è definitiva.',
     items: D.foto.filter(f => f.jobId && !ids.has(f.jobId)).map(f => ({t: f.doc ? 'Documento' : 'Foto', s: (f.giorno ? dmy(f.giorno) : '') + ' · intervento ' + f.jobId, fix: ['del', 'foto', f.id]})),
     fix: {label: 'Elimina definitivamente', conferma: 'Elimino DEFINITIVAMENTE {n} foto/documenti di interventi cancellati. Non si possono recuperare. Continuare?'}});
-  if (D.firme) add({id: 'firme-orfane', liv: 'info', titolo: 'Firme di interventi cancellati', spiega: 'Firme rimaste senza intervento. L’eliminazione è definitiva.',
-    items: D.firme.filter(f => !ids.has(f.jobId || f.id)).map(f => ({t: 'Firma', s: (f.giorno ? dmy(f.giorno) : '') + ' · intervento ' + (f.jobId || f.id), fix: ['del', 'firme', f.id]})),
-    fix: {label: 'Elimina definitivamente', conferma: 'Elimino DEFINITIVAMENTE {n} firme di interventi cancellati. Continuare?'}});
+  if (D.firme) add({id: 'firme-orfane', liv: 'info', titolo: 'Firme di interventi cancellati', spiega: role === 'titolare' ? 'Firme rimaste senza intervento. L’eliminazione è definitiva.' : 'Firme rimaste senza intervento. Può eliminarle solo il titolare.',
+    items: D.firme.filter(f => !ids.has(f.jobId || f.id)).map(f => ({t: 'Firma', s: (f.giorno ? dmy(f.giorno) : '') + ' · intervento ' + (f.jobId || f.id), fix: role === 'titolare' ? ['del', 'firme', f.id] : null})),
+    fix: role !== 'titolare' ? null : {label: 'Elimina definitivamente', conferma: 'Elimino DEFINITIVAMENTE {n} firme di interventi cancellati. Continuare?'}});
   if (ctl.foto && (!D.foto || !D.firme)) R.push({id: 'foto-ko', liv: 'info', titolo: 'Foto e firme non controllate', spiega: 'Non sono riuscito a leggerle (vedi errori registrati qui sopra).', items: []});
 
   const ord = {bad: 0, warn: 1, info: 2};
@@ -6371,7 +6372,7 @@ function viewControllo(){
   return h;
 }
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-act^="ctl-"]'); if (!t || role !== 'titolare') return;
+  const t = e.target.closest('[data-act^="ctl-"]'); if (!t || !canWrite) return;
   const id = t.dataset.id, a = t.dataset.act;
     if (a === 'ctl-let') { LET.doc = LET.doc || null; letCarica(); return; }
   if (a === 'ctl-run') ctlAvvia();

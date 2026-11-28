@@ -7,7 +7,8 @@ const {APP, AUTH, FS} = require('./mock-firebase.js');
 const w = ms => new Promise(r => setTimeout(r, ms)); let fails = 0;
 const ok = (n, c, extra) => { console.log(c ? 'PASS' : 'FAIL', n, c ? '' : (extra || '')); if (!c) fails++; };
 const pad = n => String(n).padStart(2, '0'); const day = k => { const d = new Date(Date.now() - k * 864e5); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
-const D = {'utenti/u1': {email: 't@esempio.it', ruolo: 'titolare'}, 'utenti/u2': {email: 'lav@esempio.it', ruolo: 'lavoratore', workerId: 'wX'}, 'utenti/u3': {email: 'nuovo@esempio.it', ruolo: ''},
+const RUOLO = process.env.RUOLO || 'titolare';
+const D = {'utenti/u1': {email: 't@esempio.it', ruolo: RUOLO}, 'utenti/u2': {email: 'lav@esempio.it', ruolo: 'lavoratore', workerId: 'wX'}, 'utenti/u3': {email: 'nuovo@esempio.it', ruolo: ''},
   'lavoratori/w1': {id: 'w1', nome: 'Mario Rossi', attivo: true, telefono: '3331234567'}, 'lavoratori/w2': {id: 'w2', nome: 'Luca Bianchi', attivo: false}, 'lavoratori/w3': {id: 'w3', nome: 'Gino', attivo: true},
   'impostazioni/azienda': {id: 'azienda', ragione: 'Effebi'},
   'clienti/c1': {id: 'c1', tipo: 'privato', nome: 'Anna', cognome: 'Ricci', via: 'Via Roma 1'}, 'clienti/c2': {id: 'c2', tipo: 'privato', nome: 'Anna', cognome: 'Ricci', via: 'via roma 1'},
@@ -48,7 +49,7 @@ const ev$ = async (expr) => { const r = await send('Runtime.evaluate', {expressi
   await send('Fetch.enable', {patterns: [{urlPattern: '*'}]});
   await send('Page.addScriptToEvaluateOnNewDocument', {source: `window.__mock={docs:${JSON.stringify(D)},user:{uid:'u1',email:'t@esempio.it'}};`});
   await send('Page.navigate', {url}); await w(3000);
-  ok('voce Controllo nel menu del titolare', await ev$(`!!document.querySelector('#menu [data-view="controllo"]')`));
+  ok('voce Controllo nel menu (' + RUOLO + ')', await ev$(`!!document.querySelector('#menu [data-view="controllo"]')`));
   await ev$(`document.querySelector('#menu [data-view="controllo"]').click()`); await w(1200);
   const fn = await ev$(`[...document.querySelectorAll('.ctl-chip')].map(e=>e.className+' '+e.textContent)`);
   ok('prova funzioni: tutte OK', fn.length >= 8 && fn.every(x => / ok /.test(x)), JSON.stringify(fn));
@@ -63,8 +64,8 @@ const ev$ = async (expr) => { const r = await send('Runtime.evaluate', {expressi
   const txt = await ev$(`document.getElementById('app').innerText`);
   const has = t => txt.includes(t);
   ['rimasti aperti da più di 7 giorni', '«In corso» di giorni passati', 'lavoratore che non esiste più', 'lavoratori disattivati', 'cliente cancellato', 'Valori scritti in modo non standard',
-   'pre-fattura che non esiste più', 'mai mandati in pre-fatturazione', 'Possibili interventi doppi', 'Importi di interventi già cancellati', 'Clienti doppi', 'Account lavoratore collegati',
-   'Account in attesa', 'senza numero di telefono', 'giacenza negativa', 'Stesso codice a barre', 'Materiale aperto di interventi cancellati', 'Materiale legato a una pre-fattura'].forEach(t => ok('trovato: ' + t, has(t)));
+   'pre-fattura che non esiste più', 'mai mandati in pre-fatturazione', 'Possibili interventi doppi', 'Importi di interventi già cancellati', 'Clienti doppi', 'senza numero di telefono', 'giacenza negativa', 'Stesso codice a barre', 'Materiale aperto di interventi cancellati', 'Materiale legato a una pre-fattura'].concat(RUOLO === 'titolare' ? ['Account lavoratore collegati', 'Account in attesa'] : []).forEach(t => ok('trovato: ' + t, has(t)));
+  if (RUOLO !== 'titolare') ok('ufficio: niente sezione account (le regole non lo permettono)', !has('Account in attesa'));
   if (process.env.SHOT) { await send('Emulation.setDeviceMetricsOverride', {width: 1366, height: 2600, deviceScaleFactor: 1, mobile: false}); await w(400); fs.writeFileSync(process.env.SHOT, Buffer.from((await send('Page.captureScreenshot', {format: 'png'})).data, 'base64')); await send('Emulation.clearDeviceMetricsOverride'); }
   console.log('  letture del controllo:', (await ev$(`__mock.reads`)) - r0);
   ok('niente è cambiato senza conferma', await ev$(`__mock.docs['interventi/j3'].workerId === 'wZ'`));
